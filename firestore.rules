@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function: Check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    // Helper function: Check if user is teacher
+    function isTeacher() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // Helper function: Check if user is student
+    function isStudent() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    // Helper function: Check if user is approved teacher
+    function isApprovedTeacher() {
+      return isTeacher() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read user documents
+      allow read: if isAuthenticated();
+
+      // Users can create their own document during registration
+      // OR approved teachers can create student accounts (batch creation)
+      allow create: if isAuthenticated() &&
+                       ((request.auth.uid == userId && request.resource.data.uid == userId) ||
+                        (isApprovedTeacher() && request.resource.data.role == 'student'));
+
+      // Users can update their own document OR super admin can update any
+      // OR approved teachers can update student classCode (for class operations)
+      allow update: if isAuthenticated() &&
+                       (request.auth.uid == userId ||
+                        isSuperAdmin() ||
+                        (isApprovedTeacher() &&
+                         resource.data.role == 'student' &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved', 'uid', 'email']))));
+
+      // Only super admin can delete users
+      allow delete: if isSuperAdmin();
+    }
+
+    // Classes collection
+    match /classes/{classCode} {
+      // Anyone authenticated can read classes
+      allow read: if isAuthenticated();
+
+      // Only approved teachers can create classes
+      allow create: if isApprovedTeacher() &&
+                       request.resource.data.teacherId == request.auth.uid &&
+                       request.resource.data.students.size() == 0 &&
+                       request.resource.data.maxStudents == 40;
+
+      // Only the teacher who owns the class or super admin can update
+      allow update: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        isStudent()); // Students can join classes
+
+      // Only the teacher who owns the class or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin());
+    }
+
+    // Writings collection
+    match /writings/{writingId} {
+      // Anyone authenticated can read writings
+      allow read: if isAuthenticated();
+
+      // Only students can create writings (for themselves)
+      allow create: if isStudent() &&
+                       request.resource.data.studentId == request.auth.uid;
+
+      // Only the student who wrote it can update
+      allow update: if isStudent() &&
+                       resource.data.studentId == request.auth.uid;
+
+      // Student, their teacher, or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        isTeacher());
+    }
+
+    // Student stats collection
+    match /studentStats/{studentId} {
+      // Anyone authenticated can read stats
+      allow read: if isAuthenticated();
+
+      // Only the student themselves or system can write stats
+      allow write: if isAuthenticated() &&
+                      (request.auth.uid == studentId ||
+                       isSuperAdmin());
+    }
+
+    // Assignments collection
+    match /assignments/{assignmentId} {
+      // Anyone authenticated can read assignments
+      allow read: if isAuthenticated();
+
+      // Only approved teachers can create assignments
+      allow create: if isApprovedTeacher();
+
+      // Only the teacher who created it or super admin can update/delete
+      allow update, delete: if isAuthenticated() &&
+                               (resource.data.teacherId == request.auth.uid ||
+                                isSuperAdmin());
+    }
+
+    // Assignment submissions collection
+    match /submissions/{submissionId} {
+      // Anyone authenticated can read submissions
+      allow read: if isAuthenticated();
+
+      // Only students can create submissions (for themselves)
+      allow create: if isStudent() &&
+                       request.resource.data.studentId == request.auth.uid;
+
+      // Only the student who submitted or their teacher can update
+      allow update: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isApprovedTeacher() ||
+                        isSuperAdmin());
+
+      // Student, their teacher, or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isApprovedTeacher() ||
+                        isSuperAdmin());
+    }
+  }
+}
