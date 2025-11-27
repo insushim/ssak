@@ -1,17 +1,292 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useDebounce } from "use-debounce";
 import Confetti from "react-confetti";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { signOut } from "../services/authService";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
+import { signOut, updateUserData } from "../services/authService";
 import { joinClass, getClassByCode } from "../services/classService";
 import {
   saveWriting,
   getStudentWritings,
   submitWriting,
-  getStudentStats
+  getStudentStats,
+  getFriendWritings,
+  saveDraftByTopic,
+  getDraftByTopic,
+  deleteDraft
 } from "../services/writingService";
-import { recommendedTopics } from "../data/recommendedTopics";
-import { WORD_COUNT_STANDARDS, PASSING_SCORE, GRADE_LEVELS } from "../config/auth";
+import { getAssignmentsByClass } from "../services/assignmentService";
+import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
+import { WORD_COUNT_STANDARDS, PASSING_SCORE, GRADE_LEVELS, getAdjustedWordCount } from "../config/auth";
+import { FaceSVG, AnimalFaceSVG, HairSVG, ClothesSVG, AccessorySVG, BackgroundSVG } from "../components/AvatarSVG";
+import { FurnitureSVG, ElectronicsSVG, VehicleSVG, PetSVG, DecorationSVG } from "../components/RoomSVG";
+import { LEVELS, getLevelInfo, getNextLevelInfo, ACHIEVEMENTS, checkAchievements, WRITING_TEMPLATES } from "../config/levels";
+
+// 아바타 아이템 정의 (SVG 실사 스타일 지원)
+const AVATAR_ITEMS = {
+  // 캐릭터 얼굴 - SVG 실사 스타일 (사람/동물/이모지)
+  faces: [
+    // 남자 캐릭터
+    { id: 'face1', emoji: '👦', name: '남자 (기본)', price: 0, svgType: 'human', expression: 'happy', skinColor: '#FFD5B8', gender: 'male' },
+    { id: 'face2', emoji: '😎', name: '남자 (멋쟁이)', price: 50, svgType: 'human', expression: 'cool', skinColor: '#FFD5B8', gender: 'male' },
+    { id: 'face3', emoji: '🤓', name: '남자 (똑똑이)', price: 50, svgType: 'human', expression: 'smart', skinColor: '#FFD5B8', gender: 'male' },
+    // 여자 캐릭터
+    { id: 'face4', emoji: '👧', name: '여자 (기본)', price: 0, svgType: 'human', expression: 'happy', skinColor: '#FFE4D6', gender: 'female' },
+    { id: 'face5', emoji: '😊', name: '여자 (상냥)', price: 50, svgType: 'human', expression: 'angel', skinColor: '#FFE4D6', gender: 'female' },
+    { id: 'face6', emoji: '🥰', name: '여자 (사랑스러운)', price: 80, svgType: 'human', expression: 'happy', skinColor: '#FFF0E6', gender: 'female' },
+    // 피부색 변형
+    { id: 'face7', emoji: '👶', name: '아기 얼굴', price: 100, svgType: 'human', expression: 'surprised', skinColor: '#FFE4D6', gender: 'neutral' },
+    { id: 'face8', emoji: '😇', name: '천사', price: 100, svgType: 'human', expression: 'angel', skinColor: '#FFF0E6', gender: 'neutral' },
+    // 동물 캐릭터 (헤어/의상 적용 안됨)
+    { id: 'face10', emoji: '🦊', name: '여우', price: 100, svgType: 'animal', animalType: 'fox' },
+    { id: 'face11', emoji: '🐰', name: '토끼', price: 100, svgType: 'animal', animalType: 'rabbit' },
+    { id: 'face12', emoji: '🐻', name: '곰돌이', price: 150, svgType: 'animal', animalType: 'bear' },
+    { id: 'face13', emoji: '🦁', name: '사자왕', price: 200, svgType: 'animal', animalType: 'lion' },
+    { id: 'face14', emoji: '🐱', name: '고양이', price: 80, svgType: 'animal', animalType: 'cat' },
+    { id: 'face15', emoji: '🐶', name: '강아지', price: 80, svgType: 'animal', animalType: 'dog' },
+    { id: 'face16', emoji: '🐼', name: '판다', price: 150, svgType: 'animal', animalType: 'panda' },
+    { id: 'face17', emoji: '🐯', name: '호랑이', price: 180, svgType: 'animal', animalType: 'tiger' },
+    // 이모지 캐릭터 (헤어/의상 적용 안됨)
+    { id: 'face20', emoji: '🦋', name: '나비', price: 200, svgType: 'emoji' },
+    { id: 'face21', emoji: '🐸', name: '개구리', price: 120, svgType: 'emoji' },
+    { id: 'face22', emoji: '🦢', name: '백조', price: 220, svgType: 'emoji' },
+    { id: 'face23', emoji: '🐠', name: '열대어', price: 180, svgType: 'emoji' },
+    { id: 'face24', emoji: '🦈', name: '상어', price: 320, svgType: 'emoji' },
+    { id: 'face25', emoji: '🐙', name: '문어', price: 250, svgType: 'emoji' },
+    // 스페셜 캐릭터
+    { id: 'face30', emoji: '🐲', name: '용', price: 300, svgType: 'animal', animalType: 'dragon', special: true },
+    { id: 'face31', emoji: '🦄', name: '유니콘', price: 500, svgType: 'animal', animalType: 'unicorn', special: true },
+    { id: 'face32', emoji: '👻', name: '유령', price: 400, svgType: 'emoji', special: true },
+    { id: 'face33', emoji: '👽', name: '외계인', price: 600, svgType: 'emoji', special: true },
+    { id: 'face34', emoji: '🤖', name: '로봇', price: 800, svgType: 'emoji', special: true },
+    { id: 'face35', emoji: '🎃', name: '호박', price: 450, svgType: 'emoji', special: true }
+  ],
+  // 머리 스타일 (확장) - svgStyle 추가
+  hair: [
+    { id: 'hair1', emoji: '👤', name: '기본', price: 0, svgStyle: 'default' },
+    { id: 'hair2', emoji: '💇', name: '단발', price: 30, svgStyle: 'short' },
+    { id: 'hair3', emoji: '💇‍♀️', name: '긴머리', price: 30, svgStyle: 'long' },
+    { id: 'hair4', emoji: '👨‍🦱', name: '곱슬머리', price: 50, svgStyle: 'curly' },
+    { id: 'hair5', emoji: '👩‍🦰', name: '웨이브', price: 50, svgStyle: 'curly' },
+    { id: 'hair6', emoji: '👨‍🦲', name: '스포츠컷', price: 40, svgStyle: 'short' },
+    { id: 'hair7', emoji: '🧑‍🦳', name: '은발', price: 100, svgStyle: 'default' },
+    { id: 'hair8', emoji: '👸', name: '공주머리', price: 150, svgStyle: 'princess' },
+    { id: 'hair9', emoji: '🦸', name: '히어로컷', price: 200, svgStyle: 'spiky' },
+    { id: 'hair10', emoji: '🧝', name: '엘프머리', price: 300, svgStyle: 'long' },
+    { id: 'hair11', emoji: '👩‍🎤', name: '락스타', price: 180, svgStyle: 'spiky' },
+    { id: 'hair12', emoji: '🧑‍🎄', name: '산타머리', price: 250, special: true, svgStyle: 'short' },
+    { id: 'hair13', emoji: '🧜', name: '인어머리', price: 350, special: true, svgStyle: 'long' },
+    { id: 'hair14', emoji: '🎎', name: '전통머리', price: 200, svgStyle: 'bun' },
+    { id: 'hair15', emoji: '👩‍🚀', name: '우주비행사', price: 400, special: true, svgStyle: 'short' }
+  ],
+  // 머리 색상
+  hairColor: [
+    { id: 'hc1', color: '#1a1a1a', name: '검정', price: 0 },
+    { id: 'hc2', color: '#4a3728', name: '갈색', price: 20 },
+    { id: 'hc3', color: '#ffd700', name: '금발', price: 50 },
+    { id: 'hc4', color: '#ff6b6b', name: '빨강', price: 80 },
+    { id: 'hc5', color: '#4ecdc4', name: '민트', price: 100 },
+    { id: 'hc6', color: '#a855f7', name: '보라', price: 100 },
+    { id: 'hc7', color: '#3b82f6', name: '파랑', price: 100 },
+    { id: 'hc8', color: '#ec4899', name: '핑크', price: 120 },
+    { id: 'hc9', color: 'linear-gradient(90deg, #ff6b6b, #4ecdc4)', name: '그라데이션', price: 200 },
+    { id: 'hc10', color: 'linear-gradient(90deg, #a855f7, #ec4899, #3b82f6)', name: '레인보우', price: 500 }
+  ],
+  // 옷/의상 (확장) - svgType과 color 추가
+  clothes: [
+    { id: 'cloth1', emoji: '👕', name: '기본 티셔츠', price: 0, svgType: 'tshirt', color: '#4A90D9' },
+    { id: 'cloth2', emoji: '👔', name: '셔츠', price: 50, svgType: 'shirt', color: '#FFFFFF' },
+    { id: 'cloth3', emoji: '🎽', name: '운동복', price: 40, svgType: 'tshirt', color: '#FF6B6B' },
+    { id: 'cloth4', emoji: '👗', name: '원피스', price: 80, svgType: 'dress', color: '#FF69B4' },
+    { id: 'cloth5', emoji: '🧥', name: '코트', price: 100, svgType: 'hoodie', color: '#8B4513' },
+    { id: 'cloth6', emoji: '🥋', name: '도복', price: 120, svgType: 'tshirt', color: '#FFFFFF' },
+    { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'hanbok', color: '#E91E63' },
+    { id: 'cloth8', emoji: '🦸', name: '히어로 슈트', price: 300, svgType: 'suit', color: '#1E3A8A' },
+    { id: 'cloth9', emoji: '👑', name: '왕족 의상', price: 500, svgType: 'dress', color: '#FFD700' },
+    { id: 'cloth10', emoji: '🧙', name: '마법사 로브', price: 400, svgType: 'hoodie', color: '#4B0082' },
+    { id: 'cloth11', emoji: '🎅', name: '산타복', price: 150, svgType: 'hoodie', color: '#DC2626' },
+    { id: 'cloth12', emoji: '🤵', name: '턱시도', price: 250, svgType: 'suit', color: '#1a1a1a' },
+    { id: 'cloth13', emoji: '👩‍🎤', name: '록스타 재킷', price: 220, svgType: 'hoodie', color: '#1a1a1a' },
+    { id: 'cloth14', emoji: '🥷', name: '닌자복', price: 280, svgType: 'tshirt', color: '#1a1a1a' },
+    { id: 'cloth15', emoji: '👨‍🚀', name: '우주복', price: 450, special: true, svgType: 'tshirt', color: '#F5F5F5' },
+    { id: 'cloth16', emoji: '🧛', name: '뱀파이어 망토', price: 350, special: true, svgType: 'hoodie', color: '#800020' },
+    { id: 'cloth17', emoji: '🧚', name: '요정 드레스', price: 380, special: true, svgType: 'dress', color: '#98FB98' },
+    { id: 'cloth18', emoji: '🎭', name: '오페라 의상', price: 320, svgType: 'dress', color: '#8B0000' },
+    { id: 'cloth19', emoji: '🏴‍☠️', name: '해적 의상', price: 270, svgType: 'shirt', color: '#654321' },
+    { id: 'cloth20', emoji: '⚔️', name: '기사 갑옷', price: 550, special: true, svgType: 'armor', color: '#C0C0C0' }
+  ],
+  // 소품/악세서리 (확장) - svgType 추가
+  accessories: [
+    { id: 'acc1', emoji: '❌', name: '없음', price: 0, svgType: 'none' },
+    { id: 'acc2', emoji: '👓', name: '안경', price: 30, svgType: 'glasses' },
+    { id: 'acc3', emoji: '🕶️', name: '선글라스', price: 50, svgType: 'sunglasses' },
+    { id: 'acc4', emoji: '🎀', name: '리본', price: 40, svgType: 'bow' },
+    { id: 'acc5', emoji: '🎩', name: '모자', price: 60, svgType: 'hat' },
+    { id: 'acc6', emoji: '👒', name: '밀짚모자', price: 70, svgType: 'hat' },
+    { id: 'acc7', emoji: '🧢', name: '캡모자', price: 50, svgType: 'hat' },
+    { id: 'acc8', emoji: '💍', name: '반지', price: 100, svgType: 'none' },
+    { id: 'acc9', emoji: '📿', name: '목걸이', price: 80, svgType: 'none' },
+    { id: 'acc10', emoji: '👑', name: '왕관', price: 300, svgType: 'crown' },
+    { id: 'acc11', emoji: '🎭', name: '마스크', price: 150, svgType: 'none' },
+    { id: 'acc12', emoji: '🦋', name: '나비장식', price: 120, svgType: 'bow' },
+    { id: 'acc13', emoji: '⭐', name: '별장식', price: 100, svgType: 'none' },
+    { id: 'acc14', emoji: '🌸', name: '꽃장식', price: 90, svgType: 'bow' },
+    { id: 'acc15', emoji: '🎧', name: '헤드폰', price: 80, svgType: 'headphones' },
+    { id: 'acc16', emoji: '🦴', name: '뼈다귀', price: 60, svgType: 'none' },
+    { id: 'acc17', emoji: '🔮', name: '수정구슬', price: 200, special: true, svgType: 'wand' },
+    { id: 'acc18', emoji: '🗡️', name: '검', price: 250, special: true, svgType: 'none' },
+    { id: 'acc19', emoji: '🏹', name: '활', price: 220, svgType: 'none' },
+    { id: 'acc20', emoji: '🪄', name: '마법 지팡이', price: 350, special: true, svgType: 'wand' },
+    { id: 'acc21', emoji: '🎸', name: '기타', price: 180, svgType: 'none' },
+    { id: 'acc22', emoji: '🎺', name: '트럼펫', price: 160, svgType: 'none' },
+    { id: 'acc23', emoji: '🎨', name: '팔레트', price: 140, svgType: 'none' },
+    { id: 'acc24', emoji: '📷', name: '카메라', price: 130, svgType: 'none' },
+    { id: 'acc25', emoji: '🎤', name: '마이크', price: 110, svgType: 'none' },
+    { id: 'acc26', emoji: '🌟', name: '빛나는 별', price: 400, special: true, svgType: 'none' },
+    { id: 'acc27', emoji: '💫', name: '유성', price: 500, special: true, svgType: 'none' },
+    { id: 'acc28', emoji: '🌙', name: '달', price: 450, special: true, svgType: 'none' }
+  ],
+  // 배경 (확장)
+  backgrounds: [
+    { id: 'bg1', color: 'from-gray-100 to-gray-200', name: '기본', price: 0 },
+    { id: 'bg2', color: 'from-blue-100 to-blue-200', name: '하늘', price: 30 },
+    { id: 'bg3', color: 'from-green-100 to-green-200', name: '숲', price: 30 },
+    { id: 'bg4', color: 'from-pink-100 to-pink-200', name: '벚꽃', price: 50 },
+    { id: 'bg5', color: 'from-purple-100 to-purple-200', name: '보라', price: 50 },
+    { id: 'bg6', color: 'from-yellow-100 to-orange-200', name: '노을', price: 80 },
+    { id: 'bg7', color: 'from-cyan-200 to-blue-300', name: '바다', price: 100 },
+    { id: 'bg8', color: 'from-indigo-200 to-purple-300', name: '우주', price: 150 },
+    { id: 'bg9', color: 'from-amber-200 via-yellow-200 to-amber-300', name: '황금', price: 200 },
+    { id: 'bg10', color: 'from-rose-200 via-pink-200 to-fuchsia-200', name: '무지개', price: 300 },
+    { id: 'bg11', color: 'from-slate-800 via-slate-700 to-slate-900', name: '밤하늘', price: 180 },
+    { id: 'bg12', color: 'from-emerald-300 via-teal-200 to-cyan-300', name: '오로라', price: 250, special: true },
+    { id: 'bg13', color: 'from-red-400 via-orange-300 to-yellow-300', name: '불꽃', price: 220, special: true },
+    { id: 'bg14', color: 'from-violet-400 via-purple-300 to-fuchsia-400', name: '은하수', price: 350, special: true },
+    { id: 'bg15', color: 'from-rose-300 via-red-200 to-pink-300', name: '러브', price: 150 }
+  ],
+  // 테두리 (확장)
+  frames: [
+    { id: 'frame1', style: 'ring-2 ring-gray-300', name: '없음', price: 0 },
+    { id: 'frame2', style: 'ring-4 ring-blue-400', name: '파랑', price: 40 },
+    { id: 'frame3', style: 'ring-4 ring-emerald-400', name: '초록', price: 40 },
+    { id: 'frame4', style: 'ring-4 ring-purple-400', name: '보라', price: 60 },
+    { id: 'frame5', style: 'ring-4 ring-amber-400', name: '금색', price: 100 },
+    { id: 'frame6', style: 'ring-4 ring-rose-400 ring-offset-2', name: '로즈', price: 120 },
+    { id: 'frame7', style: 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-cyan-100', name: '빛나는', price: 150 },
+    { id: 'frame8', style: 'ring-[6px] ring-amber-500 shadow-lg shadow-amber-300', name: '황금빛', price: 200 },
+    { id: 'frame9', style: 'ring-4 ring-pink-500 ring-offset-4 ring-offset-pink-100', name: '핑크하트', price: 180 },
+    { id: 'frame10', style: 'ring-[6px] ring-gradient-to-r from-purple-500 to-pink-500', name: '그라데이션', price: 280, special: true },
+    { id: 'frame11', style: 'ring-4 ring-slate-600 ring-offset-2 shadow-xl', name: '다크', price: 160 },
+    { id: 'frame12', style: 'ring-[8px] ring-amber-400 ring-offset-4 ring-offset-amber-100 shadow-2xl shadow-amber-400', name: '레전더리', price: 500, special: true }
+  ]
+};
+
+// 마이룸 아이템 (집 꾸미기)
+const ROOM_ITEMS = {
+  // 가구
+  furniture: [
+    { id: 'furn1', emoji: '🛋️', name: '기본 소파', price: 0 },
+    { id: 'furn2', emoji: '🛏️', name: '침대', price: 100 },
+    { id: 'furn3', emoji: '🪑', name: '의자', price: 50 },
+    { id: 'furn4', emoji: '🗄️', name: '서랍장', price: 80 },
+    { id: 'furn5', emoji: '📚', name: '책장', price: 120 },
+    { id: 'furn6', emoji: '🖥️', name: '컴퓨터 책상', price: 200 },
+    { id: 'furn7', emoji: '🎮', name: '게임 의자', price: 300 },
+    { id: 'furn8', emoji: '🛋️', name: '럭셔리 소파', price: 500 },
+    { id: 'furn9', emoji: '🏰', name: '캐노피 침대', price: 800 },
+    { id: 'furn10', emoji: '👑', name: '왕좌', price: 1500 }
+  ],
+  // 가전제품
+  electronics: [
+    { id: 'elec1', emoji: '📺', name: '기본 TV', price: 0 },
+    { id: 'elec2', emoji: '🖥️', name: '모니터', price: 100 },
+    { id: 'elec3', emoji: '🎮', name: '게임기', price: 200 },
+    { id: 'elec4', emoji: '🔊', name: '스피커', price: 150 },
+    { id: 'elec5', emoji: '❄️', name: '에어컨', price: 300 },
+    { id: 'elec6', emoji: '📺', name: '대형 TV', price: 500 },
+    { id: 'elec7', emoji: '🎬', name: '홈시어터', price: 800 },
+    { id: 'elec8', emoji: '🤖', name: 'AI 로봇', price: 1000 },
+    { id: 'elec9', emoji: '🕹️', name: 'VR 장비', price: 1200 }
+  ],
+  // 차량
+  vehicles: [
+    { id: 'car1', emoji: '🚗', name: '기본 자동차', price: 500 },
+    { id: 'car2', emoji: '🚙', name: 'SUV', price: 800 },
+    { id: 'car3', emoji: '🏎️', name: '스포츠카', price: 1500 },
+    { id: 'car4', emoji: '🚐', name: '캠핑카', price: 1200 },
+    { id: 'car5', emoji: '🏍️', name: '오토바이', price: 600 },
+    { id: 'car6', emoji: '🚁', name: '헬리콥터', price: 3000 },
+    { id: 'car7', emoji: '🛥️', name: '요트', price: 2500 },
+    { id: 'car8', emoji: '✈️', name: '전용기', price: 5000 },
+    { id: 'car9', emoji: '🚀', name: '우주선', price: 10000 }
+  ],
+  // 펫
+  pets: [
+    { id: 'pet1', emoji: '🐕', name: '강아지', price: 200 },
+    { id: 'pet2', emoji: '🐈', name: '고양이', price: 200 },
+    { id: 'pet3', emoji: '🐹', name: '햄스터', price: 100 },
+    { id: 'pet4', emoji: '🐰', name: '토끼', price: 150 },
+    { id: 'pet5', emoji: '🦜', name: '앵무새', price: 250 },
+    { id: 'pet6', emoji: '🐠', name: '열대어', price: 100 },
+    { id: 'pet7', emoji: '🦊', name: '여우', price: 500 },
+    { id: 'pet8', emoji: '🦄', name: '유니콘', price: 2000 },
+    { id: 'pet9', emoji: '🐉', name: '드래곤', price: 5000 },
+    { id: 'pet10', emoji: '🦅', name: '독수리', price: 800 }
+  ],
+  // 인테리어/벽지
+  wallpaper: [
+    { id: 'wall1', color: 'from-white to-gray-100', name: '기본', price: 0 },
+    { id: 'wall2', color: 'from-blue-50 to-blue-100', name: '하늘색', price: 50 },
+    { id: 'wall3', color: 'from-pink-50 to-pink-100', name: '핑크', price: 50 },
+    { id: 'wall4', color: 'from-green-50 to-green-100', name: '민트', price: 50 },
+    { id: 'wall5', color: 'from-amber-50 to-amber-100', name: '크림', price: 60 },
+    { id: 'wall6', color: 'from-purple-100 to-indigo-200', name: '우주', price: 150 },
+    { id: 'wall7', color: 'from-rose-100 via-pink-100 to-purple-100', name: '오로라', price: 200 },
+    { id: 'wall8', color: 'from-amber-200 via-yellow-100 to-amber-200', name: '황금', price: 300 }
+  ],
+  // 장식품
+  decorations: [
+    { id: 'deco1', emoji: '🖼️', name: '그림', price: 50 },
+    { id: 'deco2', emoji: '🪴', name: '화분', price: 30 },
+    { id: 'deco3', emoji: '🏆', name: '트로피', price: 100 },
+    { id: 'deco4', emoji: '🎪', name: '텐트', price: 150 },
+    { id: 'deco5', emoji: '🎄', name: '크리스마스 트리', price: 200 },
+    { id: 'deco6', emoji: '⛲', name: '분수대', price: 500 },
+    { id: 'deco7', emoji: '🗽', name: '조각상', price: 400 },
+    { id: 'deco8', emoji: '🌈', name: '무지개 장식', price: 300 },
+    { id: 'deco9', emoji: '💎', name: '보석 장식', price: 800 },
+    { id: 'deco10', emoji: '🏰', name: '미니 성', price: 1000 }
+  ]
+};
+
+// 카테고리 정보
+const SHOP_CATEGORIES = {
+  avatar: {
+    name: '아바타',
+    icon: '👤',
+    subcategories: ['faces', 'hair', 'hairColor', 'clothes', 'accessories', 'backgrounds', 'frames']
+  },
+  room: {
+    name: '마이룸',
+    icon: '🏠',
+    subcategories: ['furniture', 'electronics', 'vehicles', 'pets', 'wallpaper', 'decorations']
+  }
+};
+
+const CATEGORY_NAMES = {
+  faces: '얼굴',
+  hair: '헤어스타일',
+  hairColor: '염색',
+  clothes: '의상',
+  accessories: '악세서리',
+  backgrounds: '배경',
+  frames: '테두리',
+  furniture: '가구',
+  electronics: '가전',
+  vehicles: '차량',
+  pets: '펫',
+  wallpaper: '벽지',
+  decorations: '장식'
+};
 
 export default function StudentDashboard({ user, userData }) {
   const [classInfo, setClassInfo] = useState(null);
@@ -20,6 +295,7 @@ export default function StudentDashboard({ user, userData }) {
   const [writings, setWritings] = useState([]);
   const [stats, setStats] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [assignments, setAssignments] = useState([]);
 
   const [currentWriting, setCurrentWriting] = useState({
     topic: "",
@@ -29,13 +305,94 @@ export default function StudentDashboard({ user, userData }) {
     studentName: userData.name
   });
 
-  const [debouncedContent] = useDebounce(currentWriting.content, 30000);
+  const [debouncedContent] = useDebounce(currentWriting.content, 10000); // 10초마다 자동 저장
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [aiHelp, setAiHelp] = useState(null);
+  const [loadingHelp, setLoadingHelp] = useState(false);
+  const [submittedWriting, setSubmittedWriting] = useState(null);
+  const [completedAssignmentsCount, setCompletedAssignmentsCount] = useState(0);
+  const [rewriteMode, setRewriteMode] = useState(null); // 고쳐쓰기 모드 - AI 제안 저장
+
+  // 실시간 조언 관련 state
+  const [quickAdvice, setQuickAdvice] = useState(null);
+  const [loadingQuickAdvice, setLoadingQuickAdvice] = useState(false);
+  const [lastAdviceTime, setLastAdviceTime] = useState(0);
+
+  // 주제별 임시 글 저장 (주제 이동시 내용 보존)
+  const [draftsByTopic, setDraftsByTopic] = useState({});
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 프로필 관련 state
+  const [nickname, setNickname] = useState(userData.nickname || userData.name);
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [newNickname, setNewNickname] = useState('');
+  const [points, setPoints] = useState(userData.points || 0);
+  const [ownedItems, setOwnedItems] = useState(userData.ownedItems || ['face1', 'bg1', 'frame1', 'hair1', 'hc1', 'cloth1', 'acc1', 'furn1', 'elec1', 'wall1']);
+  const [equippedItems, setEquippedItems] = useState(userData.equippedItems || {
+    face: 'face1',
+    hair: 'hair1',
+    hairColor: 'hc1',
+    clothes: 'cloth1',
+    accessory: 'acc1',
+    background: 'bg1',
+    frame: 'frame1'
+  });
+  const [roomItems, setRoomItems] = useState(userData.roomItems || {
+    furniture: 'furn1',
+    electronics: 'elec1',
+    vehicle: null,
+    pet: null,
+    wallpaper: 'wall1',
+    decorations: []
+  });
+  const [shopCategory, setShopCategory] = useState('avatar');
+  const [avatarTab, setAvatarTab] = useState('faces');
+  const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'passed', 'failed'
+  // 아바타 미리보기 상태
+  const [previewItem, setPreviewItem] = useState(null); // { item, category }
+  const [previewEquipped, setPreviewEquipped] = useState(null); // 미리보기용 임시 장착 상태
+  // 마이룸 미리보기 상태
+  const [previewRoomItem, setPreviewRoomItem] = useState(null); // { item, category }
+
+  // 음성 입력 관련 state
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef(null);
+
+  // 글쓰기 템플릿 관련 state
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+  // 글자 수 목표 달성 축하 애니메이션
+  const [showWordCountCelebration, setShowWordCountCelebration] = useState(false);
+  const [lastWordCountMilestone, setLastWordCountMilestone] = useState(0);
+
+  // 레벨/업적 관련 state
+  const [userAchievements, setUserAchievements] = useState([]);
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [newAchievement, setNewAchievement] = useState(null);
+
+  // 친구 글 읽기 관련 state
+  const [friendWritings, setFriendWritings] = useState([]);
+  const [showFriendWritings, setShowFriendWritings] = useState(false);
+  const [loadingFriendWritings, setLoadingFriendWritings] = useState(false);
+  const [selectedFriendWriting, setSelectedFriendWriting] = useState(null);
+
+  // 임시 저장 관련 state
+  const [hasDraft, setHasDraft] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(false);
 
   useEffect(() => {
     loadData();
+    // 음성 인식 지원 확인
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      setSpeechSupported(true);
+      initSpeechRecognition();
+    }
   }, []);
 
   useEffect(() => {
@@ -44,14 +401,220 @@ export default function StudentDashboard({ user, userData }) {
     }
   }, [debouncedContent]);
 
+  // userData 변경시 프로필 정보 업데이트
+  useEffect(() => {
+    setNickname(userData.nickname || userData.name);
+    setPoints(userData.points || 0);
+    setOwnedItems(userData.ownedItems || ['face1', 'bg1', 'frame1', 'hair1', 'hc1', 'cloth1', 'acc1', 'furn1', 'elec1', 'wall1']);
+    setEquippedItems(userData.equippedItems || {
+      face: 'face1',
+      hair: 'hair1',
+      hairColor: 'hc1',
+      clothes: 'cloth1',
+      accessory: 'acc1',
+      background: 'bg1',
+      frame: 'frame1'
+    });
+    setRoomItems(userData.roomItems || {
+      furniture: 'furn1',
+      electronics: 'elec1',
+      vehicle: null,
+      pet: null,
+      wallpaper: 'wall1',
+      decorations: []
+    });
+  }, [userData]);
+
+  // 음성 인식 초기화
+  const initSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'ko-KR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          setCurrentWriting(prev => ({
+            ...prev,
+            content: prev.content + finalTranscript,
+            wordCount: (prev.content + finalTranscript).replace(/\s/g, "").length
+          }));
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('음성 인식 에러:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        if (isListening) {
+          recognition.start();
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
+  };
+
+  // 음성 입력 토글
+  const toggleSpeechRecognition = () => {
+    if (!speechSupported) {
+      alert('이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 브라우저를 사용해주세요.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
+
+  // 템플릿 적용
+  const applyTemplate = (template) => {
+    setSelectedTemplate(template);
+    setCurrentWriting(prev => ({
+      ...prev,
+      content: template.template,
+      wordCount: template.template.replace(/\s/g, "").length
+    }));
+    setShowTemplateModal(false);
+  };
+
+  // 글자 수 마일스톤 체크
+  const checkWordCountMilestone = (count) => {
+    const milestones = [50, 100, 200, 300, 500, 1000];
+    for (const milestone of milestones) {
+      if (count >= milestone && lastWordCountMilestone < milestone) {
+        setLastWordCountMilestone(milestone);
+        setShowWordCountCelebration(true);
+        setTimeout(() => setShowWordCountCelebration(false), 3000);
+        break;
+      }
+    }
+  };
+
+  // 친구 글 불러오기
+  const loadFriendWritings = async (topic) => {
+    if (!userData.classCode) {
+      alert('반에 가입해야 친구 글을 볼 수 있어요!');
+      return;
+    }
+    setLoadingFriendWritings(true);
+    try {
+      const friends = await getFriendWritings(userData.classCode, topic, user.uid);
+      setFriendWritings(friends);
+      setShowFriendWritings(true);
+    } catch (error) {
+      console.error('친구 글 불러오기 에러:', error);
+      alert('친구 글을 불러오는 데 실패했습니다.');
+    } finally {
+      setLoadingFriendWritings(false);
+    }
+  };
+
+  // 임시 저장
+  const handleSaveDraft = async () => {
+    if (!currentWriting.topic || !currentWriting.content) {
+      alert('주제와 내용을 입력해주세요.');
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      await saveDraftByTopic(user.uid, currentWriting.topic, currentWriting);
+      setHasDraft(true);
+      alert('임시 저장이 완료되었습니다!');
+    } catch (error) {
+      console.error('임시 저장 에러:', error);
+      alert('임시 저장에 실패했습니다.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  // 임시 저장 불러오기
+  const handleLoadDraft = async () => {
+    if (!currentWriting.topic) {
+      alert('먼저 주제를 선택해주세요.');
+      return;
+    }
+    setLoadingDraft(true);
+    try {
+      const draft = await getDraftByTopic(user.uid, currentWriting.topic);
+      if (draft) {
+        setCurrentWriting({
+          ...currentWriting,
+          content: draft.content || '',
+          wordCount: (draft.content || '').replace(/\s/g, '').length
+        });
+        alert('임시 저장된 글을 불러왔습니다!');
+      } else {
+        alert('저장된 임시 글이 없습니다.');
+      }
+    } catch (error) {
+      console.error('임시 저장 불러오기 에러:', error);
+      alert('불러오기에 실패했습니다.');
+    } finally {
+      setLoadingDraft(false);
+    }
+  };
+
+  // 주제 선택 시 임시 저장 여부 확인
+  const checkDraftExists = async (topic) => {
+    try {
+      const draft = await getDraftByTopic(user.uid, topic);
+      setHasDraft(!!draft);
+    } catch {
+      setHasDraft(false);
+    }
+  };
+
   const loadData = async () => {
     try {
+      const studentWritings = await getStudentWritings(user.uid);
+      setWritings(studentWritings);
+
       if (userData.classCode) {
         const cls = await getClassByCode(userData.classCode);
         setClassInfo(cls);
+
+        // 반의 과제 불러오기
+        const classAssignments = await getAssignmentsByClass(userData.classCode);
+
+        // 목표에 도달한 과제 필터링 (제출글 중 해당 과제 주제로 목표 점수 이상 받은 것 제외)
+        const completedTopics = studentWritings
+          .filter(w => !w.isDraft && w.score >= PASSING_SCORE)
+          .map(w => w.topic);
+
+        const pendingAssignments = classAssignments.filter(assignment => {
+          // 해당 과제 제목과 일치하는 제출글이 있고, 목표 점수에 도달했으면 숨김
+          return !completedTopics.includes(assignment.title);
+        });
+
+        // 완료한 과제 수 계산
+        const completedCount = classAssignments.length - pendingAssignments.length;
+        setCompletedAssignmentsCount(completedCount);
+
+        setAssignments(pendingAssignments);
       }
-      const studentWritings = await getStudentWritings(user.uid);
-      setWritings(studentWritings);
+
       const studentStats = await getStudentStats(user.uid);
       setStats(studentStats);
     } catch (error) {
@@ -59,12 +622,35 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
+  const handleGetAIHelp = async (helpType) => {
+    if (!currentWriting.content && helpType !== 'hint') {
+      alert('먼저 글을 작성해주세요.');
+      return;
+    }
+    setLoadingHelp(true);
+    try {
+      const help = await getWritingHelp(currentWriting.content, currentWriting.topic, helpType);
+      setAiHelp({ type: helpType, content: help });
+    } catch (error) {
+      alert('AI 도움 요청에 실패했습니다.');
+    } finally {
+      setLoadingHelp(false);
+    }
+  };
+
   const autoSave = useCallback(async () => {
     if (!currentWriting.topic || !currentWriting.content) return;
+    if (currentWriting.content.length < 10) return; // 최소 10자 이상일 때만 저장
+
+    setIsSaving(true);
     try {
       await saveWriting(user.uid, currentWriting, true);
+      setLastSavedAt(new Date());
+      console.log('자동 저장 완료:', new Date().toLocaleTimeString());
     } catch (error) {
       console.error("자동 저장 에러:", error);
+    } finally {
+      setIsSaving(false);
     }
   }, [currentWriting, user.uid]);
 
@@ -80,14 +666,38 @@ export default function StudentDashboard({ user, userData }) {
   };
 
   const handleTopicSelect = (topic) => {
+    // 현재 작성 중인 글이 있으면 임시 저장
+    if (currentWriting.topic && currentWriting.content) {
+      setDraftsByTopic(prev => ({
+        ...prev,
+        [currentWriting.topic]: {
+          content: currentWriting.content,
+          wordCount: currentWriting.wordCount
+        }
+      }));
+    }
+
     setSelectedTopic(topic);
+
+    // 해당 주제에 이전에 저장된 글이 있는지 확인
+    const savedDraft = draftsByTopic[topic.title];
+
+    // 과제별 기준점수 적용 (과제가 아니면 기본 PASSING_SCORE 사용)
+    const topicMinScore = topic.minScore || PASSING_SCORE;
+
     setCurrentWriting({
       ...currentWriting,
       topic: topic.title,
-      content: "",
-      wordCount: 0
+      content: savedDraft?.content || "",
+      wordCount: savedDraft?.wordCount || 0,
+      isAssignment: topic.isAssignment || false,
+      minScore: topicMinScore
     });
     setFeedback(null);
+    setQuickAdvice(null);
+
+    // 서버에 저장된 임시 저장 확인
+    checkDraftExists(topic.title);
   };
 
   const handleContentChange = (e) => {
@@ -98,20 +708,73 @@ export default function StudentDashboard({ user, userData }) {
       content,
       wordCount
     });
+    // 글자 수 마일스톤 체크
+    checkWordCountMilestone(wordCount);
+  };
+
+  // 실시간 조언 요청 (비용 최적화: 60초 쿨다운)
+  const handleGetQuickAdvice = async (adviceType) => {
+    const now = Date.now();
+    if (now - lastAdviceTime < 60000) { // 60초 쿨다운
+      alert('잠시 후 다시 시도해주세요. (60초 쿨다운)');
+      return;
+    }
+    if (!currentWriting.content || currentWriting.wordCount < 20) {
+      alert('조언을 받으려면 최소 20자 이상 작성해주세요.');
+      return;
+    }
+
+    setLoadingQuickAdvice(true);
+    try {
+      const result = await getQuickAdvice(
+        currentWriting.content,
+        currentWriting.topic,
+        userData.gradeLevel,
+        adviceType
+      );
+      setQuickAdvice(result);
+      setLastAdviceTime(now);
+    } catch (error) {
+      console.error('실시간 조언 에러:', error);
+    } finally {
+      setLoadingQuickAdvice(false);
+    }
   };
 
   const getWordCountStatus = () => {
-    const standard = WORD_COUNT_STANDARDS[userData.gradeLevel];
+    // 글쓰기 유형에 따라 조정된 글자 수 기준 사용
+    const topic = currentWriting.topic || '';
+    const adjusted = getAdjustedWordCount(userData.gradeLevel, topic);
     const count = currentWriting.wordCount;
 
-    if (count < standard.min) {
-      return { status: "too-short", message: `글이 너무 짧습니다. (최소 ${standard.min}자)`, color: "text-red-600" };
-    } else if (count >= standard.min && count < standard.ideal) {
-      return { status: "ok", message: "좋아요! 좀 더 써볼까요?", color: "text-yellow-600" };
-    } else if (count >= standard.ideal && count <= standard.max) {
-      return { status: "ideal", message: "아주 좋아요!", color: "text-green-600" };
+    if (count < adjusted.min) {
+      return {
+        status: "too-short",
+        message: `글이 너무 짧습니다. (최소 ${adjusted.min}자)`,
+        color: "text-red-600",
+        standard: adjusted
+      };
+    } else if (count >= adjusted.min && count < adjusted.ideal) {
+      return {
+        status: "ok",
+        message: "좋아요! 좀 더 써볼까요?",
+        color: "text-yellow-600",
+        standard: adjusted
+      };
+    } else if (count >= adjusted.ideal && count <= adjusted.max) {
+      return {
+        status: "ideal",
+        message: "아주 좋아요!",
+        color: "text-green-600",
+        standard: adjusted
+      };
     } else {
-      return { status: "too-long", message: `글이 너무 깁니다. (최대 ${standard.max}자)`, color: "text-red-600" };
+      return {
+        status: "too-long",
+        message: `글이 너무 깁니다. (최대 ${adjusted.max}자)`,
+        color: "text-red-600",
+        standard: adjusted
+      };
     }
   };
 
@@ -121,32 +784,44 @@ export default function StudentDashboard({ user, userData }) {
       return;
     }
 
-    const standard = WORD_COUNT_STANDARDS[userData.gradeLevel];
-    if (currentWriting.wordCount < standard.min) {
-      alert(`글자 수가 부족합니다. 최소 ${standard.min}자 이상 작성해 주세요.`);
-      return;
-    }
-
-    if (currentWriting.wordCount > standard.max) {
-      alert(`글자 수가 너무 많습니다. 최대 ${standard.max}자 이하로 줄여 주세요.`);
-      return;
-    }
-
     if (!confirm("글을 제출하시겠습니까? 제출 후 AI가 분석합니다.")) return;
 
     setIsSubmitting(true);
     try {
-      const result = await submitWriting(user.uid, currentWriting);
-      setFeedback(result.analysis);
+      // 고쳐쓰기 모드 여부 전달
+      const result = await submitWriting(user.uid, currentWriting, !!rewriteMode);
 
-      if (result.score >= PASSING_SCORE) {
+      // 과제별 기준점수 (과제가 아니면 기본 PASSING_SCORE 사용)
+      const requiredScore = currentWriting.minScore || PASSING_SCORE;
+
+      // 제출한 글 내용 저장 (피드백과 함께 표시하기 위해)
+      setSubmittedWriting({
+        topic: currentWriting.topic,
+        content: currentWriting.content,
+        wordCount: currentWriting.wordCount,
+        minScore: requiredScore,
+        isAssignment: currentWriting.isAssignment || false
+      });
+
+      setFeedback({
+        ...result.analysis,
+        aiUsageCheck: result.aiUsageCheck,
+        score: result.score,
+        earnedPoints: result.earnedPoints || 0 // 획득 포인트 정보 추가
+      });
+
+      if (result.score >= requiredScore) {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 5000);
-        alert(`축하합니다! ${result.score}점을 받았습니다.`);
-      } else {
-        alert(`${result.score}점입니다. 기준 점수(${PASSING_SCORE}점)를 미달했습니다. 피드백을 참고해 다음에 도전해 보세요.`);
       }
 
+      // 제출 성공 시 임시 저장 삭제
+      if (currentWriting.topic) {
+        await deleteDraft(user.uid, currentWriting.topic);
+        setHasDraft(false);
+      }
+
+      // 글 초기화 (피드백은 유지)
       setCurrentWriting({
         topic: "",
         content: "",
@@ -155,6 +830,9 @@ export default function StudentDashboard({ user, userData }) {
         studentName: userData.name
       });
       setSelectedTopic(null);
+      setAiHelp(null);
+      setRewriteMode(null); // 고쳐쓰기 모드 종료
+
       loadData();
     } catch (error) {
       alert(error.message || "제출에 실패했습니다.");
@@ -171,33 +849,427 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  const topics = recommendedTopics[userData.gradeLevel] || [];
+  // 닉네임 변경
+  const handleNicknameChange = async () => {
+    if (!newNickname.trim()) {
+      alert('닉네임을 입력해주세요.');
+      return;
+    }
+    if (newNickname.length > 10) {
+      alert('닉네임은 10자 이하로 입력해주세요.');
+      return;
+    }
+    try {
+      await updateUserData(user.uid, { nickname: newNickname.trim() });
+      setNickname(newNickname.trim());
+      setEditingNickname(false);
+      setNewNickname('');
+      alert('닉네임이 변경되었습니다!');
+    } catch (error) {
+      alert('닉네임 변경에 실패했습니다.');
+    }
+  };
+
+  // 아이템 구매
+  const handlePurchaseItem = async (item, category) => {
+    if (ownedItems.includes(item.id)) {
+      alert('이미 보유한 아이템입니다.');
+      return;
+    }
+    if (points < item.price) {
+      alert(`포인트가 부족합니다. (필요: ${item.price}P, 보유: ${points}P)`);
+      return;
+    }
+    if (!confirm(`${item.name}을(를) ${item.price}P로 구매하시겠습니까?`)) return;
+
+    try {
+      const newOwnedItems = [...ownedItems, item.id];
+      const newPoints = points - item.price;
+
+      console.log('구매 시도:', { item: item.id, newOwnedItems, newPoints });
+
+      await updateUserData(user.uid, {
+        ownedItems: newOwnedItems,
+        points: newPoints
+      });
+
+      // 로컬 state 즉시 업데이트
+      setOwnedItems(newOwnedItems);
+      setPoints(newPoints);
+
+      console.log('구매 완료:', { ownedItems: newOwnedItems, points: newPoints });
+
+      alert(`${item.name}을(를) 구매했습니다!\n이제 '장착' 버튼을 눌러 아바타에 적용하세요.`);
+    } catch (error) {
+      console.error('구매 실패:', error);
+      alert('구매에 실패했습니다: ' + error.message);
+    }
+  };
+
+  // 아이템 장착 (아바타)
+  const handleEquipItem = async (item, category) => {
+    console.log('handleEquipItem 호출됨:', { itemId: item.id, itemName: item.name, category });
+
+    if (!ownedItems.includes(item.id)) {
+      console.log('아이템 미보유:', item.id, 'ownedItems:', ownedItems);
+      alert('먼저 아이템을 구매해주세요.');
+      return;
+    }
+    const categoryMap = {
+      faces: 'face',
+      hair: 'hair',
+      hairColor: 'hairColor',
+      clothes: 'clothes',
+      accessories: 'accessory',
+      backgrounds: 'background',
+      frames: 'frame'
+    };
+    const categoryKey = categoryMap[category] || category;
+    const newEquippedItems = { ...equippedItems, [categoryKey]: item.id };
+
+    console.log('장착 시도:', { item: item.id, category, categoryKey, newEquippedItems, 현재equippedItems: equippedItems });
+
+    try {
+      await updateUserData(user.uid, { equippedItems: newEquippedItems });
+      setEquippedItems(newEquippedItems);
+      console.log('장착 완료! 새 equippedItems:', newEquippedItems);
+    } catch (error) {
+      console.error('장착 실패:', error);
+      alert('장착에 실패했습니다: ' + error.message);
+    }
+  };
+
+  // 마이룸 아이템 장착
+  const handleEquipRoomItem = async (item, category) => {
+    if (!ownedItems.includes(item.id)) {
+      alert('먼저 아이템을 구매해주세요.');
+      return;
+    }
+    const categoryMap = {
+      furniture: 'furniture',
+      electronics: 'electronics',
+      vehicles: 'vehicle',
+      pets: 'pet',
+      wallpaper: 'wallpaper'
+    };
+    const categoryKey = categoryMap[category];
+
+    let newRoomItems;
+    if (category === 'decorations') {
+      // 장식품은 여러 개 추가 가능
+      const currentDecos = roomItems.decorations || [];
+      if (currentDecos.includes(item.id)) {
+        newRoomItems = { ...roomItems, decorations: currentDecos.filter(d => d !== item.id) };
+      } else {
+        newRoomItems = { ...roomItems, decorations: [...currentDecos, item.id] };
+      }
+    } else {
+      newRoomItems = { ...roomItems, [categoryKey]: item.id };
+    }
+
+    try {
+      await updateUserData(user.uid, { roomItems: newRoomItems });
+      setRoomItems(newRoomItems);
+    } catch (error) {
+      alert('장착에 실패했습니다.');
+    }
+  };
+
+  // 현재 장착 아이템 가져오기
+  const getEquippedFace = () => AVATAR_ITEMS.faces.find(f => f.id === equippedItems.face) || AVATAR_ITEMS.faces[0];
+  const getEquippedHair = () => AVATAR_ITEMS.hair.find(h => h.id === equippedItems.hair) || AVATAR_ITEMS.hair[0];
+  const getEquippedHairColor = () => AVATAR_ITEMS.hairColor.find(h => h.id === equippedItems.hairColor) || AVATAR_ITEMS.hairColor[0];
+  const getEquippedClothes = () => AVATAR_ITEMS.clothes.find(c => c.id === equippedItems.clothes) || AVATAR_ITEMS.clothes[0];
+  const getEquippedAccessory = () => AVATAR_ITEMS.accessories.find(a => a.id === equippedItems.accessory) || AVATAR_ITEMS.accessories[0];
+  const getEquippedBackground = () => AVATAR_ITEMS.backgrounds.find(b => b.id === equippedItems.background) || AVATAR_ITEMS.backgrounds[0];
+  const getEquippedFrame = () => AVATAR_ITEMS.frames.find(f => f.id === equippedItems.frame) || AVATAR_ITEMS.frames[0];
+
+  // 미리보기용 아이템 가져오기 (미리보기가 있으면 미리보기 아이템 사용)
+  const getPreviewFace = () => {
+    if (previewItem?.category === 'faces') return previewItem.item;
+    return getEquippedFace();
+  };
+  const getPreviewHair = () => {
+    if (previewItem?.category === 'hair') return previewItem.item;
+    return getEquippedHair();
+  };
+  const getPreviewHairColor = () => {
+    if (previewItem?.category === 'hairColor') return previewItem.item;
+    return getEquippedHairColor();
+  };
+  const getPreviewClothes = () => {
+    if (previewItem?.category === 'clothes') return previewItem.item;
+    return getEquippedClothes();
+  };
+  const getPreviewAccessory = () => {
+    if (previewItem?.category === 'accessories') return previewItem.item;
+    return getEquippedAccessory();
+  };
+  const getPreviewBackground = () => {
+    if (previewItem?.category === 'backgrounds') return previewItem.item;
+    return getEquippedBackground();
+  };
+  const getPreviewFrame = () => {
+    if (previewItem?.category === 'frames') return previewItem.item;
+    return getEquippedFrame();
+  };
+
+  // 아이템 미리보기 설정
+  const handlePreviewItem = (item, category) => {
+    setPreviewItem({ item, category });
+  };
+
+  // 미리보기 취소
+  const handleCancelPreview = () => {
+    setPreviewItem(null);
+  };
+
+  // 마이룸 아이템 미리보기 설정
+  const handlePreviewRoomItem = (item, category) => {
+    setPreviewRoomItem({ item, category });
+  };
+
+  // 마이룸 미리보기 취소
+  const handleCancelRoomPreview = () => {
+    setPreviewRoomItem(null);
+  };
+
+  // 마이룸 미리보기 아이템 가져오기 (각 카테고리별)
+  const getPreviewRoomFurniture = () => {
+    if (previewRoomItem?.category === 'furniture') return previewRoomItem.item.id;
+    return roomItems.furniture || 'furn1';
+  };
+  const getPreviewRoomElectronics = () => {
+    if (previewRoomItem?.category === 'electronics') return previewRoomItem.item.id;
+    return roomItems.electronics || 'elec1';
+  };
+  const getPreviewRoomWallpaper = () => {
+    if (previewRoomItem?.category === 'wallpaper') return previewRoomItem.item.id;
+    return roomItems.wallpaper || 'wall1';
+  };
+  const getPreviewRoomVehicle = () => {
+    if (previewRoomItem?.category === 'vehicles') return previewRoomItem.item.id;
+    return roomItems.vehicle;
+  };
+  const getPreviewRoomPet = () => {
+    if (previewRoomItem?.category === 'pets') return previewRoomItem.item.id;
+    return roomItems.pet;
+  };
+  const getPreviewRoomDecorations = () => {
+    if (previewRoomItem?.category === 'decorations') {
+      // 미리보기 아이템을 기존 장식에 추가해서 보여줌
+      const existing = roomItems.decorations || [];
+      if (!existing.includes(previewRoomItem.item.id)) {
+        return [...existing, previewRoomItem.item.id].slice(-3); // 최대 3개
+      }
+    }
+    return roomItems.decorations || [];
+  };
+
+  // 제출글 필터링
+  const getFilteredWritings = () => {
+    const submitted = writings.filter(w => !w.isDraft);
+    if (historyFilter === 'all') return submitted;
+    if (historyFilter === 'passed') return submitted.filter(w => w.score >= PASSING_SCORE);
+    if (historyFilter === 'failed') return submitted.filter(w => w.score < PASSING_SCORE);
+    return submitted;
+  };
+
+  // 상점 아이템 가져오기
+  const getShopItems = () => {
+    if (shopCategory === 'avatar') {
+      return AVATAR_ITEMS[avatarTab] || [];
+    } else {
+      return ROOM_ITEMS[avatarTab] || [];
+    }
+  };
+
+  // 아이템이 장착되었는지 확인
+  const isItemEquipped = (item, category) => {
+    if (shopCategory === 'avatar') {
+      const categoryMap = {
+        faces: 'face',
+        hair: 'hair',
+        hairColor: 'hairColor',
+        clothes: 'clothes',
+        accessories: 'accessory',
+        backgrounds: 'background',
+        frames: 'frame'
+      };
+      return equippedItems[categoryMap[category]] === item.id;
+    } else {
+      const categoryMap = {
+        furniture: 'furniture',
+        electronics: 'electronics',
+        vehicles: 'vehicle',
+        pets: 'pet',
+        wallpaper: 'wallpaper'
+      };
+      if (category === 'decorations') {
+        return (roomItems.decorations || []).includes(item.id);
+      }
+      return roomItems[categoryMap[category]] === item.id;
+    }
+  };
+
   const wordCountStatus = getWordCountStatus();
-  const standard = WORD_COUNT_STANDARDS[userData.gradeLevel];
+  const standard = wordCountStatus.standard || WORD_COUNT_STANDARDS[userData.gradeLevel];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-sky-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       {showConfetti && <Confetti />}
 
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-700 via-purple-600 to-sky-500 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex justify-between items-start">
-          <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-indigo-100">Isw Writing Lab</p>
-            <h1 className="text-2xl font-bold mt-1">Isw 글쓰기 도우미</h1>
-            <p className="text-sm text-indigo-100 mt-1">
-              {userData.name} ({GRADE_LEVELS[userData.gradeLevel]})
-            </p>
-            {classInfo && (
-              <p className="text-xs text-indigo-100 mt-1">소속: {classInfo.className}</p>
-            )}
+      <header className="bg-gradient-to-r from-blue-800 via-blue-600 to-cyan-500 text-white shadow-xl relative overflow-hidden">
+        {/* 마법 효과 */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-2 left-10 w-1.5 h-1.5 bg-yellow-300 rounded-full animate-pulse"></div>
+          <div className="absolute top-4 right-20 w-2 h-2 bg-yellow-200 rounded-full animate-ping"></div>
+          <div className="absolute bottom-2 left-1/4 w-1 h-1 bg-white rounded-full animate-pulse"></div>
+          <div className="absolute top-3 right-1/3 w-1.5 h-1.5 bg-cyan-300 rounded-full animate-ping"></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center relative z-10">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* 로고 */}
+            <div className="relative inline-block">
+              <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent">
+                싹
+              </span>
+              {/* 붓 터치 효과 */}
+              <svg className="absolute -top-1 -right-3 w-5 h-6 sm:w-6 sm:h-8" viewBox="0 0 48 64" fill="none">
+                <path
+                  d="M8 56 Q12 48, 16 36 Q20 24, 28 14 Q34 6, 44 2"
+                  stroke="url(#brushGradientHeader)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <defs>
+                  <linearGradient id="brushGradientHeader" x1="0%" y1="100%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#fef08a" stopOpacity="1" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <span className="absolute -top-2 right-[-14px] text-xs sm:text-sm animate-pulse" style={{ textShadow: '0 0 8px #fef08a' }}>✨</span>
+            </div>
+            <span className="text-xs sm:text-sm font-bold tracking-widest text-cyan-200 opacity-80">SSAK</span>
+
+            {/* 아바타 + 레벨 + 업적 + 사용자 정보 */}
+            <div className="ml-2 sm:ml-4 pl-2 sm:pl-4 border-l border-white/20 flex items-center gap-2 sm:gap-3">
+              {/* 미니 아바타 - 장착 아이템 모두 반영 */}
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${getEquippedBackground().color} ${getEquippedFrame().style} flex items-center justify-center overflow-hidden relative`}>
+                {(() => {
+                  const face = getEquippedFace();
+                  const hair = getEquippedHair();
+                  const hairColor = getEquippedHairColor();
+                  const clothes = getEquippedClothes();
+                  const accessory = getEquippedAccessory();
+                  const avatarSize = 32;
+
+                  if (face.svgType === 'human') {
+                    return (
+                      <div className="relative" style={{ width: avatarSize, height: avatarSize }}>
+                        {/* 옷 */}
+                        {clothes.svgType && clothes.svgType !== 'none' && (
+                          <div className="absolute bottom-[-3px] left-1/2 -translate-x-1/2 z-0">
+                            <ClothesSVG type={clothes.svgType} color={clothes.color} size={avatarSize} />
+                          </div>
+                        )}
+                        {/* 머리카락 (긴머리는 뒤에) */}
+                        {hair.svgStyle && hair.svgStyle !== 'none' && ['long', 'princess', 'curly'].includes(hair.svgStyle) && (
+                          <div className="absolute inset-0 z-5">
+                            <HairSVG style={hair.svgStyle} color={hairColor.color || '#1a1a1a'} size={avatarSize} />
+                          </div>
+                        )}
+                        {/* 얼굴 */}
+                        <div className="absolute inset-0 z-10">
+                          <FaceSVG skinColor={face.skinColor} expression={face.expression} size={avatarSize} gender={face.gender || 'male'} />
+                        </div>
+                        {/* 머리카락 (짧은머리는 앞에) */}
+                        {hair.svgStyle && hair.svgStyle !== 'none' && !['long', 'princess', 'curly'].includes(hair.svgStyle) && (
+                          <div className="absolute inset-0 z-20">
+                            <HairSVG style={hair.svgStyle} color={hairColor.color || '#1a1a1a'} size={avatarSize} />
+                          </div>
+                        )}
+                        {/* 악세서리 */}
+                        {accessory.svgType && accessory.svgType !== 'none' && (
+                          <div className="absolute inset-0 z-30">
+                            <AccessorySVG type={accessory.svgType} size={avatarSize} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } else if (face.svgType === 'animal' && face.animalType) {
+                    return <AnimalFaceSVG type={face.animalType} size={28} />;
+                  } else {
+                    return <span className="text-sm sm:text-lg">{face.emoji}</span>;
+                  }
+                })()}
+              </div>
+
+              {/* 레벨 표시 */}
+              {(() => {
+                const levelInfo = getLevelInfo(points);
+                return (
+                  <div className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
+                    <span className="text-sm">{levelInfo.emoji}</span>
+                    <span className="text-xs font-bold text-white whitespace-nowrap">Lv.{levelInfo.level}</span>
+                  </div>
+                );
+              })()}
+
+              {/* 업적 표시 - 가장 좋은 업적만 */}
+              {(() => {
+                const scores = writings.map(w => w.score || 0);
+                const wordCounts = writings.map(w => (w.content || '').length);
+
+                const earnedAchievements = checkAchievements({
+                  totalSubmissions: writings.length,
+                  highestScore: scores.length > 0 ? Math.max(...scores) : 0,
+                  totalPoints: points,
+                  maxWordCount: wordCounts.length > 0 ? Math.max(...wordCounts) : 0
+                });
+
+                // 가장 좋은 업적 (배열 끝에서부터 선택)
+                const bestAchievement = earnedAchievements.length > 0 ? earnedAchievements[earnedAchievements.length - 1] : null;
+
+                return bestAchievement ? (
+                  <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 backdrop-blur border border-white/20 shadow-md">
+                    <span className="text-sm">{bestAchievement.emoji}</span>
+                    <span className="text-xs font-medium text-white whitespace-nowrap hidden lg:inline">{bestAchievement.name}</span>
+                  </div>
+                ) : null;
+              })()}
+
+              <div className="hidden sm:block">
+                <p className="text-sm text-white font-medium">
+                  {nickname}
+                </p>
+                <p className="text-xs text-blue-200">
+                  {GRADE_LEVELS[userData.gradeLevel]} {classInfo && `· ${classInfo.className}`}
+                </p>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="bg-white/20 border border-white/30 text-white px-4 py-2 rounded-xl hover:bg-white/25 transition-colors"
-          >
-            로그아웃
-          </button>
+
+          {/* 오른쪽: 포인트 + 로그아웃 */}
+          <div className="flex items-center gap-1 sm:gap-3">
+            {/* 포인트 표시 */}
+            <div className="bg-gradient-to-r from-amber-400 to-yellow-500 px-2 sm:px-4 py-1 sm:py-1.5 rounded-full flex items-center gap-1 shadow-lg">
+              <span className="text-sm sm:text-lg">💎</span>
+              <span className="font-bold text-amber-900 text-xs sm:text-sm">{points}P</span>
+            </div>
+            {/* 로그아웃 버튼 - 모바일에서 2줄 표시 */}
+            <button
+              onClick={handleLogout}
+              className="bg-white/15 backdrop-blur border border-white/20 text-white px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl hover:bg-white/25 transition-all text-[10px] sm:text-sm leading-tight text-center"
+            >
+              <span className="sm:hidden">로그<br/>아웃</span>
+              <span className="hidden sm:inline">로그아웃</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -229,38 +1301,48 @@ export default function StudentDashboard({ user, userData }) {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+        {/* Tabs - 모바일 최적화 */}
+        <div className="mb-6">
+          <nav className="grid grid-cols-4 gap-1 sm:flex sm:space-x-2 bg-white/80 backdrop-blur p-1.5 rounded-2xl shadow-sm border border-blue-100">
             <button
               onClick={() => setActiveTab("write")}
               className={`${
                 activeTab === "write"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+              } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
             >
-              글쓰기
+              <span>✍️</span> <span className="hidden sm:inline">글쓰기</span><span className="sm:hidden">글쓰기</span>
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={`${
                 activeTab === "history"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+              } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
             >
-              제출 기록 ({writings.filter((w) => !w.isDraft).length})
+              <span>📋</span> <span className="hidden sm:inline">제출 기록 ({writings.filter((w) => !w.isDraft).length})</span><span className="sm:hidden">기록</span>
             </button>
             <button
               onClick={() => setActiveTab("stats")}
               className={`${
                 activeTab === "stats"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+              } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
             >
-              통계
+              <span>📊</span> <span className="hidden sm:inline">통계</span><span className="sm:hidden">통계</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`${
+                activeTab === "profile"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+              } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
+            >
+              <span>👤</span> <span className="hidden sm:inline">내 프로필</span><span className="sm:hidden">프로필</span>
             </button>
           </nav>
         </div>
@@ -270,56 +1352,99 @@ export default function StudentDashboard({ user, userData }) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Topic Selection */}
             <div className="lg:col-span-1">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">추천 주제</h3>
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                  {topics.map((topic) => (
-                    <button
-                      key={topic.id}
-                      onClick={() => handleTopicSelect(topic)}
-                      className={`w-full text-left p-3 rounded border ${
-                        selectedTopic?.id === topic.id
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-gray-200 hover:border-indigo-300"
-                      }`}
-                    >
-                      <div className="font-medium text-sm">{topic.title}</div>
-                      <div className="flex justify-between items-center mt-1">
-                        <span className="text-xs text-gray-500">{topic.subject}</span>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            topic.difficulty === "easy"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : topic.difficulty === "medium"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {topic.difficulty === "easy" ? "쉬움" : topic.difficulty === "medium" ? "보통" : "어려움"}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+              <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl p-6 border border-blue-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-sm">📚</span>
+                    선생님 과제
+                  </h3>
+                  {completedAssignmentsCount > 0 && (
+                    <div className="flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                      <span>✅</span>
+                      <span>{completedAssignmentsCount}개 완료!</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-4 pt-4 border-top">
-                  <button
-                    onClick={() => {
-                      const customTopic = prompt("주제를 입력하세요");
-                      if (customTopic) {
-                        setSelectedTopic({ id: "custom", title: customTopic });
-                        setCurrentWriting({
-                          ...currentWriting,
-                          topic: customTopic,
-                          content: "",
-                          wordCount: 0
-                        });
-                      }
-                    }}
-                    className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200"
-                  >
-                    직접 입력하기
-                  </button>
+                {/* 남은 과제 수 표시 */}
+                {(assignments.length > 0 || completedAssignmentsCount > 0) && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">남은 과제</span>
+                      <span className="font-bold text-blue-600">{assignments.length}개</span>
+                    </div>
+                    {completedAssignmentsCount > 0 && (
+                      <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all"
+                          style={{ width: `${(completedAssignmentsCount / (completedAssignmentsCount + assignments.length)) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                  {/* 교사 과제 */}
+                  {assignments.length > 0 ? (
+                    <div className="space-y-2">
+                      {assignments.map((assignment) => (
+                        <button
+                          key={assignment.id}
+                          onClick={() => handleTopicSelect({
+                            id: assignment.id,
+                            title: assignment.title,
+                            description: assignment.description,
+                            isAssignment: true,
+                            minScore: assignment.minScore || PASSING_SCORE
+                          })}
+                          className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                            selectedTopic?.id === assignment.id
+                              ? "border-purple-500 bg-purple-50 shadow-md"
+                              : "border-gray-200 hover:border-purple-300 hover:bg-purple-50/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="font-semibold text-gray-900">{assignment.title}</div>
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">과제</span>
+                          </div>
+                          {assignment.description && (
+                            <div className="text-sm text-gray-600 mt-2">{assignment.description}</div>
+                          )}
+                          {assignment.dueDate && (
+                            <div className="flex items-center gap-1 text-xs text-orange-600 mt-2">
+                              <span>⏰</span>
+                              <span>마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                          {assignment.minScore && (
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                목표 {assignment.minScore}점+
+                              </span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : completedAssignmentsCount > 0 ? (
+                    <div className="text-center py-8">
+                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-4xl">🎉</span>
+                      </div>
+                      <p className="text-emerald-700 font-semibold text-lg">모든 과제를 완료했어요!</p>
+                      <p className="text-emerald-600 text-sm mt-1">총 {completedAssignmentsCount}개의 과제를 성공적으로 마쳤습니다</p>
+                      <p className="text-gray-400 text-xs mt-3">새 과제가 출제되면 여기에 표시됩니다</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">📭</span>
+                      </div>
+                      <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
+                      <p className="text-gray-400 text-xs mt-1">선생님이 과제를 출제하면 여기에 표시됩니다.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -335,7 +1460,14 @@ export default function StudentDashboard({ user, userData }) {
 
                     <div className="mb-4">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700">글자수</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">글자수</span>
+                          {standard.writingType && standard.writingType !== '기본' && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              {standard.writingType}
+                            </span>
+                          )}
+                        </div>
                         <span className={`text-sm font-bold ${wordCountStatus.color}`}>
                           {currentWriting.wordCount}자 / {standard.ideal}자 권장
                         </span>
@@ -355,25 +1487,376 @@ export default function StudentDashboard({ user, userData }) {
                         />
                       </div>
                       <p className={`text-xs mt-1 ${wordCountStatus.color}`}>{wordCountStatus.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">범위: {standard.min}자 ~ {standard.max}자</p>
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-gray-500">범위: {standard.min}자 ~ {standard.max}자</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          {isSaving ? (
+                            <>
+                              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                              저장 중...
+                            </>
+                          ) : lastSavedAt ? (
+                            <>
+                              💾 {lastSavedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 저장됨
+                            </>
+                          ) : (
+                            '10초마다 자동 저장'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 고쳐쓰기 모드 배너 */}
+                    {rewriteMode && (
+                      <div className="mb-4 p-3 bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-300 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">✏️</span>
+                            <div>
+                              <h4 className="font-bold text-orange-800">고쳐쓰기 모드</h4>
+                              <p className="text-xs text-orange-600">이전 점수: {rewriteMode.score}점 → 80점 이상 목표!</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setRewriteMode(null)}
+                            className="text-orange-500 hover:text-orange-700 text-sm"
+                          >
+                            모드 종료 ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 고쳐쓰기 모드: 수정 필요 부분 강조된 원본 글 미리보기 */}
+                    {rewriteMode && rewriteMode.detailedFeedback && rewriteMode.detailedFeedback.length > 0 && (
+                      <div className="mb-3 p-3 bg-white border-2 border-orange-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-semibold text-orange-700">📌 수정이 필요한 부분 (빨간색 표시)</span>
+                        </div>
+                        <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {(() => {
+                            let highlightedContent = currentWriting.content;
+                            // 수정이 필요한 문장들을 빨간색으로 강조
+                            rewriteMode.detailedFeedback.forEach(item => {
+                              if (item.original && highlightedContent.includes(item.original)) {
+                                highlightedContent = highlightedContent.replace(
+                                  item.original,
+                                  `<mark class="bg-red-200 text-red-800 px-1 rounded">${item.original}</mark>`
+                                );
+                              }
+                            });
+                            return <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />;
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 글자 수 축하 애니메이션 */}
+                    {showWordCountCelebration && (
+                      <div className="mb-3 p-4 bg-gradient-to-r from-yellow-100 via-amber-100 to-orange-100 border-2 border-yellow-400 rounded-xl animate-bounce">
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="text-3xl">🎉</span>
+                          <div className="text-center">
+                            <p className="font-bold text-amber-800 text-lg">{lastWordCountMilestone}자 달성!</p>
+                            <p className="text-amber-600 text-sm">대단해요! 계속 써보세요!</p>
+                          </div>
+                          <span className="text-3xl">🎉</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 음성 입력 & 템플릿 버튼 */}
+                    <div className="mb-3 flex gap-2">
+                      {speechSupported && (
+                        <button
+                          onClick={toggleSpeechRecognition}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                            isListening
+                              ? 'bg-red-500 text-white animate-pulse'
+                              : 'bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 hover:from-indigo-200 hover:to-purple-200'
+                          }`}
+                        >
+                          {isListening ? (
+                            <>
+                              <span className="w-3 h-3 bg-white rounded-full animate-ping" />
+                              🎤 말하는 중...
+                            </>
+                          ) : (
+                            <>🎤 음성 입력</>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowTemplateModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 rounded-lg font-medium hover:from-emerald-200 hover:to-teal-200 transition-all"
+                      >
+                        📋 템플릿
+                      </button>
                     </div>
 
                     <textarea
                       value={currentWriting.content}
                       onChange={handleContentChange}
-                      placeholder="주제에 맞춰 글을 작성해 보세요.. (30초마다 자동 저장)"
-                      className="w-full h-96 px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                      placeholder={isListening ? "말씀하세요... 음성이 텍스트로 변환됩니다." : "주제에 맞춰 글을 작성해 보세요.. (10초마다 자동 저장)"}
+                      className={`w-full h-64 px-4 py-3 border rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
+                        rewriteMode ? 'border-orange-300 bg-orange-50/30' : isListening ? 'border-red-300 bg-red-50/30' : 'border-gray-300'
+                      }`}
                     />
 
+                    {/* AI 도움 버튼 */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleGetAIHelp('hint')}
+                        disabled={loadingHelp}
+                        className="flex-1 min-w-[100px] bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg text-sm hover:bg-emerald-200 disabled:opacity-50 font-medium"
+                      >
+                        💡 힌트
+                      </button>
+                      <button
+                        onClick={() => handleGetAIHelp('polish')}
+                        disabled={loadingHelp || !currentWriting.content}
+                        className="flex-1 min-w-[100px] bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm hover:bg-blue-200 disabled:opacity-50 font-medium"
+                      >
+                        ✨ 표현 다듬기
+                      </button>
+                      <button
+                        onClick={() => handleGetAIHelp('expand')}
+                        disabled={loadingHelp || !currentWriting.content}
+                        className="flex-1 min-w-[100px] bg-purple-100 text-purple-700 px-3 py-2 rounded-lg text-sm hover:bg-purple-200 disabled:opacity-50 font-medium"
+                      >
+                        📝 확장
+                      </button>
+                    </div>
+
+                    {/* 실시간 조언 버튼 (비용 최적화) */}
+                    <div className="mt-2">
+                      {currentWriting.wordCount < 20 && (
+                        <p className="text-xs text-gray-500 mb-1 text-center">
+                          💡 20자 이상 작성하면 AI 조언을 받을 수 있어요! ({currentWriting.wordCount}/20자)
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleGetQuickAdvice('next')}
+                          disabled={loadingQuickAdvice || currentWriting.wordCount < 20}
+                          className="flex-1 min-w-[100px] bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 px-3 py-2 rounded-lg text-sm hover:from-amber-200 hover:to-orange-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-amber-200 transition-all"
+                          title="다음에 쓸 내용에 대한 힌트를 받아요"
+                        >
+                          {loadingQuickAdvice ? '...' : '🚀 다음 문장'}
+                        </button>
+                        <button
+                          onClick={() => handleGetQuickAdvice('improve')}
+                          disabled={loadingQuickAdvice || currentWriting.wordCount < 20}
+                          className="flex-1 min-w-[100px] bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 px-3 py-2 rounded-lg text-sm hover:from-cyan-200 hover:to-blue-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-cyan-200 transition-all"
+                          title="마지막 문장을 더 좋게 개선해요"
+                        >
+                          {loadingQuickAdvice ? '...' : '✨ 문장 개선'}
+                        </button>
+                        <button
+                          onClick={() => handleGetQuickAdvice('check')}
+                          disabled={loadingQuickAdvice || currentWriting.wordCount < 20}
+                          className="flex-1 min-w-[100px] bg-gradient-to-r from-rose-100 to-pink-100 text-rose-700 px-3 py-2 rounded-lg text-sm hover:from-rose-200 hover:to-pink-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rose-200 transition-all"
+                          title="맞춤법과 문법 오류를 체크해요"
+                        >
+                          {loadingQuickAdvice ? '...' : '🔍 맞춤법/문법'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 실시간 조언 결과 */}
+                    {quickAdvice && (
+                      <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h5 className="font-semibold text-sm text-amber-800 mb-1 flex items-center gap-1">
+                              {quickAdvice.type === 'next' && '🚀 다음에 쓸 내용'}
+                              {quickAdvice.type === 'improve' && '✨ 문장 개선 제안'}
+                              {quickAdvice.type === 'check' && '🔍 맞춤법/문법 체크'}
+                              {quickAdvice.type === 'encourage' && '💪 응원 메시지'}
+                            </h5>
+                            <p className="text-sm text-amber-900">{quickAdvice.advice}</p>
+                          </div>
+                          <button
+                            onClick={() => setQuickAdvice(null)}
+                            className="text-amber-600 hover:text-amber-800 ml-2"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI 도움 결과 */}
+                    {aiHelp && (
+                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-sm text-yellow-900 mb-1">
+                              {aiHelp.type === 'hint' && '💡 힌트'}
+                              {aiHelp.type === 'grammar' && '✏️ 문법 검사'}
+                              {aiHelp.type === 'expand' && '📝 확장 아이디어'}
+                            </h5>
+                            {aiHelp.type === 'grammar' && aiHelp.content.hasErrors !== undefined ? (
+                              <div>
+                                {aiHelp.content.hasErrors ? (
+                                  <div>
+                                    <p className="text-sm text-yellow-800 mb-2">발견된 오류:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.errors?.map((error, idx) => (
+                                        <li key={idx} className="text-xs text-yellow-700">
+                                          <strong>{error.text}</strong> → {error.correction}
+                                          <br />
+                                          <span className="text-gray-600">{error.explanation}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    {aiHelp.content.suggestion && (
+                                      <p className="text-xs text-yellow-700 mt-2">{aiHelp.content.suggestion}</p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-yellow-800">문법 오류가 발견되지 않았습니다! 👍</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-yellow-800 whitespace-pre-wrap">{aiHelp.content.text}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setAiHelp(null)}
+                            className="text-yellow-700 hover:text-yellow-900 ml-2"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 고쳐쓰기 모드 - AI 제안 패널 */}
+                    {rewriteMode && rewriteMode.detailedFeedback && rewriteMode.detailedFeedback.length > 0 && (
+                      <div className="mt-4 p-4 bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl">
+                        <h4 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
+                          <span className="w-6 h-6 bg-orange-200 rounded-full flex items-center justify-center text-sm">📝</span>
+                          AI가 제안하는 수정 사항
+                        </h4>
+                        <div className="space-y-3">
+                          {rewriteMode.detailedFeedback.map((item, idx) => (
+                            <div key={idx} className="bg-white rounded-lg p-3 border border-orange-200 shadow-sm">
+                              <div className="flex items-start gap-2">
+                                <span className="flex-shrink-0 w-5 h-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                                <div className="flex-1">
+                                  {/* 원본 문장 - 빨간색 강조 */}
+                                  <div className="mb-2">
+                                    <span className="text-xs text-gray-500 block mb-1">원본:</span>
+                                    <p className="text-sm bg-red-50 text-red-700 px-2 py-1 rounded border-l-4 border-red-400 font-medium">
+                                      "{item.original}"
+                                    </p>
+                                  </div>
+                                  {/* 제안 문장 - 초록색 강조 */}
+                                  <div className="mb-2">
+                                    <span className="text-xs text-gray-500 block mb-1">이렇게 고쳐보세요:</span>
+                                    <p className="text-sm bg-emerald-50 text-emerald-700 px-2 py-1 rounded border-l-4 border-emerald-400 font-medium">
+                                      "{item.suggestion}"
+                                    </p>
+                                  </div>
+                                  {/* 이유 */}
+                                  <p className="text-xs text-gray-600 flex items-center gap-1">
+                                    <span className="text-amber-500">💡</span> {item.reason}
+                                    {item.type && (
+                                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                                        item.type === 'grammar' ? 'bg-blue-100 text-blue-600' :
+                                        item.type === 'vocabulary' ? 'bg-purple-100 text-purple-600' :
+                                        item.type === 'structure' ? 'bg-green-100 text-green-600' :
+                                        'bg-gray-100 text-gray-600'
+                                      }`}>
+                                        {item.type === 'grammar' ? '문법' :
+                                         item.type === 'vocabulary' ? '어휘' :
+                                         item.type === 'structure' ? '구조' :
+                                         item.type === 'expression' ? '표현' : item.type}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 개선사항 목록 */}
+                        {rewriteMode.improvements && rewriteMode.improvements.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-orange-200">
+                            <h5 className="font-semibold text-orange-700 text-sm mb-2">💪 추가 개선 포인트</h5>
+                            <ul className="space-y-1">
+                              {rewriteMode.improvements.map((improvement, idx) => (
+                                <li key={idx} className="text-sm text-orange-600 flex items-start gap-2">
+                                  <span className="text-orange-400">•</span>
+                                  {improvement}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 임시 저장 / 불러오기 버튼 */}
                     <div className="mt-4 flex space-x-2">
                       <button
+                        onClick={handleSaveDraft}
+                        disabled={savingDraft || !currentWriting.content || !currentWriting.topic}
+                        className="flex-1 bg-amber-500 text-white px-4 py-2 rounded font-medium hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {savingDraft ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            저장 중...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            임시 저장
+                          </>
+                        )}
+                      </button>
+                      {hasDraft && (
+                        <button
+                          onClick={handleLoadDraft}
+                          disabled={loadingDraft}
+                          className="flex-1 bg-teal-500 text-white px-4 py-2 rounded font-medium hover:bg-teal-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {loadingDraft ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                              </svg>
+                              불러오는 중...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              저장된 글 불러오기
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 제출/취소 버튼 */}
+                    <div className="mt-2 flex space-x-2">
+                      <button
                         onClick={handleSubmit}
-                        disabled={
-                          isSubmitting ||
-                          !currentWriting.content ||
-                          currentWriting.wordCount < standard.min ||
-                          currentWriting.wordCount > standard.max
-                        }
+                        disabled={isSubmitting || !currentWriting.content}
                         className="flex-1 bg-indigo-500 text-white px-6 py-3 rounded font-semibold hover:bg-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? "AI 분석 중..." : "제출하기"}
@@ -389,71 +1872,365 @@ export default function StudentDashboard({ user, userData }) {
                           });
                           setSelectedTopic(null);
                           setFeedback(null);
+                          setAiHelp(null);
+                          setRewriteMode(null);
+                          setHasDraft(false);
                         }}
                         className="bg-gray-200 text-gray-700 px-6 py-3 rounded hover:bg-gray-300"
                       >
-                        취소
+                        {rewriteMode ? '다른 주제 쓰기' : '취소'}
                       </button>
                     </div>
 
-                    {feedback && (
-                      <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                        <h4 className="font-semibold text-indigo-900 mb-3">AI 피드백</h4>
-                        <div className="grid grid-cols-5 gap-2 mb-4">
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">내용</div>
-                            <div className="text-lg font-bold text-indigo-600">{feedback.contentScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">구성</div>
-                            <div className="text-lg font-bold text-indigo-600">{feedback.structureScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">어휘</div>
-                            <div className="text-lg font-bold text-indigo-600">{feedback.vocabularyScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">문법</div>
-                            <div className="text-lg font-bold text-indigo-600">{feedback.grammarScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">창의성</div>
-                            <div className="text-lg font-bold text-indigo-600">{feedback.creativityScore}</div>
-                          </div>
+                  </>
+                ) : feedback && submittedWriting ? (
+                  /* 피드백 결과 화면 */
+                  <div className="space-y-6">
+                    {/* 헤더 - 점수 및 통과 여부 */}
+                    <div className={`relative overflow-hidden rounded-2xl p-8 text-white ${
+                      feedback.score >= (submittedWriting.minScore || PASSING_SCORE)
+                        ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500'
+                        : 'bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500'
+                    }`}>
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-20 translate-x-20"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-16 -translate-x-16"></div>
+
+                      <div className="relative z-10 text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
+                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? (
+                            <span className="text-3xl">🎉</span>
+                          ) : (
+                            <span className="text-3xl">💪</span>
+                          )}
+                        </div>
+                        <h2 className="text-lg font-medium opacity-90 mb-2">
+                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? '축하합니다!' : '조금만 더 노력해봐요!'}
+                        </h2>
+                        <div className="text-7xl font-black mb-2">{feedback.score}<span className="text-3xl">점</span></div>
+                        <p className="text-sm opacity-80">
+                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE)
+                            ? '기준 점수를 통과했어요!'
+                            : `기준 점수 ${submittedWriting.minScore || PASSING_SCORE}점까지 ${(submittedWriting.minScore || PASSING_SCORE) - feedback.score}점 남았어요`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 포인트 획득 축하 카드 */}
+                    {feedback.earnedPoints > 0 ? (
+                      <div className="relative overflow-hidden bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-6 shadow-xl">
+                        {/* 배경 장식 */}
+                        <div className="absolute top-0 left-0 w-full h-full">
+                          <div className="absolute top-2 left-4 text-4xl animate-bounce" style={{animationDelay: '0s'}}>⭐</div>
+                          <div className="absolute top-4 right-6 text-3xl animate-bounce" style={{animationDelay: '0.2s'}}>🎉</div>
+                          <div className="absolute bottom-3 left-8 text-2xl animate-bounce" style={{animationDelay: '0.4s'}}>✨</div>
+                          <div className="absolute bottom-2 right-4 text-3xl animate-bounce" style={{animationDelay: '0.1s'}}>🌟</div>
+                          <div className="absolute top-1/2 left-2 text-2xl animate-pulse">💎</div>
+                          <div className="absolute top-1/2 right-2 text-2xl animate-pulse">💎</div>
                         </div>
 
-                        <div className="mb-3">
-                          <h5 className="font-medium text-sm text-gray-700 mb-1">좋은 점</h5>
-                          <ul className="list-disc list-inside space-y-1">
-                            {feedback.strengths.map((strength, idx) => (
-                              <li key={idx} className="text-sm text-gray-700">
+                        {/* 메인 콘텐츠 */}
+                        <div className="relative z-10 text-center">
+                          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/30 backdrop-blur rounded-full mb-3 shadow-lg">
+                            <span className="text-5xl">🎁</span>
+                          </div>
+                          <h3 className="text-2xl font-black text-white drop-shadow-lg mb-1">
+                            포인트 획득!
+                          </h3>
+                          <div className="flex items-center justify-center gap-2 mb-2">
+                            <span className="text-5xl font-black text-white drop-shadow-lg">
+                              +{feedback.earnedPoints}
+                            </span>
+                            <span className="text-3xl font-bold text-white/90">P</span>
+                          </div>
+                          <p className="text-white/90 text-sm font-medium">
+                            {feedback.earnedPoints >= 60 ? '🏆 최고 점수 보너스!' :
+                             feedback.earnedPoints >= 30 ? '🎯 목표 달성 보너스!' :
+                             '👍 잘했어요!'}
+                          </p>
+                          <div className="mt-3 inline-flex items-center gap-2 bg-white/20 backdrop-blur px-4 py-2 rounded-full">
+                            <span className="text-yellow-900 text-sm font-semibold">
+                              💰 상점에서 아이템을 구매해보세요!
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 rounded-xl p-4 text-center">
+                        <div className="text-3xl mb-2">💡</div>
+                        <p className="text-sm text-gray-600 font-medium">
+                          {feedback.score <= 50
+                            ? '50점을 넘으면 포인트를 받을 수 있어요!'
+                            : '80점을 달성하면 포인트를 받을 수 있어요!'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          고쳐쓰기로 점수를 올려보세요! 💪
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 제출한 글 내용 */}
+                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                        <h3 className="font-semibold text-gray-800">{submittedWriting.topic}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{submittedWriting.wordCount}자</p>
+                      </div>
+                      <div className="p-5 max-h-48 overflow-y-auto">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{submittedWriting.content}</p>
+                      </div>
+                    </div>
+
+                    {/* 세부 점수 - 카드 그리드 */}
+                    <div className="grid grid-cols-5 gap-3">
+                      {[
+                        { label: '내용', score: feedback.contentScore, max: 30, color: 'from-blue-500 to-blue-600', icon: '📝' },
+                        { label: '구성', score: feedback.structureScore, max: 25, color: 'from-purple-500 to-purple-600', icon: '🏗️' },
+                        { label: '어휘', score: feedback.vocabularyScore, max: 20, color: 'from-pink-500 to-pink-600', icon: '📚' },
+                        { label: '문법', score: feedback.grammarScore, max: 15, color: 'from-amber-500 to-amber-600', icon: '✏️' },
+                        { label: '창의성', score: feedback.creativityScore, max: 10, color: 'from-emerald-500 to-emerald-600', icon: '💡' }
+                      ].map((item, idx) => (
+                        <div key={idx} className="bg-white rounded-xl border border-gray-200 p-4 text-center hover:shadow-md transition-shadow">
+                          <div className="text-2xl mb-2">{item.icon}</div>
+                          <div className="text-xs text-gray-500 mb-1">{item.label}</div>
+                          <div className={`text-xl font-bold bg-gradient-to-r ${item.color} bg-clip-text text-transparent`}>
+                            {item.score}/{item.max}
+                          </div>
+                          <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full bg-gradient-to-r ${item.color} rounded-full transition-all duration-500`}
+                              style={{ width: `${(item.score / item.max) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* AI 활용 분석 */}
+                    {feedback.aiUsageCheck && (
+                      <div className={`rounded-xl border-2 p-5 ${
+                        feedback.aiUsageCheck.verdict === 'HIGH'
+                          ? 'bg-red-50 border-red-200'
+                          : feedback.aiUsageCheck.verdict === 'MEDIUM'
+                          ? 'bg-amber-50 border-amber-200'
+                          : 'bg-emerald-50 border-emerald-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">🤖</span>
+                            <h4 className="font-semibold text-gray-800">AI 활용 분석</h4>
+                          </div>
+                          <div className={`px-4 py-1.5 rounded-full text-sm font-semibold ${
+                            feedback.aiUsageCheck.verdict === 'HIGH'
+                              ? 'bg-red-200 text-red-800'
+                              : feedback.aiUsageCheck.verdict === 'MEDIUM'
+                              ? 'bg-amber-200 text-amber-800'
+                              : 'bg-emerald-200 text-emerald-800'
+                          }`}>
+                            AI 가능성 {feedback.aiUsageCheck.aiProbability}%
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-3">{feedback.aiUsageCheck.explanation}</p>
+                        {feedback.aiUsageCheck.humanLikeFeatures?.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {feedback.aiUsageCheck.humanLikeFeatures.map((feature, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-white/60 rounded-full text-xs text-emerald-700">
+                                <span>✓</span> {feature}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 상세 피드백 */}
+                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 p-6">
+                      <h4 className="font-bold text-lg text-indigo-900 mb-5 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center text-sm">AI</span>
+                        선생님의 피드백
+                      </h4>
+
+                      <div className="space-y-4">
+                        {/* 좋은 점 */}
+                        <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                          <h5 className="font-semibold text-emerald-700 mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center">✨</span>
+                            잘한 점
+                          </h5>
+                          <ul className="space-y-2">
+                            {feedback.strengths?.map((strength, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                                <span className="text-emerald-500 mt-0.5">•</span>
                                 {strength}
                               </li>
                             ))}
                           </ul>
                         </div>
 
-                        <div className="mb-3">
-                          <h5 className="font-medium text-sm text-gray-700 mb-1">개선 포인트</h5>
-                          <ul className="list-disc list-inside space-y-1">
-                            {feedback.improvements.map((improvement, idx) => (
-                              <li key={idx} className="text-sm text-gray-700">
+                        {/* 개선 포인트 */}
+                        <div className="bg-white rounded-lg p-4 border border-orange-200">
+                          <h5 className="font-semibold text-orange-700 mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">🎯</span>
+                            이렇게 하면 더 좋아요
+                          </h5>
+                          <ul className="space-y-2">
+                            {feedback.improvements?.map((improvement, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                                <span className="text-orange-500 mt-0.5">•</span>
                                 {improvement}
                               </li>
                             ))}
                           </ul>
                         </div>
 
-                        <div>
-                          <h5 className="font-medium text-sm text-gray-700 mb-1">종합 의견</h5>
-                          <p className="text-sm text-gray-700">{feedback.overallFeedback}</p>
+                        {/* 상세 문장 피드백 (새로 추가) */}
+                        {feedback.detailedFeedback && feedback.detailedFeedback.length > 0 && (
+                          <div className="bg-white rounded-lg p-4 border border-purple-200">
+                            <h5 className="font-semibold text-purple-700 mb-3 flex items-center gap-2">
+                              <span className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">✍️</span>
+                              문장별 수정 제안
+                            </h5>
+                            <div className="space-y-4">
+                              {feedback.detailedFeedback.map((item, idx) => (
+                                <div key={idx} className="bg-purple-50/50 rounded-lg p-3 border border-purple-100">
+                                  <div className="flex items-start gap-2 mb-2">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      item.type === 'grammar' ? 'bg-blue-100 text-blue-700' :
+                                      item.type === 'vocabulary' ? 'bg-pink-100 text-pink-700' :
+                                      item.type === 'structure' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-purple-100 text-purple-700'
+                                    }`}>
+                                      {item.type === 'grammar' ? '문법' :
+                                       item.type === 'vocabulary' ? '어휘' :
+                                       item.type === 'structure' ? '구성' : '표현'}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-red-500 font-medium whitespace-nowrap">원문:</span>
+                                      <span className="text-gray-600 line-through">{item.original}</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-emerald-600 font-medium whitespace-nowrap">수정:</span>
+                                      <span className="text-gray-800 font-medium">{item.suggestion}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1 pl-1">
+                                      💡 {item.reason}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-xs text-purple-600 mt-3 flex items-center gap-1">
+                              <span>⚠️</span>
+                              수정 제안을 그대로 복사하면 AI 감지에 걸릴 수 있어요. 참고만 하세요!
+                            </p>
+                          </div>
+                        )}
+
+                        {/* 글쓰기 팁 */}
+                        {feedback.writingTips && feedback.writingTips.length > 0 && (
+                          <div className="bg-white rounded-lg p-4 border border-cyan-200">
+                            <h5 className="font-semibold text-cyan-700 mb-3 flex items-center gap-2">
+                              <span className="w-6 h-6 bg-cyan-100 rounded-full flex items-center justify-center">📝</span>
+                              글쓰기 팁
+                            </h5>
+                            <ul className="space-y-2">
+                              {feedback.writingTips.map((tip, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                                  <span className="text-cyan-500 mt-0.5">💡</span>
+                                  {tip}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* 종합 의견 */}
+                        <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                          <h5 className="font-semibold text-indigo-700 mb-3 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center">💬</span>
+                            종합 의견
+                          </h5>
+                          <p className="text-sm text-gray-700 leading-relaxed">{feedback.overallFeedback}</p>
                         </div>
                       </div>
-                    )}
-                  </>
+                    </div>
+
+                    {/* 버튼 */}
+                    <div className="flex flex-wrap gap-3">
+                      {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? (
+                        // 기준 점수 달성 시 - 새 글쓰기 + 친구 글 보기
+                        <>
+                          <button
+                            onClick={() => {
+                              setFeedback(null);
+                              setSubmittedWriting(null);
+                              setSelectedTopic(null);
+                              setCurrentWriting({
+                                topic: "",
+                                content: "",
+                                wordCount: 0,
+                                gradeLevel: userData.gradeLevel,
+                                studentName: userData.name
+                              });
+                              setRewriteMode(null);
+                            }}
+                            className="flex-1 min-w-[140px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg shadow-indigo-200"
+                          >
+                            새 글 쓰기
+                          </button>
+                          {userData.classCode && (
+                            <button
+                              onClick={() => loadFriendWritings(submittedWriting?.topic)}
+                              disabled={loadingFriendWritings}
+                              className="flex-1 min-w-[140px] bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all shadow-lg shadow-cyan-200 disabled:opacity-50"
+                            >
+                              {loadingFriendWritings ? '불러오는 중...' : '👥 친구 글 보기'}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        // 기준 점수 미달 시 - 고쳐쓰기
+                        <button
+                          onClick={() => {
+                            // 제출했던 글 내용을 다시 복원
+                            setSelectedTopic({ id: 'rewrite', title: submittedWriting.topic });
+                            setCurrentWriting({
+                              topic: submittedWriting.topic,
+                              content: submittedWriting.content,
+                              wordCount: submittedWriting.wordCount,
+                              gradeLevel: userData.gradeLevel,
+                              studentName: userData.name
+                            });
+                            // 고쳐쓰기 모드 - AI 제안 저장
+                            setRewriteMode({
+                              detailedFeedback: feedback.detailedFeedback || [],
+                              improvements: feedback.improvements || [],
+                              score: feedback.score
+                            });
+                            // 피드백 닫기
+                            setFeedback(null);
+                            setSubmittedWriting(null);
+                          }}
+                          className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-lg shadow-orange-200"
+                        >
+                          고쳐쓰기
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setActiveTab("history")}
+                        className="px-6 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                      >
+                        제출 기록 보기
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-12">
-                    <p className="text-gray-500">왼쪽에서 주제를 선택해 주세요.</p>
+                    <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">✍️</span>
+                    </div>
+                    <p className="text-gray-500 mb-2">왼쪽에서 주제를 선택해 주세요.</p>
+                    <p className="text-xs text-gray-400">추천 주제 또는 직접 입력할 수 있어요</p>
                   </div>
                 )}
               </div>
@@ -463,61 +2240,179 @@ export default function StudentDashboard({ user, userData }) {
 
         {/* History Tab */}
         {activeTab === "history" && (
-          <div className="space-y-4">
-            {writings.filter((w) => !w.isDraft).length === 0 ? (
-              <div className="bg-white shadow rounded-lg p-8 text-center">
-                <p className="text-gray-600">아직 제출한 글이 없습니다.</p>
+          <div className="space-y-6">
+            {/* 필터 및 통계 헤더 */}
+            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-blue-100">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                {/* 통계 카드들 */}
+                <div className="flex gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl px-4 py-3 border border-blue-200">
+                    <div className="text-xs text-blue-600 font-medium">전체</div>
+                    <div className="text-2xl font-bold text-blue-700">{writings.filter(w => !w.isDraft).length}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl px-4 py-3 border border-emerald-200">
+                    <div className="text-xs text-emerald-600 font-medium">달성</div>
+                    <div className="text-2xl font-bold text-emerald-700">{writings.filter(w => !w.isDraft && w.score >= PASSING_SCORE).length}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl px-4 py-3 border border-orange-200">
+                    <div className="text-xs text-orange-600 font-medium">미달성</div>
+                    <div className="text-2xl font-bold text-orange-700">{writings.filter(w => !w.isDraft && w.score < PASSING_SCORE).length}</div>
+                  </div>
+                </div>
+
+                {/* 필터 버튼 */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setHistoryFilter('all')}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      historyFilter === 'all'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    📋 전체
+                  </button>
+                  <button
+                    onClick={() => setHistoryFilter('passed')}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      historyFilter === 'passed'
+                        ? 'bg-emerald-500 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    ✅ 달성
+                  </button>
+                  <button
+                    onClick={() => setHistoryFilter('failed')}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      historyFilter === 'failed'
+                        ? 'bg-orange-500 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    🔄 미달성
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 글 목록 */}
+            {getFilteredWritings().length === 0 ? (
+              <div className="bg-white shadow rounded-2xl p-12 text-center">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">📝</span>
+                </div>
+                <p className="text-gray-600 font-medium">
+                  {historyFilter === 'all' && '아직 제출한 글이 없습니다.'}
+                  {historyFilter === 'passed' && '목표 점수를 달성한 글이 없습니다.'}
+                  {historyFilter === 'failed' && '미달성 글이 없습니다. 대단해요!'}
+                </p>
               </div>
             ) : (
-              writings
-                .filter((w) => !w.isDraft)
-                .map((writing) => (
-                  <div key={writing.writingId} className="bg-white shadow rounded-lg p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{writing.topic}</h3>
-                        <p className="text-sm text-gray-600">제출: {new Date(writing.submittedAt).toLocaleString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-indigo-600">{writing.score}점</div>
-                        <div className="text-sm text-gray-500">{writing.wordCount}자</div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4 p-4 bg-gray-50 rounded">
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{writing.content}</p>
-                    </div>
-
-                    {writing.analysis && (
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold text-gray-900 mb-2">AI 분석 결과</h4>
-                        <div className="grid grid-cols-5 gap-2 mb-3">
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">내용</div>
-                            <div className="font-semibold">{writing.analysis.contentScore}</div>
+              <div className="space-y-4">
+                {getFilteredWritings().map((writing) => (
+                  <div
+                    key={writing.writingId}
+                    className={`bg-white shadow-lg rounded-2xl overflow-hidden border-l-4 ${
+                      writing.score >= PASSING_SCORE
+                        ? 'border-l-emerald-500'
+                        : 'border-l-orange-500'
+                    }`}
+                  >
+                    {/* 헤더 */}
+                    <div className={`px-6 py-4 ${
+                      writing.score >= PASSING_SCORE
+                        ? 'bg-gradient-to-r from-emerald-50 to-white'
+                        : 'bg-gradient-to-r from-orange-50 to-white'
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              writing.score >= PASSING_SCORE
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {writing.score >= PASSING_SCORE ? '✅ 달성' : '🔄 미달성'}
+                            </span>
                           </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">구성</div>
-                            <div className="font-semibold">{writing.analysis.structureScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">어휘</div>
-                            <div className="font-semibold">{writing.analysis.vocabularyScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">문법</div>
-                            <div className="font-semibold">{writing.analysis.grammarScore}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-600">창의성</div>
-                            <div className="font-semibold">{writing.analysis.creativityScore}</div>
-                          </div>
+                          <h3 className="text-lg font-bold text-gray-900">{writing.topic}</h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {new Date(writing.submittedAt).toLocaleDateString()} {new Date(writing.submittedAt).toLocaleTimeString()}
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-700">{writing.analysis.overallFeedback}</p>
+                        <div className="text-right">
+                          <div className={`text-3xl font-black ${
+                            writing.score >= PASSING_SCORE ? 'text-emerald-600' : 'text-orange-600'
+                          }`}>
+                            {writing.score}<span className="text-lg">점</span>
+                          </div>
+                          <div className="text-sm text-gray-500">{writing.wordCount}자</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 본문 */}
+                    <div className="px-6 py-4">
+                      <div className="bg-gray-50 rounded-xl p-4 max-h-32 overflow-y-auto">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{writing.content}</p>
+                      </div>
+                    </div>
+
+                    {/* 분석 결과 */}
+                    {writing.analysis && (
+                      <div className="px-6 pb-6 space-y-4">
+                        {/* 점수 그리드 */}
+                        <div className="grid grid-cols-5 gap-2">
+                          {[
+                            { label: '내용', score: writing.analysis.contentScore, max: 30, color: 'blue' },
+                            { label: '구성', score: writing.analysis.structureScore, max: 25, color: 'purple' },
+                            { label: '어휘', score: writing.analysis.vocabularyScore, max: 20, color: 'pink' },
+                            { label: '문법', score: writing.analysis.grammarScore, max: 15, color: 'amber' },
+                            { label: '창의성', score: writing.analysis.creativityScore, max: 10, color: 'emerald' }
+                          ].map((item, idx) => (
+                            <div key={idx} className="text-center bg-gray-50 rounded-lg p-2">
+                              <div className="text-xs text-gray-500">{item.label}</div>
+                              <div className={`font-bold text-${item.color}-600`}>{item.score}/{item.max}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* AI 활용 분석 */}
+                        {writing.aiUsageCheck && (
+                          <div className={`p-3 rounded-xl text-sm ${
+                            writing.aiUsageCheck.verdict === 'HIGH'
+                              ? 'bg-red-50 border border-red-200'
+                              : writing.aiUsageCheck.verdict === 'MEDIUM'
+                              ? 'bg-amber-50 border border-amber-200'
+                              : 'bg-emerald-50 border border-emerald-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-xs flex items-center gap-1">
+                                🤖 AI 활용 분석
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                writing.aiUsageCheck.verdict === 'HIGH'
+                                  ? 'bg-red-200 text-red-800'
+                                  : writing.aiUsageCheck.verdict === 'MEDIUM'
+                                  ? 'bg-amber-200 text-amber-800'
+                                  : 'bg-emerald-200 text-emerald-800'
+                              }`}>
+                                {writing.aiUsageCheck.aiProbability}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 피드백 요약 */}
+                        <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-xl">
+                          💬 {writing.analysis.overallFeedback}
+                        </p>
                       </div>
                     )}
                   </div>
-                ))
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -560,6 +2455,891 @@ export default function StudentDashboard({ user, userData }) {
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 왼쪽: 레벨 + 아바타 미리보기 + 마이룸 */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* 레벨 카드 */}
+              <div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center text-white text-sm">⭐</span>
+                  내 레벨
+                </h3>
+                {(() => {
+                  const levelInfo = getLevelInfo(points);
+                  const nextLevelInfo = getNextLevelInfo(points);
+                  return (
+                    <div className="text-center">
+                      {/* 레벨 뱃지 */}
+                      <div className={`inline-block px-6 py-3 rounded-2xl bg-gradient-to-r ${levelInfo.color} shadow-lg mb-4`}>
+                        <span className="text-4xl">{levelInfo.emoji}</span>
+                        <div className="text-white font-bold text-lg mt-1">{levelInfo.name}</div>
+                        <div className="text-white/80 text-sm">Lv.{levelInfo.level}</div>
+                      </div>
+
+                      {/* 포인트 표시 */}
+                      <div className="mt-3 text-gray-700">
+                        <span className="text-2xl font-bold text-amber-600">{points.toLocaleString()}</span>
+                        <span className="text-sm text-gray-500 ml-1">포인트</span>
+                      </div>
+
+                      {/* 다음 레벨 진행바 */}
+                      {nextLevelInfo.nextLevel && (
+                        <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+                          <div className="flex justify-between items-center text-sm mb-2">
+                            <span className="text-gray-500">다음 레벨</span>
+                            <span className="font-medium text-gray-700">
+                              {nextLevelInfo.nextLevel.emoji} {nextLevelInfo.nextLevel.name}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className={`h-3 rounded-full bg-gradient-to-r ${nextLevelInfo.nextLevel.color} transition-all duration-500`}
+                              style={{ width: `${nextLevelInfo.progress}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            {nextLevelInfo.pointsNeeded.toLocaleString()}P 더 필요 ({nextLevelInfo.progress}%)
+                          </p>
+                        </div>
+                      )}
+                      {!nextLevelInfo.nextLevel && (
+                        <div className="mt-4 p-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl">
+                          <p className="text-amber-800 font-bold">🎉 최고 레벨 달성!</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 아바타 카드 */}
+              <div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm">👤</span>
+                  {previewItem ? '미리보기' : '내 아바타'}
+                  {previewItem && (
+                    <span className="ml-2 text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full animate-pulse">
+                      👀 {previewItem.item.name}
+                    </span>
+                  )}
+                </h3>
+
+                {/* 아바타 프리뷰 - SVG 실사 스타일 (미리보기 지원) */}
+                <div className="flex justify-center mb-4">
+                  <div className="relative">
+                    <div className={`w-40 h-40 rounded-full bg-gradient-to-br ${getPreviewBackground().color} ${getPreviewFrame().style} flex items-center justify-center shadow-xl overflow-hidden relative ${previewItem ? 'ring-4 ring-purple-400 ring-opacity-50' : ''}`}>
+                      {(() => {
+                        const face = getPreviewFace();
+                        if (face.svgType === 'human') {
+                          return (
+                            <div className="relative w-[100px] h-[100px]">
+                              {/* 옷 (맨 아래) */}
+                              <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 z-0">
+                                <ClothesSVG type={getPreviewClothes().svgType || 'tshirt'} color={getPreviewClothes().color || '#4A90D9'} size={90} />
+                              </div>
+                              {/* 머리카락 (얼굴 뒤) - 긴머리/공주머리의 경우 */}
+                              {getPreviewHair().id !== 'hair1' && ['long', 'princess', 'curly'].includes(getPreviewHair().svgStyle) && (
+                                <div className="absolute inset-0 z-5">
+                                  <HairSVG
+                                    style={getPreviewHair().svgStyle || 'default'}
+                                    color={getPreviewHairColor().color || '#1a1a1a'}
+                                    size={100}
+                                  />
+                                </div>
+                              )}
+                              {/* 얼굴 */}
+                              <div className="absolute inset-0 z-10">
+                                <FaceSVG skinColor={face.skinColor} expression={face.expression} size={100} gender={face.gender || 'male'} />
+                              </div>
+                              {/* 머리카락 (얼굴 위) - 짧은 머리, 단발 등 */}
+                              {getPreviewHair().id !== 'hair1' && !['long', 'princess', 'curly'].includes(getPreviewHair().svgStyle) && (
+                                <div className="absolute inset-0 z-20">
+                                  <HairSVG
+                                    style={getPreviewHair().svgStyle || 'default'}
+                                    color={getPreviewHairColor().color || '#1a1a1a'}
+                                    size={100}
+                                  />
+                                </div>
+                              )}
+                              {/* 악세서리 */}
+                              {getPreviewAccessory().id !== 'acc1' && getPreviewAccessory().svgType && getPreviewAccessory().svgType !== 'none' && (
+                                <div className="absolute inset-0 z-30">
+                                  <AccessorySVG type={getPreviewAccessory().svgType} size={100} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        } else if (face.svgType === 'animal' && face.animalType) {
+                          return <AnimalFaceSVG type={face.animalType} size={100} />;
+                        } else {
+                          return <span className="text-6xl">{face.emoji}</span>;
+                        }
+                      })()}
+                    </div>
+
+                    {/* 염색 표시 - 사람 얼굴일 때만 */}
+                    {getPreviewFace().svgType === 'human' && getPreviewHairColor().id !== 'hc1' && (
+                      <div
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 border-white shadow-lg z-40"
+                        style={{ background: getPreviewHairColor().color }}
+                      ></div>
+                    )}
+
+                    {/* 미리보기 배지 또는 장착 아이템 요약 */}
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1 z-40">
+                      {previewItem ? (
+                        <div className="bg-purple-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-lg font-bold animate-pulse">
+                          미리보기
+                        </div>
+                      ) : (
+                        <>
+                          {getEquippedFace().special && (
+                            <div className="bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[10px] px-2 py-0.5 rounded-full shadow-lg font-bold">
+                              SPECIAL
+                            </div>
+                          )}
+                          {/* 사람 얼굴일 때만 의상 배지 */}
+                          {getEquippedFace().svgType === 'human' && getEquippedClothes().id !== 'cloth1' && (
+                            <div className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-lg">
+                              {getEquippedClothes().emoji}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 미리보기 버튼들 */}
+                {previewItem && ownedItems.includes(previewItem.item.id) && (
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => {
+                        handleEquipItem(previewItem.item, previewItem.category);
+                        setPreviewItem(null);
+                      }}
+                      className="flex-1 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-medium text-sm hover:from-blue-600 hover:to-cyan-600 transition-all"
+                    >
+                      ✓ 장착하기
+                    </button>
+                    <button
+                      onClick={handleCancelPreview}
+                      className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-300 transition-all"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+                {previewItem && !ownedItems.includes(previewItem.item.id) && (
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => {
+                        handlePurchaseItem(previewItem.item, previewItem.category);
+                      }}
+                      disabled={points < previewItem.item.price}
+                      className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${
+                        points >= previewItem.item.price
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {previewItem.item.price}P로 구매
+                    </button>
+                    <button
+                      onClick={handleCancelPreview}
+                      className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-300 transition-all"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+
+                {/* 닉네임 */}
+                <div className="text-center mb-4">
+                  {editingNickname ? (
+                    <div className="flex items-center gap-2 justify-center flex-wrap">
+                      <input
+                        type="text"
+                        value={newNickname}
+                        onChange={(e) => setNewNickname(e.target.value)}
+                        placeholder="새 닉네임"
+                        maxLength={10}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+                      />
+                      <button
+                        onClick={handleNicknameChange}
+                        className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 text-sm"
+                      >
+                        저장
+                      </button>
+                      <button
+                        onClick={() => { setEditingNickname(false); setNewNickname(''); }}
+                        className="bg-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-300 text-sm"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="text-xl font-bold text-gray-900">{nickname}</h4>
+                      <button
+                        onClick={() => { setEditingNickname(true); setNewNickname(nickname); }}
+                        className="text-sm text-blue-600 hover:text-blue-700 mt-1"
+                      >
+                        ✏️ 닉네임 변경
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 포인트 */}
+                <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl p-4 border border-amber-300 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700 font-medium">보유 포인트</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">💎</span>
+                      <span className="text-3xl font-black text-amber-600">{points.toLocaleString()}</span>
+                      <span className="text-amber-600 font-bold">P</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 업적/뱃지 카드 */}
+              <div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm">🏆</span>
+                  업적
+                </h3>
+                {(() => {
+                  const userStats = {
+                    totalSubmissions: stats?.totalSubmissions || 0,
+                    highestScore: Math.max(...(stats?.scores || [0])),
+                    totalPoints: points,
+                    streakDays: userData.streakDays || 0,
+                    maxWordCount: Math.max(...writings.map(w => w.wordCount || 0), 0),
+                    hasPassedOnce: (stats?.scores || []).some(s => s >= 80)
+                  };
+                  const earnedAchievements = checkAchievements(userStats);
+                  return (
+                    <div className="space-y-3">
+                      {/* 획득한 업적 */}
+                      <div className="flex flex-wrap gap-2">
+                        {earnedAchievements.length > 0 ? (
+                          earnedAchievements.slice(0, 8).map(achievement => (
+                            <div
+                              key={achievement.id}
+                              className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl border border-amber-200"
+                              title={achievement.description}
+                            >
+                              <span className="text-xl">{achievement.emoji}</span>
+                              <span className="text-xs font-medium text-amber-800">{achievement.name}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500">아직 획득한 업적이 없어요. 글을 제출하면 업적을 얻을 수 있어요!</p>
+                        )}
+                      </div>
+                      {earnedAchievements.length > 8 && (
+                        <p className="text-xs text-gray-500 text-center">+{earnedAchievements.length - 8}개 더...</p>
+                      )}
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">획득한 업적</span>
+                          <span className="font-bold text-amber-600">{earnedAchievements.length} / {ACHIEVEMENTS.length}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400"
+                            style={{ width: `${(earnedAchievements.length / ACHIEVEMENTS.length) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 마이룸 미리보기 - 3D 스타일 */}
+              <div className={`bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border ${previewRoomItem ? 'border-purple-300 ring-2 ring-purple-200' : 'border-blue-100'}`}>
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center text-white text-sm shadow-lg">🏠</span>
+                  {previewRoomItem ? '미리보기' : '마이룸'}
+                  {previewRoomItem && (
+                    <span className="ml-2 text-sm font-normal text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                      👀 {previewRoomItem.item.name}
+                    </span>
+                  )}
+                </h3>
+
+                {/* 3D 등각 투영 스타일 방 미리보기 */}
+                <div className={`relative rounded-xl overflow-hidden min-h-[240px] ${previewRoomItem ? 'ring-4 ring-purple-300 ring-opacity-50' : ''}`} style={{ perspective: '800px' }}>
+                  {/* 배경 그라데이션 */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${
+                    ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper())?.color || 'from-slate-100 to-slate-200'
+                  }`}></div>
+
+                  {/* 3D 방 컨테이너 */}
+                  <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
+                    {/* 뒷벽 (왼쪽) */}
+                    <div
+                      className="absolute left-0 top-0 w-[65%] h-[70%] bg-gradient-to-br from-white/90 to-slate-100/80 border-b-4 border-r-4 border-slate-200/50"
+                      style={{
+                        transform: 'skewY(5deg)',
+                        boxShadow: 'inset -10px 0 30px rgba(0,0,0,0.05), inset 0 -10px 30px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* 벽 무늬 */}
+                      <div className="absolute inset-0 opacity-20" style={{
+                        backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 30px, rgba(200,200,200,0.3) 30px, rgba(200,200,200,0.3) 31px)',
+                      }}></div>
+                      {/* 벽 장식 - 액자/그림 */}
+                      <div className="absolute top-6 left-8">
+                        {getPreviewRoomDecorations().slice(0, 1).map((decoId) => {
+                          const svgTypeMap = {
+                            'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy',
+                            'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain',
+                            'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy'
+                          };
+                          return <DecorationSVG key={decoId} type={svgTypeMap[decoId] || 'painting'} size={45} />;
+                        })}
+                        {getPreviewRoomDecorations().length === 0 && (
+                          <div className="w-12 h-10 bg-gradient-to-br from-amber-100 to-amber-200 rounded border-2 border-amber-300 shadow-md"></div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 뒷벽 (오른쪽) */}
+                    <div
+                      className="absolute right-0 top-0 w-[45%] h-[70%] bg-gradient-to-bl from-white/80 to-slate-100/70"
+                      style={{
+                        transform: 'skewY(-5deg)',
+                        boxShadow: 'inset 10px 0 30px rgba(0,0,0,0.05), inset 0 -10px 30px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* 창문 효과 */}
+                      <div className="absolute top-4 right-6 w-14 h-12 bg-gradient-to-br from-sky-200 to-sky-300 rounded-sm border-4 border-slate-300 shadow-inner">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent"></div>
+                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-300"></div>
+                        <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-300"></div>
+                      </div>
+                      {/* 가전 */}
+                      <div className="absolute bottom-0 right-4">
+                        {(() => {
+                          const elecId = getPreviewRoomElectronics();
+                          const svgTypeMap = {
+                            'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker',
+                            'elec5': 'tv', 'elec6': 'tv', 'elec7': 'tv', 'elec8': 'computer', 'elec9': 'vr'
+                          };
+                          return <ElectronicsSVG type={svgTypeMap[elecId] || 'tv'} size={50} />;
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* 바닥 - 등각 투영 */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-amber-200/90 via-amber-100/80 to-amber-50/70"
+                      style={{
+                        transform: 'rotateX(60deg) translateZ(-20px)',
+                        transformOrigin: 'bottom center',
+                        boxShadow: 'inset 0 20px 60px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      {/* 나무 바닥 무늬 */}
+                      <div className="absolute inset-0 opacity-30" style={{
+                        backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139,69,19,0.2) 20px, rgba(139,69,19,0.2) 21px)',
+                      }}></div>
+                    </div>
+
+                    {/* 바닥 아이템들 영역 */}
+                    <div className="absolute bottom-2 left-0 right-0 h-[45%] flex items-end justify-between px-4">
+                      {/* 왼쪽 - 가구 */}
+                      <div className="relative z-10" style={{ transform: 'translateY(-5px)' }}>
+                        {(() => {
+                          const furnitureId = getPreviewRoomFurniture();
+                          const svgTypeMap = {
+                            'furn1': 'sofa', 'furn2': 'bed', 'furn3': 'chair', 'furn4': 'desk',
+                            'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa',
+                            'furn9': 'bed', 'furn10': 'throne'
+                          };
+                          return <FurnitureSVG type={svgTypeMap[furnitureId] || 'sofa'} size={65} />;
+                        })()}
+                      </div>
+
+                      {/* 중앙 - 펫 */}
+                      {getPreviewRoomPet() && (
+                        <div className="relative z-20 animate-bounce" style={{ animationDuration: '2s' }}>
+                          {(() => {
+                            const petId = getPreviewRoomPet();
+                            const svgTypeMap = {
+                              'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'hamster',
+                              'pet5': 'parrot', 'pet6': 'hamster', 'pet7': 'cat', 'pet8': 'unicorn',
+                              'pet9': 'dragon', 'pet10': 'parrot'
+                            };
+                            return <PetSVG type={svgTypeMap[petId] || 'dog'} size={55} />;
+                          })()}
+                        </div>
+                      )}
+
+                      {/* 오른쪽 - 차량 */}
+                      {getPreviewRoomVehicle() && (
+                        <div className="relative z-10" style={{ transform: 'translateY(-5px)' }}>
+                          {(() => {
+                            const vehicleId = getPreviewRoomVehicle();
+                            const svgTypeMap = {
+                              'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car',
+                              'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht',
+                              'car8': 'helicopter', 'car9': 'rocket'
+                            };
+                            return <VehicleSVG type={svgTypeMap[vehicleId] || 'car'} size={60} />;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 추가 장식 (벽 외) */}
+                    {getPreviewRoomDecorations().slice(1, 3).map((decoId, idx) => (
+                      <div key={decoId} className="absolute z-10" style={{
+                        bottom: `${25 + idx * 10}%`,
+                        left: `${30 + idx * 25}%`
+                      }}>
+                        {(() => {
+                          const svgTypeMap = {
+                            'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy',
+                            'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain',
+                            'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy'
+                          };
+                          return <DecorationSVG type={svgTypeMap[decoId] || 'plant'} size={35} />;
+                        })()}
+                      </div>
+                    ))}
+
+                    {/* 조명 효과 */}
+                    <div className="absolute top-0 left-1/4 w-32 h-32 bg-gradient-radial from-yellow-200/30 via-transparent to-transparent rounded-full pointer-events-none"></div>
+                  </div>
+
+                  {/* 테두리 그림자 */}
+                  <div className="absolute inset-0 rounded-xl border-2 border-slate-200/50 shadow-lg pointer-events-none"></div>
+                </div>
+
+                {/* 마이룸 미리보기 버튼들 */}
+                {previewRoomItem && (
+                  <div className="flex gap-2 mt-4">
+                    {ownedItems.includes(previewRoomItem.item.id) ? (
+                      <button
+                        onClick={() => {
+                          handleEquipRoomItem(previewRoomItem.item, previewRoomItem.category);
+                          setPreviewRoomItem(null);
+                        }}
+                        className="flex-1 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-medium text-sm hover:from-blue-600 hover:to-cyan-600 transition-all"
+                      >
+                        ✓ 배치하기
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          handlePurchaseItem(previewRoomItem.item, previewRoomItem.category);
+                        }}
+                        disabled={points < previewRoomItem.item.price}
+                        className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${
+                          points >= previewRoomItem.item.price
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {previewRoomItem.item.price}P로 구매
+                      </button>
+                    )}
+                    <button
+                      onClick={handleCancelRoomPreview}
+                      className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-300 transition-all"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 포인트 획득 방법 */}
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <span>💡</span> 포인트 획득
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <div className="text-blue-600 font-bold">+10P</div>
+                    <div className="text-gray-600">글 제출</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <div className="text-emerald-600 font-bold">+20P</div>
+                    <div className="text-gray-600">80점 이상</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <div className="text-purple-600 font-bold">+50P</div>
+                    <div className="text-gray-600">90점 이상</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center">
+                    <div className="text-amber-600 font-bold">+5P</div>
+                    <div className="text-gray-600">연속 제출</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 오른쪽: 상점 */}
+            <div className="lg:col-span-2">
+              <div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm">🛒</span>
+                  상점
+                </h3>
+
+                {/* 대분류 탭 (아바타/마이룸) */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => { setShopCategory('avatar'); setAvatarTab('faces'); }}
+                    className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                      shopCategory === 'avatar'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    👤 아바타
+                  </button>
+                  <button
+                    onClick={() => { setShopCategory('room'); setAvatarTab('furniture'); }}
+                    className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                      shopCategory === 'room'
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    🏠 마이룸
+                  </button>
+                </div>
+
+                {/* 소분류 탭 */}
+                <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-100">
+                  {(shopCategory === 'avatar' ? SHOP_CATEGORIES.avatar.subcategories : SHOP_CATEGORIES.room.subcategories).map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setAvatarTab(cat)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                        avatarTab === cat
+                          ? 'bg-blue-500 text-white shadow'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {CATEGORY_NAMES[cat]}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 아이템 목록 */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto pr-2">
+                  {getShopItems().map((item) => {
+                    const owned = ownedItems.includes(item.id);
+                    const equipped = isItemEquipped(item, avatarTab);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`relative rounded-xl border-2 p-3 transition-all hover:shadow-md ${
+                          equipped
+                            ? 'border-blue-500 bg-blue-50'
+                            : owned
+                            ? 'border-emerald-300 bg-emerald-50/50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        {/* 뱃지 */}
+                        {equipped && (
+                          <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                            착용중
+                          </div>
+                        )}
+                        {owned && !equipped && (
+                          <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                            보유
+                          </div>
+                        )}
+
+                        {/* 미리보기 - 카테고리별로 적절한 SVG 표시 */}
+                        <div className="flex justify-center mb-2 h-12 items-center">
+                          {shopCategory === 'room' ? (
+                            // 마이룸 아이템은 SVG로 표시
+                            (() => {
+                              const svgTypeMap = {
+                                furniture: { 'furn1': 'sofa', 'furn2': 'bed', 'furn3': 'chair', 'furn4': 'desk', 'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa', 'furn9': 'bed', 'furn10': 'throne' },
+                                electronics: { 'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker', 'elec5': 'tv', 'elec6': 'tv', 'elec7': 'tv', 'elec8': 'computer', 'elec9': 'vr' },
+                                vehicles: { 'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'helicopter', 'car9': 'rocket' },
+                                pets: { 'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'hamster', 'pet5': 'parrot', 'pet6': 'hamster', 'pet7': 'cat', 'pet8': 'unicorn', 'pet9': 'dragon', 'pet10': 'parrot' },
+                                decorations: { 'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy', 'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain', 'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy' }
+                              };
+                              if (avatarTab === 'furniture' && svgTypeMap.furniture[item.id]) {
+                                return <FurnitureSVG type={svgTypeMap.furniture[item.id]} size={40} />;
+                              } else if (avatarTab === 'electronics' && svgTypeMap.electronics[item.id]) {
+                                return <ElectronicsSVG type={svgTypeMap.electronics[item.id]} size={40} />;
+                              } else if (avatarTab === 'vehicles' && svgTypeMap.vehicles[item.id]) {
+                                return <VehicleSVG type={svgTypeMap.vehicles[item.id]} size={40} />;
+                              } else if (avatarTab === 'pets' && svgTypeMap.pets[item.id]) {
+                                return <PetSVG type={svgTypeMap.pets[item.id]} size={40} />;
+                              } else if (avatarTab === 'decorations' && svgTypeMap.decorations[item.id]) {
+                                return <DecorationSVG type={svgTypeMap.decorations[item.id]} size={40} />;
+                              } else {
+                                return <span className="text-3xl">{item.emoji}</span>;
+                              }
+                            })()
+                          ) : item.emoji ? (
+                            <span className="text-3xl">{item.emoji}</span>
+                          ) : item.color && typeof item.color === 'string' && item.color.startsWith('from-') ? (
+                            <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${item.color} border border-gray-200`}></div>
+                          ) : item.style ? (
+                            <div className={`w-10 h-10 rounded-full bg-gray-100 ${item.style}`}></div>
+                          ) : item.color ? (
+                            <div className="w-10 h-10 rounded-full border border-gray-200" style={{ background: item.color }}></div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+                          )}
+                        </div>
+
+                        {/* 정보 */}
+                        <div className="text-center">
+                          <p className="font-medium text-gray-800 text-xs truncate">{item.name}</p>
+                          {!owned && (
+                            <p className={`text-xs font-bold ${item.price === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {item.price === 0 ? '무료' : `${item.price.toLocaleString()}P`}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* 버튼 */}
+                        <div className="mt-2 space-y-1">
+                          {/* 아바타 카테고리에서 미리보기 버튼 표시 */}
+                          {shopCategory === 'avatar' && (
+                            <button
+                              onClick={() => handlePreviewItem(item, avatarTab)}
+                              className={`w-full py-1 text-xs font-medium rounded-lg transition-all ${
+                                previewItem?.item.id === item.id
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                              }`}
+                            >
+                              {previewItem?.item.id === item.id ? '👀 미리보기중' : '👀 미리보기'}
+                            </button>
+                          )}
+                          {/* 마이룸 카테고리에서 미리보기 버튼 표시 */}
+                          {shopCategory === 'room' && (
+                            <button
+                              onClick={() => handlePreviewRoomItem(item, avatarTab)}
+                              className={`w-full py-1 text-xs font-medium rounded-lg transition-all ${
+                                previewRoomItem?.item.id === item.id
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                              }`}
+                            >
+                              {previewRoomItem?.item.id === item.id ? '👀 미리보기중' : '👀 미리보기'}
+                            </button>
+                          )}
+                          {owned ? (
+                            <button
+                              onClick={() => shopCategory === 'avatar' ? handleEquipItem(item, avatarTab) : handleEquipRoomItem(item, avatarTab)}
+                              disabled={equipped}
+                              className={`w-full py-1.5 text-xs font-medium rounded-lg transition-all ${
+                                equipped
+                                  ? 'bg-blue-100 text-blue-600 cursor-default'
+                                  : 'bg-blue-500 text-white hover:bg-blue-600'
+                              }`}
+                            >
+                              {equipped ? '착용중' : '장착'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handlePurchaseItem(item, avatarTab)}
+                              disabled={points < item.price}
+                              className={`w-full py-1.5 text-xs font-medium rounded-lg transition-all ${
+                                points >= item.price
+                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow'
+                                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                              }`}
+                            >
+                              {item.price === 0 ? '획득' : '구매'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 하단 정보 */}
+                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                  <span>보유 아이템: {ownedItems.length}개</span>
+                  <span>💎 {points.toLocaleString()}P 보유중</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 글쓰기 템플릿 모달 */}
+        {showTemplateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
+                    <span className="text-2xl">📋</span> 글쓰기 템플릿 선택
+                  </h3>
+                  <button
+                    onClick={() => setShowTemplateModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-sm text-emerald-700 mt-2">원하는 글쓰기 양식을 선택하세요. 글 작성에 도움이 됩니다!</p>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {WRITING_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => applyTemplate(template)}
+                      className={`p-4 rounded-xl border-2 text-left transition-all hover:shadow-lg ${
+                        selectedTemplate?.id === template.id
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-gray-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      <span className="text-3xl">{template.emoji}</span>
+                      <h4 className="font-bold text-gray-800 mt-2">{template.name}</h4>
+                      <p className="text-xs text-gray-500 mt-1">{template.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 친구 글 읽기 모달 */}
+        {showFriendWritings && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-cyan-50 to-blue-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2">
+                    <span className="text-2xl">👥</span> 친구들의 글
+                    <span className="text-sm font-normal text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                      {friendWritings.length}편
+                    </span>
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowFriendWritings(false);
+                      setSelectedFriendWriting(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-sm text-blue-700 mt-2">같은 주제로 80점 이상 받은 친구들의 글을 읽어보세요!</p>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[65vh]">
+                {selectedFriendWriting ? (
+                  // 선택된 친구 글 상세보기
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => setSelectedFriendWriting(null)}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      ← 목록으로 돌아가기
+                    </button>
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center text-white font-bold">
+                            {selectedFriendWriting.nickname?.[0] || '?'}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-800">{selectedFriendWriting.nickname}</h4>
+                            <p className="text-xs text-gray-500">
+                              {new Date(selectedFriendWriting.submittedAt).toLocaleDateString('ko-KR')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="px-3 py-1 bg-white rounded-full border border-blue-200">
+                          <span className="text-blue-600 font-bold">{selectedFriendWriting.score}점</span>
+                        </div>
+                      </div>
+                      <h5 className="font-semibold text-lg text-gray-900 mb-3">{selectedFriendWriting.topic}</h5>
+                      <div className="bg-white rounded-lg p-4 border border-gray-200 whitespace-pre-wrap text-gray-700 leading-relaxed">
+                        {selectedFriendWriting.content}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3 text-right">
+                        {selectedFriendWriting.wordCount || selectedFriendWriting.content?.replace(/\s/g, '').length}자
+                      </p>
+                    </div>
+                  </div>
+                ) : friendWritings.length > 0 ? (
+                  // 친구 글 목록
+                  <div className="grid gap-4">
+                    {friendWritings.map((writing, index) => (
+                      <button
+                        key={writing.writingId || index}
+                        onClick={() => setSelectedFriendWriting(writing)}
+                        className="text-left p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center text-white font-bold">
+                              {writing.nickname?.[0] || '?'}
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-800">{writing.nickname}</h4>
+                              <p className="text-xs text-gray-500">
+                                {writing.wordCount || writing.content?.replace(/\s/g, '').length}자 •
+                                {new Date(writing.submittedAt).toLocaleDateString('ko-KR')}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                              writing.score >= 90 ? 'bg-emerald-100 text-emerald-700' :
+                              writing.score >= 80 ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {writing.score}점
+                            </span>
+                            <span className="text-gray-400">→</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                          {writing.content?.substring(0, 100)}...
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  // 친구 글 없음
+                  <div className="text-center py-12">
+                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-4xl">📝</span>
+                    </div>
+                    <p className="text-gray-600 font-medium">아직 같은 주제로 글을 쓴 친구가 없어요</p>
+                    <p className="text-gray-400 text-sm mt-2">친구들이 80점 이상 받으면 여기에 표시됩니다</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </main>

@@ -21,7 +21,7 @@ export const GRADE_LEVELS = {
   'high-3': '고등학교 3학년'
 };
 
-// 학년별 적정 글자 수 범위
+// 학년별 기본 적정 글자 수 범위
 export const WORD_COUNT_STANDARDS = {
   'elementary-1': { min: 50, ideal: 100, max: 150 },
   'elementary-2': { min: 100, ideal: 150, max: 200 },
@@ -37,8 +37,62 @@ export const WORD_COUNT_STANDARDS = {
   'high-3': { min: 1000, ideal: 1500, max: 2000 }
 };
 
-// 기준 점수 (이 점수 이상이어야 제출 가능)
-export const PASSING_SCORE = 70;
+// 글쓰기 유형별 글자 수 조정 비율
+export const WRITING_TYPE_MULTIPLIERS = {
+  '편지': { minMult: 0.5, idealMult: 0.6, maxMult: 0.7 },      // 편지글은 짧아도 됨
+  '일기': { minMult: 0.5, idealMult: 0.6, maxMult: 0.7 },      // 일기도 짧아도 됨
+  '감상문': { minMult: 0.7, idealMult: 0.8, maxMult: 0.9 },    // 감상문은 중간
+  '독후감': { minMult: 0.8, idealMult: 0.9, maxMult: 1.0 },    // 독후감은 좀 길게
+  '시': { minMult: 0.2, idealMult: 0.3, maxMult: 0.4 },        // 시는 매우 짧아도 됨
+  '동시': { minMult: 0.2, idealMult: 0.3, maxMult: 0.4 },      // 동시도 짧게
+  '묘사하는 글': { minMult: 0.7, idealMult: 0.8, maxMult: 0.9 },
+  '설명하는 글': { minMult: 0.9, idealMult: 1.0, maxMult: 1.1 },
+  '주장하는 글': { minMult: 1.0, idealMult: 1.1, maxMult: 1.2 }, // 논설문은 길게
+  '서사/이야기': { minMult: 0.8, idealMult: 0.9, maxMult: 1.0 },
+  '상상글': { minMult: 0.7, idealMult: 0.8, maxMult: 1.0 },
+  '기행문': { minMult: 0.8, idealMult: 0.9, maxMult: 1.0 },
+  '보고서': { minMult: 1.0, idealMult: 1.1, maxMult: 1.2 },
+  '기본': { minMult: 1.0, idealMult: 1.0, maxMult: 1.0 }       // 기본값
+};
+
+// 글쓰기 유형 감지 함수
+export function detectWritingType(topic) {
+  const topicLower = topic.toLowerCase();
+
+  // 유형 키워드 매칭
+  if (topicLower.includes('편지') || topicLower.includes('에게')) return '편지';
+  if (topicLower.includes('일기') || topicLower.includes('하루')) return '일기';
+  if (topicLower.includes('감상') || topicLower.includes('느낀점')) return '감상문';
+  if (topicLower.includes('독후') || topicLower.includes('책을 읽고')) return '독후감';
+  if (topicLower.includes('시') && topicLower.length < 10) return '시';
+  if (topicLower.includes('동시')) return '동시';
+  if (topicLower.includes('묘사') || topicLower.includes('장면')) return '묘사하는 글';
+  if (topicLower.includes('설명') || topicLower.includes('방법') || topicLower.includes('소개')) return '설명하는 글';
+  if (topicLower.includes('주장') || topicLower.includes('생각') || topicLower.includes('의견') || topicLower.includes('찬성') || topicLower.includes('반대')) return '주장하는 글';
+  if (topicLower.includes('이야기') || topicLower.includes('서사') || topicLower.includes('그날')) return '서사/이야기';
+  if (topicLower.includes('상상') || topicLower.includes('만약') || topicLower.includes('미래')) return '상상글';
+  if (topicLower.includes('여행') || topicLower.includes('기행') || topicLower.includes('다녀온')) return '기행문';
+  if (topicLower.includes('보고') || topicLower.includes('조사') || topicLower.includes('연구')) return '보고서';
+
+  return '기본';
+}
+
+// 학년과 글쓰기 유형에 따른 적정 글자 수 계산
+export function getAdjustedWordCount(gradeLevel, topic) {
+  const baseStandard = WORD_COUNT_STANDARDS[gradeLevel] || WORD_COUNT_STANDARDS['elementary-4'];
+  const writingType = detectWritingType(topic);
+  const multiplier = WRITING_TYPE_MULTIPLIERS[writingType] || WRITING_TYPE_MULTIPLIERS['기본'];
+
+  return {
+    min: Math.round(baseStandard.min * multiplier.minMult),
+    ideal: Math.round(baseStandard.ideal * multiplier.idealMult),
+    max: Math.round(baseStandard.max * multiplier.maxMult),
+    writingType
+  };
+}
+
+// 기준 점수 (이 점수 이상이어야 제출 성공)
+export const PASSING_SCORE = 80;
 
 // 표절 감지 임계값 (50% 이상 유사도)
 export const PLAGIARISM_THRESHOLD = 50;

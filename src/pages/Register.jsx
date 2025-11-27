@@ -9,7 +9,7 @@ export default function Register() {
     password: "",
     confirmPassword: "",
     name: "",
-    role: ""
+    role: ROLES.TEACHER // 기본값을 선생님으로 설정
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,17 +27,17 @@ export default function Register() {
     setError("");
 
     if (formData.password !== formData.confirmPassword) {
-      setError("��й�ȣ�� ��ġ���� �ʽ��ϴ�.");
+      setError("비밀번호가 일치하지 않습니다.");
       return;
     }
 
     if (formData.password.length < 6) {
-      setError("��й�ȣ�� �ּ� 6�� �̻��̾�� �մϴ�.");
+      setError("비밀번호는 최소 6자 이상이어야 합니다.");
       return;
     }
 
     if (!formData.role) {
-      setError("������ ������ �ּ���.");
+      setError("역할을 선택해 주세요.");
       return;
     }
 
@@ -49,17 +49,17 @@ export default function Register() {
       });
 
       if (formData.role === ROLES.TEACHER) {
-        alert("ȸ�������� �Ϸ�Ǿ����ϴ�. �������� ���� �� �̿� �����մϴ�.");
+        alert("회원가입이 완료되었습니다. 관리자의 승인 후 이용 가능합니다.");
       } else {
-        alert("ȸ�������� �Ϸ�Ǿ����ϴ�.");
+        alert("회원가입이 완료되었습니다.");
       }
 
       navigate("/login");
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
-        setError("�̹� ��� ���� �̸����Դϴ�.");
+        setError("이미 사용 중인 이메일입니다.");
       } else {
-        setError(err.message || "ȸ�����Կ� �����߽��ϴ�.");
+        setError(err.message || "회원가입에 실패했습니다.");
       }
     } finally {
       setLoading(false);
@@ -67,34 +67,133 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-600 to-sky-500 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
-        <div className="text-white space-y-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-indigo-100">Create Account</p>
-          <h1 className="text-4xl font-extrabold leading-tight drop-shadow-sm">
-            Isw �۾��� ����̿� ���� ���� ȯ���մϴ�
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-600 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* 마법 효과 배경 */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* 반짝이는 별들 */}
+        <div className="absolute top-20 left-10 w-2 h-2 bg-yellow-300 rounded-full animate-pulse shadow-lg shadow-yellow-300/50"></div>
+        <div className="absolute top-40 right-20 w-3 h-3 bg-yellow-200 rounded-full animate-ping"></div>
+        <div className="absolute bottom-32 left-1/4 w-2 h-2 bg-white rounded-full animate-pulse"></div>
+        <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-cyan-300 rounded-full animate-ping"></div>
+        <div className="absolute bottom-40 right-10 w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-lg shadow-yellow-400/50"></div>
+        <div className="absolute top-60 left-1/3 w-1 h-1 bg-white rounded-full animate-ping"></div>
+
+        {/* 마법 빛줄기 */}
+        <div className="absolute top-0 left-1/4 w-px h-40 bg-gradient-to-b from-cyan-400/50 to-transparent"></div>
+        <div className="absolute top-10 right-1/3 w-px h-32 bg-gradient-to-b from-yellow-400/30 to-transparent"></div>
+        <div className="absolute bottom-0 right-1/4 w-px h-48 bg-gradient-to-t from-blue-400/40 to-transparent"></div>
+      </div>
+
+      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center relative z-10">
+        {/* 왼쪽 브랜딩 영역 */}
+        <div className="hidden md:block text-white space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="relative inline-block">
+              {/* 메인 로고 */}
+              <span className="text-6xl font-black tracking-tight bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent drop-shadow-2xl" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+                싹
+              </span>
+              {/* 붓 터치 효과 - 날렵하게 올라가는 선 */}
+              <svg className="absolute -top-2 -right-6 w-12 h-16" viewBox="0 0 48 64" fill="none">
+                {/* 메인 스우시 라인 */}
+                <path
+                  d="M8 56 Q12 48, 16 36 Q20 24, 28 14 Q34 6, 44 2"
+                  stroke="url(#brushGradient)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  fill="none"
+                  className="drop-shadow-lg"
+                />
+                {/* 그라데이션 정의 */}
+                <defs>
+                  <linearGradient id="brushGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+                    <stop offset="50%" stopColor="#67e8f9" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#fef08a" stopOpacity="1" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* 끝 부분 반짝임 */}
+              <span className="absolute -top-4 right-[-30px] text-2xl animate-pulse filter drop-shadow-lg" style={{ textShadow: '0 0 10px #fef08a, 0 0 20px #fef08a, 0 0 30px #fef08a' }}>✨</span>
+              {/* 추가 작은 반짝임들 */}
+              <span className="absolute -top-1 right-[-18px] w-1.5 h-1.5 bg-yellow-300 rounded-full animate-ping"></span>
+              <span className="absolute top-2 right-[-26px] w-1 h-1 bg-cyan-300 rounded-full animate-pulse"></span>
+            </div>
+            {/* SSAK 영문 */}
+            <span className="text-2xl font-bold tracking-widest text-cyan-200 opacity-80 ml-4">SSAK</span>
+          </div>
+
+          <h1 className="text-3xl font-bold leading-tight">
+            선생님을 위한
+            <br />
+            <span className="text-cyan-300">글쓰기 마법 플랫폼</span>
           </h1>
-          <p className="text-base text-indigo-100 leading-relaxed">
-            �л��� �ٷ� �۾��� ������ �����ϰ�, �������� ���� ���� Ŭ������ �л��� ������ �� �ֽ��ϴ�.
-            ������ ������ �Է��ϰ� ���� �ٷ� ������ ������.
+
+          <p className="text-blue-100 leading-relaxed text-sm">
+            학급을 생성하고 학생들을 관리하세요.
+            <br />
+            AI가 학생들의 글쓰기 실력을 빛나게 만들어드립니다.
           </p>
+
+          <div className="flex items-center gap-4 pt-4">
+            <div className="flex items-center gap-2 text-xs text-blue-200">
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">👨‍🏫</span>
+              <span>학급 관리</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-200">
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">📊</span>
+              <span>성장 분석</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-200">
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">🪄</span>
+              <span>AI 첨삭</span>
+            </div>
+          </div>
         </div>
 
-        <div className="glass-card rounded-2xl p-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-extrabold text-gray-900">ȸ������</h2>
-            <p className="mt-2 text-sm text-gray-600">���õ� �۾��� ������ �Բ� ������.</p>
+        {/* 회원가입 카드 */}
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl shadow-blue-900/20 border border-white/20">
+          <div className="text-center mb-6">
+            {/* 모바일용 로고 */}
+            <div className="md:hidden flex items-center justify-center gap-2 mb-4">
+              <div className="relative inline-block">
+                <span className="text-4xl font-black bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+                  싹
+                </span>
+                <svg className="absolute -top-1 -right-4 w-8 h-10" viewBox="0 0 48 64" fill="none">
+                  <path
+                    d="M8 56 Q12 48, 16 36 Q20 24, 28 14 Q34 6, 44 2"
+                    stroke="url(#brushGradientMobile)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                  <defs>
+                    <linearGradient id="brushGradientMobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#facc15" stopOpacity="1" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span className="absolute -top-2 right-[-20px] text-lg animate-pulse">✨</span>
+              </div>
+              <span className="text-lg font-bold tracking-widest text-blue-400 ml-4">SSAK</span>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">선생님 회원가입</h2>
+            <p className="mt-2 text-sm text-gray-500">학생은 선생님이 일괄 생성합니다</p>
           </div>
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
                 {error}
               </div>
             )}
+
             <div className="space-y-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  �̸�
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  이름
                 </label>
                 <input
                   id="name"
@@ -103,14 +202,14 @@ export default function Register() {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm shadow-sm"
-                  placeholder="�̸��� �Է��ϼ���"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="이름을 입력하세요"
                 />
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  �̸���
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  이메일
                 </label>
                 <input
                   id="email"
@@ -119,15 +218,15 @@ export default function Register() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm shadow-sm"
-                  placeholder="�̸����� �Է��ϼ���"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="이메일을 입력하세요"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    ��й�ȣ
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    비밀번호
                   </label>
                   <input
                     id="password"
@@ -136,13 +235,13 @@ export default function Register() {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm shadow-sm"
-                    placeholder="��й�ȣ (�ּ� 6��)"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="비밀번호 (최소 6자)"
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                    ��й�ȣ Ȯ��
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    비밀번호 확인
                   </label>
                   <input
                     id="confirmPassword"
@@ -151,49 +250,46 @@ export default function Register() {
                     required
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm shadow-sm"
-                    placeholder="��й�ȣ�� �� �� �� �Է��ϼ���"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="비밀번호를 한 번 더 입력하세요"
                   />
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                  ����
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  required
-                  value={formData.role}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm shadow-sm"
-                >
-                  <option value="">������ ������ �ּ���</option>
-                  <option value={ROLES.STUDENT}>�л�</option>
-                  <option value={ROLES.TEACHER}>������</option>
-                </select>
-                {formData.role === ROLES.TEACHER && (
-                  <p className="mt-2 text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                    ������ ������ �������� ���� �� ��� �����մϴ�.
-                  </p>
-                )}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                <p className="text-sm text-yellow-800">
+                  <strong>알림:</strong> 선생님 회원가입 후 관리자의 승인이 필요합니다.
+                </p>
               </div>
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 via-purple-500 to-sky-500 hover:from-indigo-500 hover:via-purple-400 hover:to-sky-400 shadow-lg shadow-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 disabled:bg-gray-400"
-              >
-                {loading ? "ȸ������ ��..." : "ȸ������"}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-500 hover:via-blue-400 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>회원가입 중...</span>
+                </>
+              ) : (
+                <>
+                  <span>선생님 가입하기</span>
+                  <span>✨</span>
+                </>
+              )}
+            </button>
 
-            <div className="text-center">
-              <Link to="/login" className="text-sm text-indigo-600 hover:text-indigo-500 font-medium">
-                �̹� ������ �����Ű���? �α���
+            <div className="text-center pt-2">
+              <Link
+                to="/login"
+                className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+              >
+                이미 계정이 있으신가요? <span className="underline">로그인</span>
               </Link>
             </div>
           </form>

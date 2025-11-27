@@ -1,7 +1,7 @@
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export async function createAssignment(teacherId, classCode, title, description, dueDate) {
+export async function createAssignment(teacherId, classCode, title, description, dueDate, minScore = 70, maxAiProbability = 50) {
   try {
     const assignment = {
       teacherId,
@@ -9,6 +9,8 @@ export async function createAssignment(teacherId, classCode, title, description,
       title,
       description,
       dueDate,
+      minScore,
+      maxAiProbability,
       createdAt: new Date().toISOString()
     };
 

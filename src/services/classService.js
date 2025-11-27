@@ -17,6 +17,12 @@ import { MAX_STUDENTS_PER_CLASS } from '../config/auth';
 
 export async function createClass(teacherId, className, gradeLevel, description = '') {
   try {
+    // 선생님이 이미 학급을 가지고 있는지 확인 (1개만 허용)
+    const existingClasses = await getTeacherClasses(teacherId);
+    if (existingClasses.length > 0) {
+      throw new Error('선생님은 1개의 학급만 생성할 수 있습니다. 기존 학급을 삭제한 후 다시 시도해주세요.');
+    }
+
     let classCode = generateClassCode();
 
     // 중복 코드 확인 및 재생성
@@ -162,12 +168,12 @@ export async function deleteClass(classCode) {
 
     const classData = classDoc.data();
 
-    // 모든 학생의 classCode 제거
-    for (const student of classData.students) {
-      await updateDoc(doc(db, 'users', student.studentId), {
-        classCode: null
-      });
-    }
+    // 🚀 모든 학생의 classCode 병렬 제거 (최적화)
+    await Promise.all(
+      classData.students.map(student =>
+        updateDoc(doc(db, 'users', student.studentId), { classCode: null })
+      )
+    );
 
     // 학급 삭제
     await deleteDoc(classRef);

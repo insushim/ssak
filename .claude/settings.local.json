@@ -13,7 +13,14 @@
       "Bash(if exist dist rmdir /s /q dist)",
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: AI Writing Assistant - ISW 글쓰기 도우미\n\n✨ Features:\n- 완전한 학급 관리 시스템 (슈퍼 관리자, 선생님, 학생)\n- 100개 추천 글쓰기 주제 (초등 1학년 ~ 고등 3학년)\n- AI 글쓰기 분석 (Gemini 1.5 Flash)\n- 표절 감지 (50% 이상 차단)\n- 학년별 적정 글자 수 평가\n- 기준 점수 시스템 (70점 이상 제출 가능)\n- 30초 자동 저장\n- Firebase Authentication + Firestore\n- Cloud Functions (학생 일괄 생성, 사용자 관리)\n- 실시간 글자 수 피드백\n- 무제한 재도전\n\n🚀 Generated with Claude Code\nhttps://claude.com/claude-code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git clone:*)",
+      "Bash(findstr:*)",
+      "Bash(git commit:*)",
+      "Bash(firebase functions:delete:*)"
     ],
     "deny": [],
     "ask": []
