@@ -9,11 +9,43 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
-  deleteDoc
+  deleteDoc,
+  documentId
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, functions } from '../config/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { generateClassCode } from '../utils/classCodeGenerator';
 import { MAX_STUDENTS_PER_CLASS } from '../config/auth';
+
+// ============================================
+// 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
+// ============================================
+const studentDetailsCache = new Map(); // studentIds key -> { data, timestamp }
+const classCache = new Map(); // classCode -> { data, timestamp }
+const teacherClassesCache = new Map(); // teacherId -> { data, timestamp }
+
+const CACHE_TTL = {
+  studentDetails: 300000, // 5분
+  classData: 300000,      // 5분
+  teacherClasses: 120000, // 2분
+};
+
+function isCacheValid(timestamp, ttl) {
+  if (!timestamp) return false;
+  // 10% jitter 추가
+  const jitter = ttl * 0.1 * Math.random();
+  return (Date.now() - timestamp) < (ttl + jitter);
+}
+
+// 클래스 캐시 무효화
+export function invalidateClassCache(classCode) {
+  classCache.delete(classCode);
+}
+
+// 선생님 클래스 캐시 무효화
+export function invalidateTeacherClassesCache(teacherId) {
+  teacherClassesCache.delete(teacherId);
+}
 
 export async function createClass(teacherId, className, gradeLevel, description = '') {
   try {
@@ -55,27 +87,53 @@ export async function createClass(teacherId, className, gradeLevel, description 
   }
 }
 
-export async function getClassByCode(classCode) {
+// 🚀 최적화: 캐싱 추가 (10,000명 대응)
+export async function getClassByCode(classCode, forceRefresh = false) {
   try {
-    const classDoc = await getDoc(doc(db, 'classes', classCode));
-    if (classDoc.exists()) {
-      return { ...classDoc.data(), classCode };
+    // 캐시 확인
+    if (!forceRefresh) {
+      const cached = classCache.get(classCode);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.classData)) {
+        return cached.data;
+      }
     }
-    return null;
+
+    const classDoc = await getDoc(doc(db, 'classes', classCode));
+    const result = classDoc.exists() ? { ...classDoc.data(), classCode } : null;
+
+    // 캐시 저장
+    if (result) {
+      classCache.set(classCode, { data: result, timestamp: Date.now() });
+    }
+
+    return result;
   } catch (error) {
     console.error('학급 조회 에러:', error);
     throw error;
   }
 }
 
-export async function getTeacherClasses(teacherId) {
+// 🚀 최적화: 캐싱 추가 (10,000명 대응)
+export async function getTeacherClasses(teacherId, forceRefresh = false) {
   try {
+    // 캐시 확인
+    if (!forceRefresh) {
+      const cached = teacherClassesCache.get(teacherId);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.teacherClasses)) {
+        return cached.data;
+      }
+    }
+
     const q = query(collection(db, 'classes'), where('teacherId', '==', teacherId));
     const querySnapshot = await getDocs(q);
     const classes = [];
-    querySnapshot.forEach((doc) => {
-      classes.push({ ...doc.data(), classCode: doc.id });
+    querySnapshot.forEach((docSnap) => {
+      classes.push({ ...docSnap.data(), classCode: docSnap.id });
     });
+
+    // 캐시 저장
+    teacherClassesCache.set(teacherId, { data: classes, timestamp: Date.now() });
+
     return classes;
   } catch (error) {
     console.error('선생님 학급 조회 에러:', error);
@@ -118,6 +176,9 @@ export async function joinClass(classCode, studentId, studentName) {
       classCode
     });
 
+    // 🚀 캐시 무효화
+    invalidateClassCache(classCode);
+
     return classData;
   } catch (error) {
     console.error('학급 가입 에러:', error);
@@ -150,6 +211,9 @@ export async function removeStudentFromClass(classCode, studentId) {
       classCode: null
     });
 
+    // 🚀 캐시 무효화
+    invalidateClassCache(classCode);
+
     return true;
   } catch (error) {
     console.error('학생 제거 에러:', error);
@@ -177,9 +241,102 @@ export async function deleteClass(classCode) {
 
     // 학급 삭제
     await deleteDoc(classRef);
+
+    // 🚀 캐시 무효화
+    invalidateClassCache(classCode);
+    invalidateTeacherClassesCache(classData.teacherId);
+
     return true;
   } catch (error) {
     console.error('학급 삭제 에러:', error);
+    throw error;
+  }
+}
+
+// 학생 상세 정보 조회 (이메일 포함)
+// 🚀 최적화: N+1 쿼리 대신 배치 쿼리 + 캐싱
+export async function getStudentDetails(studentIds, forceRefresh = false) {
+  try {
+    if (!studentIds || studentIds.length === 0) {
+      return [];
+    }
+
+    // 캐시 키 생성 (정렬된 ID 목록)
+    const cacheKey = [...studentIds].sort().join(',');
+    const cached = studentDetailsCache.get(cacheKey);
+
+    // 캐시 확인
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.studentDetails)) {
+      return cached.data;
+    }
+
+    // 🚀 Firestore 'in' 쿼리 최대 30개까지 지원 (배치 크기 증가)
+    const batchSize = 30;
+    const batches = [];
+
+    for (let i = 0; i < studentIds.length; i += batchSize) {
+      const batchIds = studentIds.slice(i, i + batchSize);
+      batches.push(batchIds);
+    }
+
+    // 배치 쿼리 병렬 실행
+    const batchResults = await Promise.all(
+      batches.map(async (batchIds) => {
+        const q = query(
+          collection(db, 'users'),
+          where(documentId(), 'in', batchIds)
+        );
+        const snapshot = await getDocs(q);
+        const results = new Map();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          results.set(docSnap.id, {
+            studentId: docSnap.id,
+            email: data.email || '',
+            name: data.name || ''
+          });
+        });
+        return results;
+      })
+    );
+
+    // 결과 병합
+    const allResults = new Map();
+    batchResults.forEach(batchMap => {
+      batchMap.forEach((value, key) => allResults.set(key, value));
+    });
+
+    // 원래 순서대로 정렬하고 없는 ID는 빈 데이터로 채움
+    const studentDetails = studentIds.map(studentId =>
+      allResults.get(studentId) || { studentId, email: '', name: '' }
+    );
+
+    // 캐시 저장
+    studentDetailsCache.set(cacheKey, {
+      data: studentDetails,
+      timestamp: Date.now()
+    });
+
+    return studentDetails;
+  } catch (error) {
+    console.error('학생 상세정보 조회 에러:', error);
+    throw error;
+  }
+}
+
+// 학생 상세 정보 캐시 무효화
+export function invalidateStudentDetailsCache() {
+  studentDetailsCache.clear();
+}
+
+// 학생 비밀번호 초기화
+export async function resetStudentPassword(studentId, classCode) {
+  try {
+    const resetPassword = httpsCallable(functions, 'resetStudentPassword');
+    const result = await resetPassword({ studentId, classCode });
+    return result.data;
+  } catch (error) {
+    console.error('비밀번호 초기화 에러:', error);
     throw error;
   }
 }

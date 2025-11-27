@@ -7,6 +7,25 @@ import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { SUPER_ADMIN_UID, ROLES } from '../config/auth';
 
+// ============================================
+// 🚀 캐싱 시스템 - Firestore 읽기 최적화
+// ============================================
+const userDataCache = new Map(); // uid -> { data, timestamp }
+const CACHE_TTL = 300000; // 5분
+
+function isCacheValid(timestamp) {
+  return timestamp && (Date.now() - timestamp) < CACHE_TTL;
+}
+
+// 사용자 데이터 캐시 무효화
+export function invalidateUserCache(uid) {
+  if (uid) {
+    userDataCache.delete(uid);
+  } else {
+    userDataCache.clear();
+  }
+}
+
 async function ensureSuperAdminProfile(user, existingDoc) {
   const superRef = doc(db, 'users', user.uid);
   const now = new Date().toISOString();
@@ -122,12 +141,13 @@ export async function signOut() {
   }
 }
 
-export async function getUserData(uid) {
+// 🚀 최적화: 캐싱 적용된 사용자 데이터 조회
+export async function getUserData(uid, forceRefresh = false) {
   try {
-    const userRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userRef);
-
+    // 슈퍼 관리자는 캐싱하지 않음 (권한 변경 즉시 반영 필요)
     if (uid === SUPER_ADMIN_UID) {
+      const userRef = doc(db, 'users', uid);
+      const userDoc = await getDoc(userRef);
       const ensuredProfile = await ensureSuperAdminProfile(
         auth.currentUser || { uid, email: userDoc.data()?.email },
         userDoc.exists() ? userDoc.data() : null
@@ -135,8 +155,23 @@ export async function getUserData(uid) {
       return ensuredProfile;
     }
 
+    // 캐시 확인
+    const cached = userDataCache.get(uid);
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp)) {
+      return cached.data;
+    }
+
+    const userRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userRef);
+
     if (userDoc.exists()) {
-      return userDoc.data();
+      const userData = userDoc.data();
+      // 캐시 저장
+      userDataCache.set(uid, {
+        data: userData,
+        timestamp: Date.now()
+      });
+      return userData;
     }
 
     return null;
@@ -149,6 +184,8 @@ export async function getUserData(uid) {
 export async function updateUserData(uid, data) {
   try {
     await updateDoc(doc(db, 'users', uid), data);
+    // 🚀 캐시 무효화 - 업데이트 후 캐시 갱신
+    invalidateUserCache(uid);
   } catch (error) {
     console.error('사용자 정보 업데이트 에러:', error);
     throw error;

@@ -144,5 +144,25 @@ service cloud.firestore {
                         isApprovedTeacher() ||
                         isSuperAdmin());
     }
+
+    // Scheduler settings collection
+    match /schedulers/{classCode} {
+      // Teachers and super admin can read/write scheduler settings
+      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+    }
+
+    // Auto assignment logs collection
+    match /autoAssignmentLogs/{logId} {
+      // Teachers and super admin can read/write auto assignment logs
+      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+    }
+
+    // Drafts collection (임시 저장)
+    match /drafts/{draftId} {
+      // Students can read/write their own drafts
+      // draftId format: draft_{studentId}_{topic}
+      allow read, write: if isAuthenticated() &&
+                            draftId.matches('draft_' + request.auth.uid + '_.*');
+    }
   }
 }

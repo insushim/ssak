@@ -409,14 +409,41 @@ export const AnimalFaceSVG = ({ type = 'fox', size = 120 }) => {
 // 머리카락 SVG - 얼굴(눈 위치 y=45) 위에 자연스럽게 배치
 // 앞머리는 y=35 정도까지만 내려와서 눈을 가리지 않음
 export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gender = 'male' }) => {
-  const lighterColor = color === '#1a1a1a' ? '#3a3a3a' : color;
+  // 밝은 하이라이트 색상 계산
+  const getLighterColor = (c) => {
+    if (c === '#1a1a1a') return '#4a4a4a';
+    if (c === '#4a3728') return '#7a5a48'; // 갈색
+    if (c === '#8B4513') return '#B8763F'; // 밤색
+    if (c === '#FFD700') return '#FFE44D'; // 금발
+    if (c === '#DC143C') return '#FF4D6D'; // 빨강
+    if (c === '#9370DB') return '#B8A2E8'; // 보라
+    if (c === '#4169E1') return '#7B9AEA'; // 파랑
+    return c;
+  };
+  const lighterColor = getLighterColor(color);
+  // 어두운 그림자 색상
+  const getDarkerColor = (c) => {
+    if (c === '#1a1a1a') return '#000000';
+    if (c === '#4a3728') return '#2a1a10';
+    if (c === '#8B4513') return '#5C2E0D';
+    if (c === '#FFD700') return '#CC9900';
+    return '#1a1a1a';
+  };
+  const darkerColor = getDarkerColor(color);
 
   const hairStyles = {
     // 기본 - 자연스러운 짧은 머리 (남성형)
     default: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="hairGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="40%" stopColor={color} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+        </defs>
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="18" rx="46" ry="16" fill={color} />
+        <ellipse cx="60" cy="18" rx="46" ry="16" fill="url(#hairGrad1)" />
         {/* 뒤통수 */}
         <path d="M 14 25 Q 14 8 60 5 Q 106 8 106 25 L 106 35 Q 100 38 60 38 Q 20 38 14 35 Z" fill={color} />
         {/* 옆머리 (귀 위) */}
@@ -424,15 +451,26 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <path d="M 106 30 Q 112 40 110 55 L 102 52 Q 104 42 102 32 Z" fill={color} />
         {/* 앞머리 - 이마만 살짝 덮음 */}
         <path d="M 25 30 Q 40 24 60 26 Q 80 24 95 30 Q 85 38 60 36 Q 35 38 25 30 Z" fill={color} />
-        {/* 하이라이트 */}
-        <ellipse cx="45" cy="15" rx="12" ry="6" fill={lighterColor} opacity="0.2" />
+        {/* 하이라이트 - 빛 반사 */}
+        <ellipse cx="40" cy="12" rx="15" ry="7" fill={lighterColor} opacity="0.35" />
+        <ellipse cx="75" cy="14" rx="10" ry="5" fill={lighterColor} opacity="0.25" />
+        {/* 머리카락 결 */}
+        <path d="M 30 20 Q 45 15 60 18" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />
+        <path d="M 60 18 Q 75 15 90 20" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />
       </svg>
     ),
     // 단발 - 볼 정도 길이 (여성형 단발)
     short: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="shortHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="50%" stopColor={color} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+        </defs>
         {/* 머리 윗부분 볼륨 */}
-        <ellipse cx="60" cy="16" rx="48" ry="14" fill={color} />
+        <ellipse cx="60" cy="16" rx="48" ry="14" fill="url(#shortHairGrad)" />
         {/* 뒤통수 */}
         <path d="M 12 22 Q 12 6 60 3 Q 108 6 108 22" fill={color} />
         {/* 옆머리 - 볼까지 내려옴 */}
@@ -440,26 +478,46 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <path d="M 108 22 L 112 70 Q 110 78 100 78 L 98 40 Q 102 30 108 25 Z" fill={color} />
         {/* 앞머리 뱅 - 눈썹 위까지만 */}
         <path d="M 20 28 Q 40 22 60 24 Q 80 22 100 28 Q 90 36 60 34 Q 30 36 20 28 Z" fill={color} />
-        {/* 하이라이트 */}
-        <ellipse cx="50" cy="14" rx="16" ry="6" fill={lighterColor} opacity="0.2" />
+        {/* 하이라이트 - 3D 효과 */}
+        <ellipse cx="45" cy="12" rx="18" ry="7" fill={lighterColor} opacity="0.4" />
+        <ellipse cx="80" cy="14" rx="12" ry="5" fill={lighterColor} opacity="0.3" />
+        {/* 옆머리 하이라이트 */}
+        <path d="M 10 35 Q 8 50 12 65" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
+        <path d="M 110 35 Q 112 50 108 65" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
       </svg>
     ),
     // 긴머리 - 어깨까지
     long: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="longHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="30%" stopColor={color} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+          <linearGradient id="longHairSide" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="50%" stopColor={color} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+        </defs>
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="15" rx="48" ry="13" fill={color} />
+        <ellipse cx="60" cy="15" rx="48" ry="13" fill="url(#longHairGrad)" />
         {/* 뒤통수 */}
         <path d="M 12 20 Q 10 5 60 2 Q 110 5 108 20" fill={color} />
         {/* 왼쪽 긴 머리 */}
-        <path d="M 12 20 Q 2 45 5 80 Q 8 115 25 118 Q 35 115 32 90 L 28 55 Q 22 35 12 25 Z" fill={color} />
+        <path d="M 12 20 Q 2 45 5 80 Q 8 115 25 118 Q 35 115 32 90 L 28 55 Q 22 35 12 25 Z" fill="url(#longHairSide)" />
         {/* 오른쪽 긴 머리 */}
-        <path d="M 108 20 Q 118 45 115 80 Q 112 115 95 118 Q 85 115 88 90 L 92 55 Q 98 35 108 25 Z" fill={color} />
+        <path d="M 108 20 Q 118 45 115 80 Q 112 115 95 118 Q 85 115 88 90 L 92 55 Q 98 35 108 25 Z" fill="url(#longHairSide)" />
         {/* 앞머리 - 눈썹 위까지 */}
         <path d="M 22 28 Q 40 20 60 22 Q 80 20 98 28 Q 88 36 60 34 Q 32 36 22 28 Z" fill={color} />
-        {/* 하이라이트 */}
-        <path d="M 12 40 Q 8 70 15 100" stroke={lighterColor} strokeWidth="4" opacity="0.2" fill="none" />
-        <path d="M 108 40 Q 112 70 105 100" stroke={lighterColor} strokeWidth="4" opacity="0.2" fill="none" />
+        {/* 머리카락 결 - 윤기 표현 */}
+        <path d="M 8 35 Q 5 60 10 85 Q 12 100 18 112" stroke={lighterColor} strokeWidth="4" opacity="0.3" fill="none" />
+        <path d="M 15 30 Q 12 55 15 80" stroke={lighterColor} strokeWidth="2" opacity="0.2" fill="none" />
+        <path d="M 112 35 Q 115 60 110 85 Q 108 100 102 112" stroke={lighterColor} strokeWidth="4" opacity="0.3" fill="none" />
+        <path d="M 105 30 Q 108 55 105 80" stroke={lighterColor} strokeWidth="2" opacity="0.2" fill="none" />
+        {/* 정수리 하이라이트 */}
+        <ellipse cx="50" cy="10" rx="20" ry="7" fill={lighterColor} opacity="0.35" />
       </svg>
     ),
     // 곱슬머리
@@ -541,6 +599,148 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         {/* 하이라이트 웨이브 */}
         <path d="M 15 35 Q 5 55 12 75 Q 5 95 12 110" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
         <path d="M 105 35 Q 115 55 108 75 Q 115 95 108 110" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
+      </svg>
+    ),
+    // 스포츠컷 - 짧고 깔끔한 스타일
+    sportscut: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="sportscutGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+        </defs>
+        {/* 아주 짧은 머리 베이스 */}
+        <ellipse cx="60" cy="22" rx="44" ry="18" fill={color} />
+        <path d="M 16 25 Q 16 10 60 6 Q 104 10 104 25 L 104 32 Q 100 35 60 35 Q 20 35 16 32 Z" fill={color} />
+        {/* 옆머리 - 아주 짧게 */}
+        <path d="M 16 28 Q 12 35 14 45 L 20 44 Q 18 36 20 30 Z" fill={color} />
+        <path d="M 104 28 Q 108 35 106 45 L 100 44 Q 102 36 100 30 Z" fill={color} />
+        {/* 짧은 앞머리 - 이마에 살짝만 */}
+        <path d="M 30 28 Q 45 24 60 25 Q 75 24 90 28 Q 82 32 60 31 Q 38 32 30 28 Z" fill={color} />
+        {/* 민머리 느낌의 하이라이트 */}
+        <ellipse cx="50" cy="14" rx="20" ry="8" fill={lighterColor} opacity="0.25" />
+        {/* 두피 느낌 텍스처 */}
+        <circle cx="35" cy="18" r="2" fill={darkerColor} opacity="0.15" />
+        <circle cx="50" cy="14" r="2" fill={darkerColor} opacity="0.15" />
+        <circle cx="70" cy="14" r="2" fill={darkerColor} opacity="0.15" />
+        <circle cx="85" cy="18" r="2" fill={darkerColor} opacity="0.15" />
+      </svg>
+    ),
+    // 엘프머리 - 뾰족한 귀 스타일의 긴 머리
+    elf: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="elfHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={lighterColor} />
+            <stop offset="50%" stopColor={color} />
+            <stop offset="100%" stopColor={darkerColor} />
+          </linearGradient>
+        </defs>
+        {/* 머리 윗부분 */}
+        <ellipse cx="60" cy="15" rx="46" ry="13" fill={color} />
+        <path d="M 14 20 Q 12 6 60 3 Q 108 6 106 20" fill={color} />
+        {/* 왼쪽 긴 머리 - 뾰족하게 */}
+        <path d="M 14 20 Q 5 40 8 70 Q 5 100 2 118 Q 15 115 20 90 L 24 50 Q 20 35 14 25 Z" fill="url(#elfHairGrad)" />
+        {/* 오른쪽 긴 머리 - 뾰족하게 */}
+        <path d="M 106 20 Q 115 40 112 70 Q 115 100 118 118 Q 105 115 100 90 L 96 50 Q 100 35 106 25 Z" fill="url(#elfHairGrad)" />
+        {/* 앞머리 - 갈라진 스타일 */}
+        <path d="M 24 26 Q 42 20 55 24 L 48 36 Q 35 34 24 30 Z" fill={color} />
+        <path d="M 96 26 Q 78 20 65 24 L 72 36 Q 85 34 96 30 Z" fill={color} />
+        {/* 뾰족한 귀 느낌 장식 (머리카락) */}
+        <path d="M 8 45 Q 0 40 2 30 Q 8 38 12 45" fill={color} />
+        <path d="M 112 45 Q 120 40 118 30 Q 112 38 108 45" fill={color} />
+        {/* 하이라이트 */}
+        <path d="M 10 35 Q 6 55 8 80 Q 6 100 5 115" stroke={lighterColor} strokeWidth="3" opacity="0.25" fill="none" />
+        <path d="M 110 35 Q 114 55 112 80 Q 114 100 115 115" stroke={lighterColor} strokeWidth="3" opacity="0.25" fill="none" />
+        {/* 정수리 하이라이트 */}
+        <ellipse cx="50" cy="10" rx="18" ry="6" fill={lighterColor} opacity="0.3" />
+      </svg>
+    ),
+    // 인어머리 - 물결치는 긴 머리
+    mermaid: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="mermaidGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#00CED1" />
+            <stop offset="50%" stopColor="#20B2AA" />
+            <stop offset="100%" stopColor="#008B8B" />
+          </linearGradient>
+        </defs>
+        {/* 머리 윗부분 */}
+        <ellipse cx="60" cy="14" rx="48" ry="12" fill="url(#mermaidGrad)" />
+        <path d="M 12 18 Q 10 4 60 1 Q 110 4 108 18" fill="url(#mermaidGrad)" />
+        {/* 왼쪽 물결 머리 */}
+        <path d="M 12 18 Q 0 35 10 50 Q 0 65 10 80 Q 0 95 10 110 Q 20 120 30 115 Q 25 95 30 80 Q 25 65 30 50 Q 25 35 12 22 Z" fill="url(#mermaidGrad)" />
+        {/* 오른쪽 물결 머리 */}
+        <path d="M 108 18 Q 120 35 110 50 Q 120 65 110 80 Q 120 95 110 110 Q 100 120 90 115 Q 95 95 90 80 Q 95 65 90 50 Q 95 35 108 22 Z" fill="url(#mermaidGrad)" />
+        {/* 앞머리 */}
+        <path d="M 22 25 Q 40 18 60 22 Q 80 18 98 25 Q 88 35 60 33 Q 32 35 22 25 Z" fill="url(#mermaidGrad)" />
+        {/* 물결 하이라이트 */}
+        <path d="M 8 30 Q 0 45 8 60 Q 0 75 8 90 Q 2 105 10 115" stroke="#40E0D0" strokeWidth="3" opacity="0.4" fill="none" />
+        <path d="M 112 30 Q 120 45 112 60 Q 120 75 112 90 Q 118 105 110 115" stroke="#40E0D0" strokeWidth="3" opacity="0.4" fill="none" />
+        {/* 정수리 하이라이트 */}
+        <ellipse cx="50" cy="10" rx="20" ry="7" fill="#40E0D0" opacity="0.35" />
+        {/* 반짝임 */}
+        <circle cx="18" cy="55" r="2" fill="white" opacity="0.5" />
+        <circle cx="102" cy="70" r="2" fill="white" opacity="0.5" />
+        <circle cx="15" cy="90" r="1.5" fill="white" opacity="0.4" />
+      </svg>
+    ),
+    // 산타머리 - 산타 모자 + 머리
+    santa: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 머리카락 베이스 */}
+        <ellipse cx="60" cy="35" rx="44" ry="12" fill={color} />
+        <path d="M 16 38 Q 12 50 14 60 L 22 58 Q 20 48 22 40 Z" fill={color} />
+        <path d="M 104 38 Q 108 50 106 60 L 98 58 Q 100 48 98 40 Z" fill={color} />
+        {/* 산타 모자 */}
+        <path d="M 20 38 Q 60 -10 100 38 Q 70 45 20 38" fill="#DC143C" />
+        <path d="M 95 30 Q 110 15 115 35 Q 118 50 110 55" fill="#DC143C" />
+        {/* 모자 흰 테두리 */}
+        <ellipse cx="60" cy="40" rx="45" ry="8" fill="white" />
+        {/* 모자 끝 폼폼 */}
+        <circle cx="112" cy="45" r="10" fill="white" />
+        {/* 모자 하이라이트 */}
+        <path d="M 30 25 Q 50 5 70 20" stroke="#FF6B6B" strokeWidth="4" opacity="0.4" fill="none" />
+        {/* 머리카락 하이라이트 */}
+        <ellipse cx="45" cy="50" rx="8" ry="4" fill={lighterColor} opacity="0.3" />
+      </svg>
+    ),
+    // 우주비행사 - 헬멧 머리
+    astronaut: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="helmetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#F5F5F5" />
+            <stop offset="50%" stopColor="#E8E8E8" />
+            <stop offset="100%" stopColor="#C0C0C0" />
+          </linearGradient>
+          <linearGradient id="visorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFD700" />
+            <stop offset="50%" stopColor="#FFA500" />
+            <stop offset="100%" stopColor="#FF8C00" />
+          </linearGradient>
+        </defs>
+        {/* 헬멧 외부 */}
+        <ellipse cx="60" cy="45" rx="52" ry="42" fill="url(#helmetGrad)" />
+        {/* 바이저 (금색 반사) */}
+        <ellipse cx="60" cy="50" rx="40" ry="30" fill="url(#visorGrad)" opacity="0.8" />
+        {/* 바이저 반사광 */}
+        <ellipse cx="45" cy="40" rx="15" ry="10" fill="white" opacity="0.4" />
+        <ellipse cx="75" cy="60" rx="8" ry="6" fill="white" opacity="0.2" />
+        {/* 헬멧 테두리 */}
+        <ellipse cx="60" cy="45" rx="52" ry="42" fill="none" stroke="#808080" strokeWidth="3" />
+        {/* 귀 부분 */}
+        <circle cx="12" cy="50" r="8" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <circle cx="108" cy="50" r="8" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        {/* 마이크 */}
+        <rect x="8" y="60" width="4" height="15" rx="2" fill="#404040" />
+        {/* 안테나 */}
+        <rect x="55" y="0" width="4" height="10" fill="#808080" />
+        <circle cx="57" cy="0" r="3" fill="#FF0000" />
+        {/* 내부 머리카락 (살짝 보이는) */}
+        <ellipse cx="60" cy="52" rx="32" ry="22" fill={color} opacity="0.3" />
       </svg>
     )
   };
@@ -661,41 +861,62 @@ export const AccessorySVG = ({ type = 'none', size = 120 }) => {
             <stop offset="100%" stopColor="#FFA500" />
           </linearGradient>
         </defs>
-        <path d="M 25 45 L 35 15 L 50 35 L 60 5 L 70 35 L 85 15 L 95 45 L 90 50 L 30 50 Z" fill="url(#crownGradient)" />
-        <circle cx="35" cy="15" r="5" fill="#FF0000" />
-        <circle cx="60" cy="5" r="6" fill="#00BFFF" />
-        <circle cx="85" cy="15" r="5" fill="#00FF00" />
-        <rect x="30" y="45" width="60" height="8" fill="url(#crownGradient)" />
-        <circle cx="45" cy="49" r="3" fill="#FF69B4" />
-        <circle cx="60" cy="49" r="3" fill="#FF69B4" />
-        <circle cx="75" cy="49" r="3" fill="#FF69B4" />
+        {/* 왕관 본체 - 머리 위에 위치 */}
+        <path d="M 25 28 L 35 0 L 50 18 L 60 -10 L 70 18 L 85 0 L 95 28 L 90 33 L 30 33 Z" fill="url(#crownGradient)" />
+        {/* 보석 */}
+        <circle cx="35" cy="0" r="5" fill="#FF0000" />
+        <circle cx="60" cy="-10" r="6" fill="#00BFFF" />
+        <circle cx="85" cy="0" r="5" fill="#00FF00" />
+        {/* 왕관 밑단 */}
+        <rect x="30" y="28" width="60" height="8" fill="url(#crownGradient)" />
+        <circle cx="45" cy="32" r="3" fill="#FF69B4" />
+        <circle cx="60" cy="32" r="3" fill="#FF69B4" />
+        <circle cx="75" cy="32" r="3" fill="#FF69B4" />
       </svg>
     ),
     bow: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <ellipse cx="40" cy="25" rx="18" ry="12" fill="#FF69B4" />
-        <ellipse cx="80" cy="25" rx="18" ry="12" fill="#FF69B4" />
-        <circle cx="60" cy="25" r="8" fill="#FF1493" />
-        <ellipse cx="40" cy="25" rx="8" ry="5" fill="#FFB6C1" opacity="0.5" />
-        <ellipse cx="80" cy="25" rx="8" ry="5" fill="#FFB6C1" opacity="0.5" />
-        <path d="M 55 33 L 50 50 L 60 45 L 70 50 L 65 33" fill="#FF69B4" />
+        {/* 머리 오른쪽 옆에 리본 */}
+        <defs>
+          <linearGradient id="bowGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FF85A2" />
+            <stop offset="100%" stopColor="#FF1493" />
+          </linearGradient>
+        </defs>
+        {/* 왼쪽 날개 */}
+        <ellipse cx="78" cy="22" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(-20, 78, 22)" />
+        <ellipse cx="78" cy="22" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(-20, 78, 22)" />
+        {/* 오른쪽 날개 */}
+        <ellipse cx="105" cy="28" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(20, 105, 28)" />
+        <ellipse cx="105" cy="28" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(20, 105, 28)" />
+        {/* 중앙 매듭 */}
+        <circle cx="92" cy="25" r="6" fill="#FF1493" />
+        <ellipse cx="92" cy="24" rx="3" ry="2" fill="#FFB6C1" opacity="0.4" />
+        {/* 리본 꼬리 */}
+        <path d="M 89 31 Q 85 42 82 50" stroke="url(#bowGradient)" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M 95 31 Q 99 42 102 50" stroke="url(#bowGradient)" strokeWidth="5" fill="none" strokeLinecap="round" />
       </svg>
     ),
     hat: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <ellipse cx="60" cy="45" rx="50" ry="12" fill="#1a1a1a" />
-        <ellipse cx="60" cy="42" rx="35" ry="8" fill="#2d2d2d" />
-        <path d="M 30 42 Q 30 10 60 5 Q 90 10 90 42" fill="#1a1a1a" />
-        <rect x="30" y="35" width="60" height="8" fill="#8B4513" />
+        {/* 모자 챙 - 머리 위에 위치 */}
+        <ellipse cx="60" cy="28" rx="50" ry="12" fill="#1a1a1a" />
+        <ellipse cx="60" cy="25" rx="35" ry="8" fill="#2d2d2d" />
+        {/* 모자 본체 */}
+        <path d="M 30 25 Q 30 -5 60 -10 Q 90 -5 90 25" fill="#1a1a1a" />
+        {/* 모자 띠 */}
+        <rect x="30" y="18" width="60" height="8" fill="#8B4513" />
       </svg>
     ),
     headphones: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <path d="M 25 60 Q 25 25 60 20 Q 95 25 95 60" stroke="#1a1a1a" strokeWidth="8" fill="none" />
-        <rect x="15" y="55" width="20" height="35" rx="5" fill="#1a1a1a" />
-        <rect x="85" y="55" width="20" height="35" rx="5" fill="#1a1a1a" />
-        <ellipse cx="25" cy="72" rx="8" ry="12" fill="#404040" />
-        <ellipse cx="95" cy="72" rx="8" ry="12" fill="#404040" />
+        {/* 헤드밴드 - 머리 위에 */}
+        <path d="M 22 55 Q 22 18 60 12 Q 98 18 98 55" stroke="#1a1a1a" strokeWidth="8" fill="none" />
+        {/* 이어컵 - 귀 위치에 */}
+        <rect x="10" y="48" width="22" height="32" rx="5" fill="#1a1a1a" />
+        <rect x="88" y="48" width="22" height="32" rx="5" fill="#1a1a1a" />
+        <ellipse cx="21" cy="64" rx="8" ry="12" fill="#404040" />
+        <ellipse cx="99" cy="64" rx="8" ry="12" fill="#404040" />
       </svg>
     ),
     wand: (

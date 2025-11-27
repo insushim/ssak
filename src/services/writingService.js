@@ -8,11 +8,109 @@ import {
   where,
   orderBy,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  documentId
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { analyzeWriting, detectPlagiarism, detectAIUsage } from '../utils/geminiAPI';
 import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS } from '../config/auth';
+
+// ============================================
+// 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
+// ============================================
+
+// LocalStorage 키 접두사
+const LS_PREFIX = 'ssak_cache_';
+
+// 캐시 저장소 (메모리 캐시 + LocalStorage 영속화)
+const cache = {
+  studentWritings: new Map(), // studentId -> { data, timestamp }
+  classData: new Map(),       // classCode -> { data, timestamp }
+  userNicknames: new Map(),   // studentId -> { nickname, timestamp }
+  studentStats: new Map(),    // studentId -> { data, timestamp }
+  classRanking: new Map(),    // classCode_period -> { data, timestamp }
+};
+
+// 🚀 캐시 유효 시간 대폭 증가 (10,000명 대응)
+const CACHE_TTL = {
+  studentWritings: 120000,   // 2분 - 본인 글 (이전 30초)
+  classData: 300000,         // 5분 - 반 정보 (이전 60초)
+  userNicknames: 600000,     // 10분 - 닉네임 (이전 5분)
+  studentStats: 300000,      // 5분 - 학생 통계 (신규)
+  classRanking: 180000,      // 3분 - 랭킹 데이터 (신규)
+};
+
+// 캐시 유효성 확인 (jitter 추가로 thundering herd 방지)
+function isCacheValid(timestamp, ttl) {
+  if (!timestamp) return false;
+  // 🚀 10% jitter 추가 - 캐시 만료 시간 분산
+  const jitter = ttl * 0.1 * Math.random();
+  return (Date.now() - timestamp) < (ttl + jitter);
+}
+
+// LocalStorage에 캐시 저장 (큰 데이터용)
+function saveToLocalStorage(key, data) {
+  try {
+    const item = { data, timestamp: Date.now() };
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(item));
+  } catch (e) {
+    // localStorage 용량 초과 시 오래된 캐시 정리
+    clearOldLocalStorageCache();
+  }
+}
+
+// LocalStorage에서 캐시 로드
+function loadFromLocalStorage(key, ttl) {
+  try {
+    const item = localStorage.getItem(LS_PREFIX + key);
+    if (!item) return null;
+    const parsed = JSON.parse(item);
+    if (isCacheValid(parsed.timestamp, ttl)) {
+      return parsed.data;
+    }
+    localStorage.removeItem(LS_PREFIX + key);
+  } catch (e) {
+    // 파싱 에러 시 무시
+  }
+  return null;
+}
+
+// 오래된 LocalStorage 캐시 정리
+function clearOldLocalStorageCache() {
+  const keys = Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX));
+  // 가장 오래된 50% 삭제
+  const items = keys.map(k => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(k));
+      return { key: k, timestamp: parsed?.timestamp || 0 };
+    } catch {
+      return { key: k, timestamp: 0 };
+    }
+  }).sort((a, b) => a.timestamp - b.timestamp);
+
+  items.slice(0, Math.ceil(items.length / 2)).forEach(item => {
+    localStorage.removeItem(item.key);
+  });
+}
+
+// 캐시 무효화 함수
+export function invalidateCache(type, key = null) {
+  if (key) {
+    cache[type]?.delete(key);
+  } else if (cache[type]) {
+    cache[type].clear();
+  }
+}
+
+// 특정 학생의 글 캐시 무효화
+export function invalidateStudentWritingsCache(studentId) {
+  cache.studentWritings.delete(studentId);
+}
+
+// 특정 반의 캐시 무효화
+export function invalidateClassCache(classCode) {
+  cache.classData.delete(classCode);
+}
 
 export async function saveWriting(studentId, writingData, isDraft = true) {
   try {
@@ -83,8 +181,14 @@ export async function deleteDraft(studentId, topic) {
   }
 }
 
-export async function getStudentWritings(studentId) {
+export async function getStudentWritings(studentId, forceRefresh = false) {
   try {
+    // 캐시 확인 (forceRefresh가 아니고 캐시가 유효하면 캐시 사용)
+    const cached = cache.studentWritings.get(studentId);
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.studentWritings)) {
+      return cached.data;
+    }
+
     const q = query(
       collection(db, 'writings'),
       where('studentId', '==', studentId),
@@ -95,6 +199,13 @@ export async function getStudentWritings(studentId) {
     querySnapshot.forEach((doc) => {
       writings.push(doc.data());
     });
+
+    // 캐시 저장
+    cache.studentWritings.set(studentId, {
+      data: writings,
+      timestamp: Date.now()
+    });
+
     return writings;
   } catch (error) {
     console.error('학생 글 조회 에러:', error);
@@ -184,12 +295,17 @@ export async function submitWriting(studentId, writingData, isRewrite = false) {
     await setDoc(doc(db, 'writings', writingId), submissionData);
     console.log('Firestore 저장 완료:', writingId);
 
-    // 6. 학생 통계 업데이트
+    // 6. 학생 통계 업데이트 + 캐시 무효화
     await updateStudentStats(studentId, analysisResult.score);
+    invalidateStudentStatsCache(studentId);
 
-    // 7. 포인트 지급 (고쳐쓰기 여부 전달)
-    const earnedPoints = await awardPoints(studentId, analysisResult.score, isRewrite);
+    // 7. 포인트 지급 (고쳐쓰기 여부, AI 가능성 전달)
+    const aiProbability = aiUsageResult?.aiProbability || 0;
+    const earnedPoints = await awardPoints(studentId, analysisResult.score, isRewrite, aiProbability);
     submissionData.earnedPoints = earnedPoints; // 지급된 포인트 정보 추가
+
+    // 🚀 캐시 무효화 - 글 제출 후 해당 학생의 글 캐시 갱신
+    invalidateStudentWritingsCache(studentId);
 
     return submissionData;
   } catch (error) {
@@ -232,33 +348,94 @@ export async function updateStudentStats(studentId, score) {
   }
 }
 
-export async function getStudentStats(studentId) {
+// 🚀 최적화: 캐싱 추가 (10,000명 대응)
+export async function getStudentStats(studentId, forceRefresh = false) {
   try {
-    const statsDoc = await getDoc(doc(db, 'studentStats', studentId));
-    if (statsDoc.exists()) {
-      return statsDoc.data();
+    // 캐시 확인 (메모리 -> LocalStorage)
+    if (!forceRefresh) {
+      const cached = cache.studentStats.get(studentId);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.studentStats)) {
+        return cached.data;
+      }
+
+      // LocalStorage 확인
+      const lsData = loadFromLocalStorage(`stats_${studentId}`, CACHE_TTL.studentStats);
+      if (lsData) {
+        cache.studentStats.set(studentId, { data: lsData, timestamp: Date.now() });
+        return lsData;
+      }
     }
-    return {
+
+    const statsDoc = await getDoc(doc(db, 'studentStats', studentId));
+    const result = statsDoc.exists() ? statsDoc.data() : {
       totalSubmissions: 0,
       averageScore: 0,
       scores: []
     };
+
+    // 캐시 저장 (메모리 + LocalStorage)
+    cache.studentStats.set(studentId, { data: result, timestamp: Date.now() });
+    saveToLocalStorage(`stats_${studentId}`, result);
+
+    return result;
   } catch (error) {
     console.error('학생 통계 조회 에러:', error);
-    throw error;
+    // 에러 시 빈 데이터 반환 (앱 중단 방지)
+    return { totalSubmissions: 0, averageScore: 0, scores: [] };
   }
 }
 
-export async function getClassWritings(classCode) {
+// 학생 통계 캐시 무효화
+export function invalidateStudentStatsCache(studentId) {
+  cache.studentStats.delete(studentId);
   try {
-    // 학급의 학생 목록 가져오기
-    const classDoc = await getDoc(doc(db, 'classes', classCode));
-    if (!classDoc.exists()) {
-      console.error('학급을 찾을 수 없음:', classCode);
-      throw new Error('존재하지 않는 학급입니다.');
+    localStorage.removeItem(LS_PREFIX + `stats_${studentId}`);
+  } catch (e) {}
+}
+
+// 🚀 사용자 닉네임 캐싱 가져오기 (읽기 최적화)
+async function getCachedUserNickname(studentId) {
+  // 캐시 확인
+  const cached = cache.userNicknames.get(studentId);
+  if (cached && isCacheValid(cached.timestamp, CACHE_TTL.userNicknames)) {
+    return cached.nickname;
+  }
+
+  // DB에서 가져오기
+  try {
+    const studentDoc = await getDoc(doc(db, 'users', studentId));
+    const studentData = studentDoc.exists() ? studentDoc.data() : {};
+    const nickname = studentData.nickname || studentData.name || '익명';
+
+    // 캐시 저장
+    cache.userNicknames.set(studentId, {
+      nickname,
+      timestamp: Date.now()
+    });
+
+    return nickname;
+  } catch (error) {
+    return '익명';
+  }
+}
+
+export async function getClassWritings(classCode, forceRefresh = false) {
+  try {
+    // 🚀 반 데이터 캐싱
+    let classData;
+    const cachedClass = cache.classData.get(classCode);
+    if (!forceRefresh && cachedClass && isCacheValid(cachedClass.timestamp, CACHE_TTL.classData)) {
+      classData = cachedClass.data;
+    } else {
+      const classDoc = await getDoc(doc(db, 'classes', classCode));
+      if (!classDoc.exists()) {
+        console.error('학급을 찾을 수 없음:', classCode);
+        throw new Error('존재하지 않는 학급입니다.');
+      }
+      classData = classDoc.data();
+      cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
     }
 
-    const classData = classDoc.data();
     const students = classData.students || [];
 
     if (students.length === 0) {
@@ -267,17 +444,14 @@ export async function getClassWritings(classCode) {
 
     const studentIds = students.map(s => s.studentId);
 
-    // 🚀 병렬로 모든 학생의 데이터 가져오기 (속도 최적화)
+    // 🚀 병렬로 모든 학생의 데이터 가져오기 (캐싱된 데이터 활용)
     const studentPromises = studentIds.map(async (studentId) => {
       try {
-        // 학생 정보와 글을 동시에 가져오기
-        const [studentDoc, writings] = await Promise.all([
-          getDoc(doc(db, 'users', studentId)),
-          getStudentWritings(studentId)
+        // 글과 닉네임을 동시에 가져오기 (둘 다 캐시 활용)
+        const [writings, nickname] = await Promise.all([
+          getStudentWritings(studentId, forceRefresh),
+          getCachedUserNickname(studentId)
         ]);
-
-        const studentData = studentDoc.exists() ? studentDoc.data() : {};
-        const nickname = studentData.nickname || studentData.name || '익명';
 
         return writings
           .filter(w => !w.isDraft)
@@ -316,44 +490,50 @@ export async function deleteWriting(writingId) {
 }
 
 // 친구 글 읽기 - 같은 주제로 제출한 친구들의 글 조회
+// 🚀 최적화: 병렬 처리 + 캐싱
 export async function getFriendWritings(classCode, topic, excludeStudentId) {
   try {
-    const classDoc = await getDoc(doc(db, 'classes', classCode));
-    if (!classDoc.exists()) {
-      return [];
+    // 반 데이터 캐싱 활용
+    let classData;
+    const cachedClass = cache.classData.get(classCode);
+    if (cachedClass && isCacheValid(cachedClass.timestamp, CACHE_TTL.classData)) {
+      classData = cachedClass.data;
+    } else {
+      const classDoc = await getDoc(doc(db, 'classes', classCode));
+      if (!classDoc.exists()) {
+        return [];
+      }
+      classData = classDoc.data();
+      cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
     }
 
-    const classData = classDoc.data();
     const students = classData.students || [];
     const studentIds = students.map(s => s.studentId).filter(id => id !== excludeStudentId);
 
     if (studentIds.length === 0) return [];
 
-    const friendWritings = [];
+    // 🚀 병렬로 모든 친구 글 가져오기
+    const friendPromises = studentIds.map(async (studentId) => {
+      const [writings, nickname] = await Promise.all([
+        getStudentWritings(studentId), // 캐시 활용
+        getCachedUserNickname(studentId) // 닉네임 캐시 활용
+      ]);
 
-    for (const studentId of studentIds) {
-      const writings = await getStudentWritings(studentId);
       const matchingWritings = writings.filter(w =>
         !w.isDraft &&
         w.topic === topic &&
         w.score >= 80 // 80점 이상 통과한 글만 공개
       );
 
-      if (matchingWritings.length > 0) {
-        // 학생 정보 가져오기
-        const studentDoc = await getDoc(doc(db, 'users', studentId));
-        const studentData = studentDoc.exists() ? studentDoc.data() : {};
-        const nickname = studentData.nickname || studentData.name || '익명';
+      return matchingWritings.map(w => ({
+        ...w,
+        nickname,
+        displayName: nickname
+      }));
+    });
 
-        matchingWritings.forEach(w => {
-          friendWritings.push({
-            ...w,
-            nickname,
-            displayName: nickname
-          });
-        });
-      }
-    }
+    const results = await Promise.all(friendPromises);
+    const friendWritings = results.flat();
 
     return friendWritings.sort((a, b) => b.score - a.score);
   } catch (error) {
@@ -364,7 +544,8 @@ export async function getFriendWritings(classCode, topic, excludeStudentId) {
 
 // 포인트 지급 함수
 // isRewrite: 고쳐쓰기 모드인지 여부
-export async function awardPoints(studentId, score, isRewrite = false) {
+// aiProbability: AI 사용 가능성 (0-100)
+export async function awardPoints(studentId, score, isRewrite = false, aiProbability = 0) {
   try {
     // 50점 이하: 포인트 미지급 (의미없는 문장 방지)
     if (score <= 50) {
@@ -375,6 +556,12 @@ export async function awardPoints(studentId, score, isRewrite = false) {
     // 고쳐쓰기 모드에서 80점 미달: 포인트 미지급
     if (isRewrite && score < 80) {
       console.log(`포인트 미지급: 고쳐쓰기 ${score}점 (80점 미달)`);
+      return 0;
+    }
+
+    // AI 가능성 80% 이상: 포인트 미지급
+    if (aiProbability >= 80) {
+      console.log(`포인트 미지급: AI 가능성 ${aiProbability}% (80% 이상)`);
       return 0;
     }
 
@@ -412,6 +599,12 @@ export async function awardPoints(studentId, score, isRewrite = false) {
       streakDays = 1;
     }
 
+    // AI 가능성 50% 이상: 포인트 절반 지급
+    if (aiProbability >= 50) {
+      earnedPoints = Math.floor(earnedPoints / 2);
+      console.log(`AI 가능성 ${aiProbability}%로 포인트 절반 지급: ${earnedPoints}P`);
+    }
+
     const newPoints = currentPoints + earnedPoints;
 
     await updateDoc(userRef, {
@@ -430,14 +623,23 @@ export async function awardPoints(studentId, score, isRewrite = false) {
 }
 
 // 학급 랭킹 조회 (주간/월간)
+// 🚀 최적화: 캐싱 활용
 export async function getClassRanking(classCode, period = 'weekly') {
   try {
-    const classDoc = await getDoc(doc(db, 'classes', classCode));
-    if (!classDoc.exists()) {
-      throw new Error('학급을 찾을 수 없습니다.');
+    // 반 데이터 캐싱 활용
+    let classData;
+    const cachedClass = cache.classData.get(classCode);
+    if (cachedClass && isCacheValid(cachedClass.timestamp, CACHE_TTL.classData)) {
+      classData = cachedClass.data;
+    } else {
+      const classDoc = await getDoc(doc(db, 'classes', classCode));
+      if (!classDoc.exists()) {
+        throw new Error('학급을 찾을 수 없습니다.');
+      }
+      classData = classDoc.data();
+      cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
     }
 
-    const classData = classDoc.data();
     const students = classData.students || [];
 
     if (students.length === 0) {
@@ -461,16 +663,30 @@ export async function getClassRanking(classCode, period = 'weekly') {
 
     const studentIds = students.map(s => s.studentId);
 
-    // 🚀 병렬로 모든 학생 데이터 가져오기
+    // 🚀 최적화: 먼저 모든 사용자 데이터를 배치로 가져오기
+    const userDataMap = new Map();
+    const batchSize = 10;
+    for (let i = 0; i < studentIds.length; i += batchSize) {
+      const batchIds = studentIds.slice(i, i + batchSize);
+      const q = query(
+        collection(db, 'users'),
+        where(documentId(), 'in', batchIds)
+      );
+      const snapshot = await getDocs(q);
+      snapshot.forEach((docSnap) => {
+        userDataMap.set(docSnap.id, docSnap.data());
+      });
+    }
+
+    // 🚀 병렬로 모든 학생 데이터 가져오기 (캐싱 활용 + 배치 조회된 userData 사용)
     const rankingPromises = studentIds.map(async (studentId) => {
       try {
-        const [userDoc, writings] = await Promise.all([
-          getDoc(doc(db, 'users', studentId)),
-          getStudentWritings(studentId)
+        const [nickname, writings] = await Promise.all([
+          getCachedUserNickname(studentId), // 닉네임 캐시 활용
+          getStudentWritings(studentId) // 글 캐시 활용
         ]);
 
-        const userData = userDoc.exists() ? userDoc.data() : {};
-        const nickname = userData.nickname || userData.name || '익명';
+        const userData = userDataMap.get(studentId) || {};
 
         // 기간 내 제출된 글만 필터링
         const periodWritings = writings.filter(w => {

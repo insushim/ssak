@@ -1,9 +1,12 @@
 ﻿import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy, limit, startAfter } from "firebase/firestore";
 import { db, auth, functions } from "../config/firebase";
 import { signOut, ensureSuperAdminAccess } from "../services/authService";
 import { ROLES, GRADE_LEVELS } from "../config/auth";
 import { httpsCallable } from "firebase/functions";
+
+// 🚀 페이지네이션 설정 (10,000명 대응)
+const PAGE_SIZE = 50;
 
 export default function SuperAdminDashboard({ user, userData }) {
   const [pendingTeachers, setPendingTeachers] = useState([]);
@@ -12,14 +15,22 @@ export default function SuperAdminDashboard({ user, userData }) {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedUsers, setSelectedUsers] = useState(new Set());
 
+  // 🚀 페이지네이션 상태
+  const [lastUserDoc, setLastUserDoc] = useState(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalUsersCount, setTotalUsersCount] = useState(0);
+
   useEffect(() => {
     ensureSuperAdminAccess(user);
     loadData();
   }, []);
 
+  // 🚀 최적화: 페이지네이션으로 전체 사용자 로드 (10,000명 대응)
   const loadData = async () => {
     setLoading(true);
     try {
+      // 승인 대기 선생님 (이건 보통 적음)
       const pendingQuery = query(
         collection(db, "users"),
         where("role", "==", ROLES.TEACHER),
@@ -27,21 +38,74 @@ export default function SuperAdminDashboard({ user, userData }) {
       );
       const pendingSnapshot = await getDocs(pendingQuery);
       const pending = [];
-      pendingSnapshot.forEach((doc) => {
-        pending.push({ ...doc.data(), id: doc.id });
+      pendingSnapshot.forEach((docSnap) => {
+        pending.push({ ...docSnap.data(), id: docSnap.id });
       });
       setPendingTeachers(pending);
 
-      const usersSnapshot = await getDocs(collection(db, "users"));
+      // 🚀 전체 사용자: 페이지네이션으로 첫 페이지만 로드
+      const usersQuery = query(
+        collection(db, "users"),
+        orderBy("createdAt", "desc"),
+        limit(PAGE_SIZE)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
       const users = [];
-      usersSnapshot.forEach((doc) => {
-        users.push({ ...doc.data(), id: doc.id });
+      usersSnapshot.forEach((docSnap) => {
+        users.push({ ...docSnap.data(), id: docSnap.id });
       });
       setAllUsers(users);
+
+      // 다음 페이지 여부 확인
+      if (usersSnapshot.docs.length === PAGE_SIZE) {
+        setLastUserDoc(usersSnapshot.docs[usersSnapshot.docs.length - 1]);
+        setHasMoreUsers(true);
+      } else {
+        setLastUserDoc(null);
+        setHasMoreUsers(false);
+      }
+
+      setTotalUsersCount(users.length);
     } catch (error) {
       console.error("데이터 로드 에러:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🚀 다음 페이지 로드
+  const loadMoreUsers = async () => {
+    if (!hasMoreUsers || loadingMore || !lastUserDoc) return;
+
+    setLoadingMore(true);
+    try {
+      const usersQuery = query(
+        collection(db, "users"),
+        orderBy("createdAt", "desc"),
+        startAfter(lastUserDoc),
+        limit(PAGE_SIZE)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
+      const newUsers = [];
+      usersSnapshot.forEach((docSnap) => {
+        newUsers.push({ ...docSnap.data(), id: docSnap.id });
+      });
+
+      setAllUsers(prev => [...prev, ...newUsers]);
+      setTotalUsersCount(prev => prev + newUsers.length);
+
+      // 다음 페이지 여부 확인
+      if (usersSnapshot.docs.length === PAGE_SIZE) {
+        setLastUserDoc(usersSnapshot.docs[usersSnapshot.docs.length - 1]);
+        setHasMoreUsers(true);
+      } else {
+        setLastUserDoc(null);
+        setHasMoreUsers(false);
+      }
+    } catch (error) {
+      console.error("추가 로드 에러:", error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -183,8 +247,8 @@ export default function SuperAdminDashboard({ user, userData }) {
       <header className="bg-gradient-to-r from-indigo-700 via-purple-600 to-sky-500 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-start justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-indigo-100">Isw Admin</p>
-            <h1 className="text-2xl font-bold mt-1">Isw 글쓰기 도우미 - 슈퍼 관리자</h1>
+            <p className="text-xs uppercase tracking-[0.25em] text-indigo-100">SSAK Admin</p>
+            <h1 className="text-2xl font-bold mt-1">싹 - 슈퍼 관리자</h1>
             <p className="text-sm text-indigo-100 mt-1">{userData.email}</p>
           </div>
           <button
@@ -219,7 +283,7 @@ export default function SuperAdminDashboard({ user, userData }) {
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
-              전체 사용자 ({allUsers.length})
+              전체 사용자 ({totalUsersCount}{hasMoreUsers ? '+' : ''})
             </button>
           </nav>
         </div>
@@ -369,6 +433,22 @@ export default function SuperAdminDashboard({ user, userData }) {
                 </tbody>
               </table>
             </div>
+
+            {/* 🚀 더 보기 버튼 */}
+            {hasMoreUsers && (
+              <div className="px-6 py-4 border-t border-gray-200 text-center">
+                <button
+                  onClick={loadMoreUsers}
+                  disabled={loadingMore}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingMore ? '로딩 중...' : `더 보기 (${PAGE_SIZE}명씩)`}
+                </button>
+                <p className="text-sm text-gray-500 mt-2">
+                  현재 {totalUsersCount}명 표시 중
+                </p>
+              </div>
+            )}
           </div>
         )}
       </main>

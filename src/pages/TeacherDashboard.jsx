@@ -5,7 +5,9 @@ import {
   getTeacherClasses,
   createClass,
   deleteClass,
-  removeStudentFromClass
+  removeStudentFromClass,
+  getStudentDetails,
+  resetStudentPassword
 } from "../services/classService";
 import { getClassWritings, deleteWriting, getClassRanking, getStudentGrowthData } from "../services/writingService";
 import { createAssignment, getAssignmentsByClass, deleteAssignment } from "../services/assignmentService";
@@ -13,6 +15,8 @@ import { generateTopics } from "../utils/geminiAPI";
 import { getSchedulerSettings, saveSchedulerSettings, disableScheduler, generateAutoAssignment, checkAndRunScheduler } from "../services/schedulerService";
 import { GRADE_LEVELS, MAX_STUDENTS_PER_CLASS } from "../config/auth";
 import { batchCreateStudents } from "../services/batchService";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../config/firebase";
 
 export default function TeacherDashboard({ user, userData }) {
   const [classes, setClasses] = useState([]);
@@ -29,6 +33,8 @@ export default function TeacherDashboard({ user, userData }) {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchTargetClass, setBatchTargetClass] = useState("");
   const [classAccounts, setClassAccounts] = useState({}); // Store accounts by classCode
+  const [studentDetails, setStudentDetails] = useState({}); // Store student details (email) by studentId
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(null); // studentId of currently resetting
 
   const [newClass, setNewClass] = useState({
     className: "",
@@ -78,9 +84,15 @@ export default function TeacherDashboard({ user, userData }) {
   const [rankingData, setRankingData] = useState([]);
   const [rankingPeriod, setRankingPeriod] = useState('weekly'); // 'weekly' or 'monthly'
   const [rankingLoading, setRankingLoading] = useState(false);
+  const [rankingLastLoaded, setRankingLastLoaded] = useState(null); // 🚀 캐시 타임스탬프
   const [selectedStudentForGrowth, setSelectedStudentForGrowth] = useState(null);
   const [growthData, setGrowthData] = useState([]);
   const [growthLoading, setGrowthLoading] = useState(false);
+
+  // 온보딩 관련 state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1); // 1: 클래스 생성, 2: 학생 추가, 3: AI 주제 생성
+  const [onboardingClass, setOnboardingClass] = useState(null); // 온보딩에서 생성한 클래스
 
   // 분야 예시
   const categoryExamples = [
@@ -120,6 +132,10 @@ export default function TeacherDashboard({ user, userData }) {
 
   useEffect(() => {
     loadClasses();
+    // 온보딩 체크 - 처음 접속한 선생님인지 확인
+    if (!userData.onboardingCompleted) {
+      setShowOnboarding(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -129,6 +145,8 @@ export default function TeacherDashboard({ user, userData }) {
       loadSchedulerSettings(selectedClass.classCode);
       // 자동 출제 스케줄러 체크 (페이지 로드 시)
       runSchedulerCheck(selectedClass.classCode, selectedClass.gradeLevel);
+      // 🚀 클래스 변경 시 랭킹 캐시 무효화
+      setRankingLastLoaded(null);
     }
   }, [selectedClass]);
 
@@ -148,18 +166,29 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 랭킹 탭 선택 시 데이터 로드
+  // 🚀 최적화: 캐시 가드 추가
   useEffect(() => {
     if (activeTab === 'ranking' && selectedClass) {
+      // 60초 이내에 로드했으면 재로드하지 않음
+      const now = Date.now();
+      if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
+        return;
+      }
       loadRankingData(selectedClass.classCode, rankingPeriod);
     }
   }, [activeTab, selectedClass, rankingPeriod]);
 
   // 랭킹 데이터 로드
-  const loadRankingData = async (classCode, period) => {
+  const loadRankingData = async (classCode, period, forceRefresh = false) => {
+    // 🚀 캐시 가드
+    if (!forceRefresh && rankingLastLoaded && (Date.now() - rankingLastLoaded) < 60000 && rankingData.length > 0) {
+      return;
+    }
     setRankingLoading(true);
     try {
       const data = await getClassRanking(classCode, period);
       setRankingData(data);
+      setRankingLastLoaded(Date.now()); // 🚀 로드 시간 기록
     } catch (error) {
       console.error('랭킹 데이터 로드 에러:', error);
       setRankingData([]);
@@ -385,6 +414,7 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 주제의 모든 글 삭제 (병렬 처리로 최적화)
+  // 🚀 최적화: Optimistic update - 전체 재로드 대신 로컬 상태만 업데이트
   const handleDeleteTopic = async (topic) => {
     const topicWritings = classWritings.filter(w => (w.topic || '기타') === topic);
     if (!confirm(`"${topic}" 주제의 모든 글(${topicWritings.length}개)을 삭제하시겠습니까?\n삭제된 글은 복구할 수 없습니다.`)) return;
@@ -393,9 +423,11 @@ export default function TeacherDashboard({ user, userData }) {
       // 🚀 병렬 삭제 (최적화)
       await Promise.all(topicWritings.map(writing => deleteWriting(writing.writingId)));
       alert(`"${topic}" 주제의 글 ${topicWritings.length}개가 삭제되었습니다.`);
-      if (selectedClass) {
-        await loadClassWritings(selectedClass.classCode);
-      }
+
+      // 🚀 Optimistic update: 전체 재로드 대신 로컬 상태만 업데이트
+      const deletedIds = new Set(topicWritings.map(w => w.writingId));
+      setClassWritings(prev => prev.filter(w => !deletedIds.has(w.writingId)));
+
       setExpandedTopic(null);
       setSelectedWriting(null);
     } catch (error) {
@@ -422,6 +454,7 @@ export default function TeacherDashboard({ user, userData }) {
     localStorage.setItem(`completedTopics_${selectedClass.classCode}`, JSON.stringify(newCompletedTopics));
   };
 
+  // 🚀 최적화: Optimistic update 적용
   const handleDeleteWriting = async (writingId) => {
     if (!confirm("이 학생의 제출글을 삭제하시겠습니까?\n삭제된 글은 복구할 수 없습니다.")) return;
 
@@ -429,10 +462,10 @@ export default function TeacherDashboard({ user, userData }) {
     try {
       await deleteWriting(writingId);
       alert("제출글이 삭제되었습니다.");
-      // 목록 새로고침
-      if (selectedClass) {
-        await loadClassWritings(selectedClass.classCode);
-      }
+
+      // 🚀 Optimistic update: 전체 재로드 대신 로컬 상태만 업데이트
+      setClassWritings(prev => prev.filter(w => w.writingId !== writingId));
+
       // 선택된 글이 삭제된 글이면 선택 해제
       if (selectedWriting?.writingId === writingId) {
         setSelectedWriting(null);
@@ -446,18 +479,23 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 제출글을 "확인 완료" 상태로 변경
+  // 🚀 최적화: Optimistic update 적용
   const handleMarkAsReviewed = async (writingId) => {
     try {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../config/firebase');
+      const reviewedAt = new Date().toISOString();
       await updateDoc(doc(db, 'writings', writingId), {
         reviewed: true,
-        reviewedAt: new Date().toISOString()
+        reviewedAt
       });
+
+      // 🚀 Optimistic update: 로컬 상태만 업데이트
+      setClassWritings(prev => prev.map(w =>
+        w.writingId === writingId ? { ...w, reviewed: true, reviewedAt } : w
+      ));
+
       alert("확인 완료 처리되었습니다.");
-      if (selectedClass) {
-        await loadClassWritings(selectedClass.classCode);
-      }
     } catch (error) {
       console.error("확인 완료 처리 에러:", error);
       alert("처리에 실패했습니다.");
@@ -465,6 +503,7 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 제출글을 "미확인" 상태로 변경
+  // 🚀 최적화: Optimistic update 적용
   const handleMarkAsPending = async (writingId) => {
     try {
       const { doc, updateDoc } = await import('firebase/firestore');
@@ -473,10 +512,13 @@ export default function TeacherDashboard({ user, userData }) {
         reviewed: false,
         reviewedAt: null
       });
+
+      // 🚀 Optimistic update: 로컬 상태만 업데이트
+      setClassWritings(prev => prev.map(w =>
+        w.writingId === writingId ? { ...w, reviewed: false, reviewedAt: null } : w
+      ));
+
       alert("미확인 상태로 변경되었습니다.");
-      if (selectedClass) {
-        await loadClassWritings(selectedClass.classCode);
-      }
     } catch (error) {
       console.error("미확인 처리 에러:", error);
       alert("처리에 실패했습니다.");
@@ -484,6 +526,7 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 주제별 전체 학생 확인완료 처리
+  // 🚀 최적화: Optimistic update 적용
   const handleMarkAllAsReviewedByTopic = async (topic) => {
     const writingsToMark = classWritings.filter(w =>
       (w.topic || '기타') === topic && !w.reviewed
@@ -501,20 +544,24 @@ export default function TeacherDashboard({ user, userData }) {
     try {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../config/firebase');
+      const reviewedAt = new Date().toISOString();
 
       const updatePromises = writingsToMark.map(writing =>
         updateDoc(doc(db, 'writings', writing.writingId), {
           reviewed: true,
-          reviewedAt: new Date().toISOString()
+          reviewedAt
         })
       );
 
       await Promise.all(updatePromises);
-      alert(`${writingsToMark.length}개 글이 확인완료 처리되었습니다.`);
 
-      if (selectedClass) {
-        await loadClassWritings(selectedClass.classCode);
-      }
+      // 🚀 Optimistic update: 로컬 상태만 업데이트
+      const markedIds = new Set(writingsToMark.map(w => w.writingId));
+      setClassWritings(prev => prev.map(w =>
+        markedIds.has(w.writingId) ? { ...w, reviewed: true, reviewedAt } : w
+      ));
+
+      alert(`${writingsToMark.length}개 글이 확인완료 처리되었습니다.`);
     } catch (error) {
       console.error("전체 확인완료 처리 에러:", error);
       alert("처리에 실패했습니다.");
@@ -554,6 +601,108 @@ export default function TeacherDashboard({ user, userData }) {
     }
   };
 
+  // 온보딩: 클래스 생성
+  const handleOnboardingCreateClass = async (e) => {
+    e.preventDefault();
+    try {
+      const classCode = await createClass(
+        user.uid,
+        newClass.className,
+        newClass.gradeLevel,
+        newClass.description
+      );
+      await loadClasses();
+      // 생성된 클래스 찾기
+      const createdClass = {
+        classCode,
+        className: newClass.className,
+        gradeLevel: newClass.gradeLevel,
+        students: []
+      };
+      setOnboardingClass(createdClass);
+      setSelectedClass(createdClass);
+      setBatchTargetClass(classCode);
+      setNewClass({ className: "", gradeLevel: "", description: "" });
+      setOnboardingStep(2);
+    } catch (error) {
+      console.error("클래스 생성 에러:", error);
+      alert("클래스 생성에 실패했습니다.");
+    }
+  };
+
+  // 온보딩: 학생 일괄 추가
+  const handleOnboardingBatchCreate = async () => {
+    if (!batchTargetClass || batchCount < 1) {
+      alert("학생 수를 입력해주세요.");
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const result = await batchCreateStudents(batchTargetClass, batchCount, batchPrefix);
+      setBatchResults(result.accounts);
+      setClassAccounts(prev => ({
+        ...prev,
+        [batchTargetClass]: [...(prev[batchTargetClass] || []), ...result.accounts]
+      }));
+      setBatchMessage(`${result.successCount}명의 학생 계정이 생성되었습니다!`);
+      await loadClasses();
+      setOnboardingStep(3);
+    } catch (error) {
+      console.error("학생 일괄 생성 에러:", error);
+      alert("학생 생성에 실패했습니다: " + error.message);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 온보딩: AI 주제 생성
+  const handleOnboardingGenerateTopics = async () => {
+    if (!onboardingClass) return;
+    setAiTopicsLoading(true);
+    try {
+      const result = await generateTopics(onboardingClass.gradeLevel, 5, topicCategory || null);
+      if (result && result.topics) {
+        setAiTopics(result.topics);
+      }
+    } catch (error) {
+      console.error("AI 주제 생성 에러:", error);
+      alert("주제 생성에 실패했습니다.");
+    } finally {
+      setAiTopicsLoading(false);
+    }
+  };
+
+  // 온보딩 완료
+  const handleOnboardingComplete = async () => {
+    try {
+      // userData에 onboardingCompleted 저장
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        onboardingCompleted: true
+      });
+      setShowOnboarding(false);
+      setOnboardingStep(1);
+      setOnboardingClass(null);
+    } catch (error) {
+      console.error("온보딩 완료 저장 에러:", error);
+      setShowOnboarding(false);
+    }
+  };
+
+  // 온보딩 건너뛰기
+  const handleSkipOnboarding = async () => {
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        onboardingCompleted: true
+      });
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error("온보딩 건너뛰기 에러:", error);
+      setShowOnboarding(false);
+    }
+  };
+
   const handleRemoveStudent = async (classCode, studentId) => {
     if (!confirm("이 학생을 클래스에서 제거하시겠어요?")) return;
 
@@ -568,6 +717,38 @@ export default function TeacherDashboard({ user, userData }) {
     } catch (error) {
       console.error("학생 제거 에러:", error);
       alert("학생 제거에 실패했습니다.");
+    }
+  };
+
+  // 학생 상세정보 로딩 (이메일 포함)
+  const loadStudentDetails = async (students) => {
+    if (!students || students.length === 0) return;
+    try {
+      const studentIds = students.map(s => s.studentId);
+      const details = await getStudentDetails(studentIds);
+      const detailsMap = {};
+      details.forEach(d => {
+        detailsMap[d.studentId] = d;
+      });
+      setStudentDetails(prev => ({ ...prev, ...detailsMap }));
+    } catch (error) {
+      console.error("학생 상세정보 로딩 에러:", error);
+    }
+  };
+
+  // 비밀번호 초기화 핸들러
+  const handleResetPassword = async (studentId, classCode) => {
+    if (!confirm("이 학생의 비밀번호를 초기화하시겠습니까?\n초기화 후 새 비밀번호가 표시됩니다.")) return;
+
+    setResetPasswordLoading(studentId);
+    try {
+      const result = await resetStudentPassword(studentId, classCode);
+      alert(`비밀번호가 초기화되었습니다.\n\n새 비밀번호: ${result.newPassword}`);
+    } catch (error) {
+      console.error("비밀번호 초기화 에러:", error);
+      alert("비밀번호 초기화에 실패했습니다: " + (error.message || "알 수 없는 오류"));
+    } finally {
+      setResetPasswordLoading(null);
     }
   };
 
@@ -725,17 +906,6 @@ export default function TeacherDashboard({ user, userData }) {
               <span className="xs:hidden">제출글</span>
             </button>
             <button
-              onClick={() => setActiveTab("classes")}
-              className={`${activeTab === "classes"
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
-                  : "text-gray-600 hover:bg-blue-50"
-                } flex items-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all whitespace-nowrap`}
-            >
-              <span>🏫</span>
-              <span className="hidden xs:inline">클래스관리</span>
-              <span className="xs:hidden">클래스</span>
-            </button>
-            <button
               onClick={() => setActiveTab("ranking")}
               className={`${activeTab === "ranking"
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
@@ -745,6 +915,17 @@ export default function TeacherDashboard({ user, userData }) {
               <span>🏆</span>
               <span className="hidden xs:inline">학급랭킹</span>
               <span className="xs:hidden">랭킹</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("classes")}
+              className={`${activeTab === "classes"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+                } flex items-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all whitespace-nowrap`}
+            >
+              <span>🏫</span>
+              <span className="hidden xs:inline">클래스관리</span>
+              <span className="xs:hidden">클래스</span>
             </button>
           </nav>
         </div>
@@ -910,6 +1091,7 @@ export default function TeacherDashboard({ user, userData }) {
                           onClick={() => {
                             setSelectedClass(classItem);
                             setShowClassModal(true);
+                            loadStudentDetails(classItem.students);
                           }}
                           className="flex-1 bg-indigo-500 text-white px-4 py-2 rounded text-sm hover:bg-indigo-600"
                         >
@@ -1596,7 +1778,12 @@ export default function TeacherDashboard({ user, userData }) {
 
               <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
-                  onClick={() => setRankingPeriod('weekly')}
+                  onClick={() => {
+                    if (rankingPeriod !== 'weekly') {
+                      setRankingLastLoaded(null); // 🚀 기간 변경 시 캐시 무효화
+                      setRankingPeriod('weekly');
+                    }
+                  }}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                     rankingPeriod === 'weekly'
                       ? 'bg-white text-blue-600 shadow-sm'
@@ -1606,7 +1793,12 @@ export default function TeacherDashboard({ user, userData }) {
                   주간 랭킹
                 </button>
                 <button
-                  onClick={() => setRankingPeriod('monthly')}
+                  onClick={() => {
+                    if (rankingPeriod !== 'monthly') {
+                      setRankingLastLoaded(null); // 🚀 기간 변경 시 캐시 무효화
+                      setRankingPeriod('monthly');
+                    }
+                  }}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                     rankingPeriod === 'monthly'
                       ? 'bg-white text-blue-600 shadow-sm'
@@ -1910,20 +2102,32 @@ export default function TeacherDashboard({ user, userData }) {
                 {selectedClass.students.map((student) => (
                   <div
                     key={student.studentId}
-                    className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                    className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded gap-2"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">{student.studentName}</p>
+                      <p className="text-xs text-blue-600 font-mono">
+                        {studentDetails[student.studentId]?.email || '로딩 중...'}
+                      </p>
                       <p className="text-xs text-gray-500">
                         가입일: {new Date(student.joinedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleRemoveStudent(selectedClass.classCode, student.studentId)}
-                      className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
-                    >
-                      제거
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleResetPassword(student.studentId, selectedClass.classCode)}
+                        disabled={resetPasswordLoading === student.studentId}
+                        className="bg-amber-500 text-white px-3 py-1 rounded text-sm hover:bg-amber-600 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {resetPasswordLoading === student.studentId ? '초기화 중...' : '비밀번호 초기화'}
+                      </button>
+                      <button
+                        onClick={() => handleRemoveStudent(selectedClass.classCode, student.studentId)}
+                        className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        제거
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2011,40 +2215,52 @@ export default function TeacherDashboard({ user, userData }) {
                 </h3>
                 <p className="text-xs text-orange-600 mb-3">조건을 충족해야만 선생님에게 제출됩니다.</p>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">최소 점수</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={newAssignment.minScore}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, minScore: Number(e.target.value) })}
-                        className="flex-1"
-                      />
-                      <span className="text-sm font-bold text-orange-700 w-12 text-right">{newAssignment.minScore}점</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">AI 사용 허용치</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={newAssignment.maxAiProbability}
-                        onChange={(e) => setNewAssignment({ ...newAssignment, maxAiProbability: Number(e.target.value) })}
-                        className="flex-1"
-                      />
-                      <span className="text-sm font-bold text-orange-700 w-12 text-right">{newAssignment.maxAiProbability}%</span>
-                    </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">최소 점수</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={newAssignment.minScore}
+                      onChange={(e) => setNewAssignment({ ...newAssignment, minScore: Number(e.target.value) })}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-bold text-orange-700 w-12 text-right">{newAssignment.minScore}점</span>
                   </div>
                 </div>
 
                 <div className="mt-3 p-2 bg-white/60 rounded-lg text-xs text-gray-600">
-                  <p>📌 <strong>{newAssignment.minScore}점</strong> 이상 & AI 가능성 <strong>{newAssignment.maxAiProbability}%</strong> 이하일 때만 제출 가능</p>
+                  <p>📌 <strong>{newAssignment.minScore}점</strong> 이상일 때만 제출 가능</p>
+                </div>
+              </div>
+
+              {/* 포인트 획득 조건 설정 */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-200">
+                <h3 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                  <span>🎯</span> 포인트 획득 조건
+                </h3>
+                <p className="text-xs text-emerald-600 mb-3">AI 사용 감지에 따른 포인트 지급 기준을 설정합니다.</p>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">AI 사용 허용치 (기본 50%)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={newAssignment.maxAiProbability}
+                      onChange={(e) => setNewAssignment({ ...newAssignment, maxAiProbability: Number(e.target.value) })}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-bold text-emerald-700 w-12 text-right">{newAssignment.maxAiProbability}%</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-1 p-2 bg-white/60 rounded-lg text-xs text-gray-600">
+                  <p>✅ AI 가능성 <strong>{newAssignment.maxAiProbability}%</strong> 미만: <span className="text-emerald-600 font-semibold">포인트 100% 획득</span></p>
+                  <p>⚠️ AI 가능성 <strong>{newAssignment.maxAiProbability}%</strong> 이상 ~ 80% 미만: <span className="text-amber-600 font-semibold">포인트 50% 획득</span></p>
+                  <p>❌ AI 가능성 <strong>80%</strong> 이상: <span className="text-red-600 font-semibold">포인트 미획득</span></p>
                 </div>
               </div>
 
@@ -2152,41 +2368,50 @@ export default function TeacherDashboard({ user, userData }) {
                 />
               </div>
 
-              {/* 제출 조건 */}
+              {/* 제출 조건 - 최소 점수만 */}
               <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-xl border border-orange-200">
                 <h3 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
-                  <span>⚙️</span> 자동 출제 과제 조건
+                  <span>⚙️</span> 제출 조건 설정
                 </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">최소 점수</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={schedulerSettings.minScore}
-                        onChange={(e) => setSchedulerSettings(prev => ({ ...prev, minScore: Number(e.target.value) }))}
-                        className="flex-1"
-                      />
-                      <span className="text-sm font-bold text-orange-700 w-12 text-right">{schedulerSettings.minScore}점</span>
-                    </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">최소 점수</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={schedulerSettings.minScore}
+                      onChange={(e) => setSchedulerSettings(prev => ({ ...prev, minScore: Number(e.target.value) }))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-bold text-orange-700 w-12 text-right">{schedulerSettings.minScore}점</span>
                   </div>
+                  <p className="text-xs text-orange-600 mt-2">📌 <strong>{schedulerSettings.minScore}점</strong> 이상일 때만 제출 가능</p>
+                </div>
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">AI 허용치</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={schedulerSettings.maxAiProbability}
-                        onChange={(e) => setSchedulerSettings(prev => ({ ...prev, maxAiProbability: Number(e.target.value) }))}
-                        className="flex-1"
-                      />
-                      <span className="text-sm font-bold text-orange-700 w-12 text-right">{schedulerSettings.maxAiProbability}%</span>
-                    </div>
+              {/* 포인트 획득 조건 */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-200">
+                <h3 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                  <span>💎</span> 포인트 획득 조건
+                </h3>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">AI 사용 기준</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={schedulerSettings.maxAiProbability}
+                      onChange={(e) => setSchedulerSettings(prev => ({ ...prev, maxAiProbability: Number(e.target.value) }))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-bold text-emerald-700 w-12 text-right">{schedulerSettings.maxAiProbability}%</span>
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs">
+                    <p className="text-emerald-700">✅ AI 가능성 <strong>{schedulerSettings.maxAiProbability}% 미만</strong>: 포인트 <strong>100%</strong> 획득</p>
+                    <p className="text-amber-600">⚠️ AI 가능성 <strong>{schedulerSettings.maxAiProbability}% 이상 ~ 80% 미만</strong>: 포인트 <strong>50%</strong> 획득</p>
+                    <p className="text-red-600">❌ AI 가능성 <strong>80% 이상</strong>: 포인트 미획득</p>
                   </div>
                 </div>
               </div>
@@ -2469,6 +2694,292 @@ export default function TeacherDashboard({ user, userData }) {
               >
                 닫기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 온보딩 가이드 모달 */}
+      {showOnboarding && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* 헤더 - 단계 표시 */}
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-6 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <span className="text-3xl">🎉</span> 싹 시작하기
+                </h2>
+                <button
+                  onClick={handleSkipOnboarding}
+                  className="text-white/80 hover:text-white text-sm underline"
+                >
+                  건너뛰기
+                </button>
+              </div>
+              <p className="text-emerald-100 mb-4">
+                {userData.name} 선생님, 환영합니다! 간단한 설정으로 바로 시작해보세요.
+              </p>
+              {/* 단계 인디케이터 */}
+              <div className="flex items-center gap-2">
+                {[1, 2, 3].map((step) => (
+                  <div key={step} className="flex items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                      onboardingStep === step
+                        ? 'bg-white text-emerald-600'
+                        : onboardingStep > step
+                        ? 'bg-emerald-300 text-emerald-800'
+                        : 'bg-emerald-400/50 text-emerald-200'
+                    }`}>
+                      {onboardingStep > step ? '✓' : step}
+                    </div>
+                    {step < 3 && (
+                      <div className={`w-12 h-1 ${onboardingStep > step ? 'bg-emerald-300' : 'bg-emerald-400/50'}`}></div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-emerald-100">
+                <span>클래스 생성</span>
+                <span>학생 추가</span>
+                <span>주제 생성</span>
+              </div>
+            </div>
+
+            {/* 내용 */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {/* Step 1: 클래스 생성 */}
+              {onboardingStep === 1 && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="text-6xl mb-4">📚</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">첫 번째, 클래스를 만들어주세요!</h3>
+                    <p className="text-gray-600">학생들이 참여할 클래스를 생성합니다.</p>
+                  </div>
+
+                  <form onSubmit={handleOnboardingCreateClass} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">클래스 이름 *</label>
+                      <input
+                        type="text"
+                        value={newClass.className}
+                        onChange={(e) => setNewClass({ ...newClass, className: e.target.value })}
+                        placeholder="예: 6학년 1반"
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">학년 선택 *</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Object.entries(GRADE_LEVELS).map(([key, value]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setNewClass({ ...newClass, gradeLevel: key })}
+                            className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                              newClass.gradeLevel === key
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                : 'border-gray-200 hover:border-emerald-300'
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+                      <input
+                        type="text"
+                        value={newClass.description}
+                        onChange={(e) => setNewClass({ ...newClass, description: e.target.value })}
+                        placeholder="예: 2024년 1학기 글쓰기 수업"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={!newClass.className || !newClass.gradeLevel}
+                      className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+                    >
+                      클래스 생성하기 →
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Step 2: 학생 일괄 추가 */}
+              {onboardingStep === 2 && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="text-6xl mb-4">👨‍👩‍👧‍👦</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">두 번째, 학생 계정을 만들어주세요!</h3>
+                    <p className="text-gray-600">학생들이 사용할 계정을 한 번에 생성합니다.</p>
+                  </div>
+
+                  <div className="bg-emerald-50 rounded-xl p-4 mb-4">
+                    <p className="text-emerald-800 font-medium">
+                      📌 "{onboardingClass?.className}" 클래스에 학생을 추가합니다
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">생성할 학생 수 *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="40"
+                        value={batchCount}
+                        onChange={(e) => setBatchCount(Math.min(40, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">최대 40명까지 가능합니다.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">아이디 접두어 (선택)</label>
+                      <input
+                        type="text"
+                        value={batchPrefix}
+                        onChange={(e) => setBatchPrefix(e.target.value)}
+                        placeholder="예: 6-1 → 아이디: 6-1_student01"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    {batchResults.length > 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                        <p className="text-green-700 font-medium mb-2">{batchMessage}</p>
+                        <div className="text-sm text-green-600 max-h-32 overflow-y-auto">
+                          {batchResults.slice(0, 5).map((acc, idx) => (
+                            <div key={idx} className="flex gap-4 py-1">
+                              <span>ID: {acc.email.split('@')[0]}</span>
+                              <span>PW: {acc.password}</span>
+                            </div>
+                          ))}
+                          {batchResults.length > 5 && (
+                            <p className="text-green-500 mt-1">... 외 {batchResults.length - 5}명</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      {batchResults.length === 0 ? (
+                        <button
+                          onClick={handleOnboardingBatchCreate}
+                          disabled={batchLoading || batchCount < 1}
+                          className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+                        >
+                          {batchLoading ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              생성 중...
+                            </span>
+                          ) : (
+                            `${batchCount}명 학생 계정 생성하기 →`
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setOnboardingStep(3)}
+                          className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg"
+                        >
+                          다음 단계로 →
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setOnboardingStep(3)}
+                        className="px-6 py-4 bg-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-300 transition-all"
+                      >
+                        건너뛰기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: AI 주제 생성 */}
+              {onboardingStep === 3 && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="text-6xl mb-4">✨</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">마지막! AI로 글쓰기 주제를 만들어보세요</h3>
+                    <p className="text-gray-600">AI가 학년에 맞는 글쓰기 주제를 추천해드려요.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">분야 선택 (선택)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {categoryExamples.slice(0, 12).map((cat) => (
+                          <button
+                            key={cat.label}
+                            type="button"
+                            onClick={() => setTopicCategory(topicCategory === cat.label ? "" : cat.label)}
+                            className={`px-3 py-2 rounded-full text-sm transition-all ${
+                              topicCategory === cat.label
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {cat.icon} {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleOnboardingGenerateTopics}
+                      disabled={aiTopicsLoading}
+                      className="w-full py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-bold text-lg hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50 transition-all shadow-lg"
+                    >
+                      {aiTopicsLoading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          AI가 주제를 생성 중...
+                        </span>
+                      ) : (
+                        '🤖 AI 주제 생성하기'
+                      )}
+                    </button>
+
+                    {aiTopics.length > 0 && (
+                      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4">
+                        <h4 className="font-bold text-purple-800 mb-3">AI 추천 주제</h4>
+                        <div className="space-y-2">
+                          {aiTopics.map((topic, idx) => (
+                            <div key={idx} className="bg-white rounded-lg p-3 shadow-sm">
+                              <p className="font-medium text-gray-800">{topic.title}</p>
+                              <p className="text-sm text-gray-500">{topic.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-purple-600 mt-3">
+                          이 주제들은 과제 출제 시 다시 확인할 수 있어요!
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleOnboardingComplete}
+                      className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg mt-4"
+                    >
+                      🎉 설정 완료! 시작하기
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

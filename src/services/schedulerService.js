@@ -3,6 +3,25 @@ import { db } from '../config/firebase';
 import { generateTopics } from '../utils/geminiAPI';
 import { createAssignment, getAssignmentsByClass } from './assignmentService';
 
+// ============================================
+// 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
+// ============================================
+const schedulerCache = new Map(); // classCode -> { data, timestamp }
+const autoAssignmentTodayCache = new Map(); // classCode -> { result, date }
+
+const CACHE_TTL = 300000; // 5분
+
+function isCacheValid(timestamp) {
+  if (!timestamp) return false;
+  const jitter = CACHE_TTL * 0.1 * Math.random();
+  return (Date.now() - timestamp) < (CACHE_TTL + jitter);
+}
+
+// 스케줄러 캐시 무효화
+export function invalidateSchedulerCache(classCode) {
+  schedulerCache.delete(classCode);
+}
+
 // 스케줄러 설정 저장
 export async function saveSchedulerSettings(classCode, settings) {
   try {
@@ -12,6 +31,10 @@ export async function saveSchedulerSettings(classCode, settings) {
       ...settings,
       updatedAt: new Date().toISOString()
     });
+
+    // 🚀 캐시 무효화
+    invalidateSchedulerCache(classCode);
+
     return { success: true };
   } catch (error) {
     console.error('스케줄러 설정 저장 에러:', error);
@@ -19,14 +42,24 @@ export async function saveSchedulerSettings(classCode, settings) {
   }
 }
 
-// 스케줄러 설정 불러오기
-export async function getSchedulerSettings(classCode) {
+// 🚀 최적화: 캐싱 추가 (10,000명 대응)
+export async function getSchedulerSettings(classCode, forceRefresh = false) {
   try {
-    const schedulerDoc = await getDoc(doc(db, 'schedulers', classCode));
-    if (schedulerDoc.exists()) {
-      return schedulerDoc.data();
+    // 캐시 확인
+    if (!forceRefresh) {
+      const cached = schedulerCache.get(classCode);
+      if (cached && isCacheValid(cached.timestamp)) {
+        return cached.data;
+      }
     }
-    return null;
+
+    const schedulerDoc = await getDoc(doc(db, 'schedulers', classCode));
+    const result = schedulerDoc.exists() ? schedulerDoc.data() : null;
+
+    // 캐시 저장
+    schedulerCache.set(classCode, { data: result, timestamp: Date.now() });
+
+    return result;
   } catch (error) {
     console.error('스케줄러 설정 로드 에러:', error);
     throw error;
@@ -151,23 +184,36 @@ function calculateSimilarity(str1, str2) {
   return matches / longer.length;
 }
 
-// 오늘 자동 과제가 이미 출제되었는지 확인
+// 🚀 최적화: 오늘 날짜 캐싱 (같은 날 반복 체크 방지)
 export async function hasAutoAssignmentToday(classCode) {
   try {
     const today = new Date().toISOString().split('T')[0];
+
+    // 캐시 확인 (같은 날짜면 캐시 사용)
+    const cached = autoAssignmentTodayCache.get(classCode);
+    if (cached && cached.date === today) {
+      return cached.result;
+    }
+
     const q = query(
       collection(db, 'autoAssignmentLogs'),
       where('classCode', '==', classCode)
     );
     const snapshot = await getDocs(q);
 
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
+    let result = false;
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
       if (data.createdAt && data.createdAt.startsWith(today)) {
-        return true;
+        result = true;
+        break;
       }
     }
-    return false;
+
+    // 캐시 저장
+    autoAssignmentTodayCache.set(classCode, { result, date: today });
+
+    return result;
   } catch (error) {
     console.error('오늘 자동 과제 확인 에러:', error);
     return false;

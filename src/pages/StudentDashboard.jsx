@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
-import { useDebounce } from "use-debounce";
+// 🚀 useDebounce 제거 - 자동저장 기능 제거로 더 이상 필요 없음
 import Confetti from "react-confetti";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import { signOut, updateUserData } from "../services/authService";
@@ -12,7 +12,8 @@ import {
   getFriendWritings,
   saveDraftByTopic,
   getDraftByTopic,
-  deleteDraft
+  deleteDraft,
+  getClassRanking
 } from "../services/writingService";
 import { getAssignmentsByClass } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
@@ -67,16 +68,16 @@ const AVATAR_ITEMS = {
     { id: 'hair3', emoji: '💇‍♀️', name: '긴머리', price: 30, svgStyle: 'long' },
     { id: 'hair4', emoji: '👨‍🦱', name: '곱슬머리', price: 50, svgStyle: 'curly' },
     { id: 'hair5', emoji: '👩‍🦰', name: '웨이브', price: 50, svgStyle: 'curly' },
-    { id: 'hair6', emoji: '👨‍🦲', name: '스포츠컷', price: 40, svgStyle: 'short' },
-    { id: 'hair7', emoji: '🧑‍🦳', name: '은발', price: 100, svgStyle: 'default' },
+    { id: 'hair6', emoji: '👨‍🦲', name: '스포츠컷', price: 40, svgStyle: 'sportscut' },
+    { id: 'hair7', emoji: '🧑‍🦳', name: '은발', price: 100, svgStyle: 'default', defaultColor: '#C0C0C0' },
     { id: 'hair8', emoji: '👸', name: '공주머리', price: 150, svgStyle: 'princess' },
     { id: 'hair9', emoji: '🦸', name: '히어로컷', price: 200, svgStyle: 'spiky' },
-    { id: 'hair10', emoji: '🧝', name: '엘프머리', price: 300, svgStyle: 'long' },
+    { id: 'hair10', emoji: '🧝', name: '엘프머리', price: 300, svgStyle: 'elf' },
     { id: 'hair11', emoji: '👩‍🎤', name: '락스타', price: 180, svgStyle: 'spiky' },
-    { id: 'hair12', emoji: '🧑‍🎄', name: '산타머리', price: 250, special: true, svgStyle: 'short' },
-    { id: 'hair13', emoji: '🧜', name: '인어머리', price: 350, special: true, svgStyle: 'long' },
+    { id: 'hair12', emoji: '🧑‍🎄', name: '산타머리', price: 250, special: true, svgStyle: 'santa' },
+    { id: 'hair13', emoji: '🧜', name: '인어머리', price: 350, special: true, svgStyle: 'mermaid' },
     { id: 'hair14', emoji: '🎎', name: '전통머리', price: 200, svgStyle: 'bun' },
-    { id: 'hair15', emoji: '👩‍🚀', name: '우주비행사', price: 400, special: true, svgStyle: 'short' }
+    { id: 'hair15', emoji: '👩‍🚀', name: '우주비행사', price: 400, special: true, svgStyle: 'astronaut' }
   ],
   // 머리 색상
   hairColor: [
@@ -88,8 +89,10 @@ const AVATAR_ITEMS = {
     { id: 'hc6', color: '#a855f7', name: '보라', price: 100 },
     { id: 'hc7', color: '#3b82f6', name: '파랑', price: 100 },
     { id: 'hc8', color: '#ec4899', name: '핑크', price: 120 },
-    { id: 'hc9', color: 'linear-gradient(90deg, #ff6b6b, #4ecdc4)', name: '그라데이션', price: 200 },
-    { id: 'hc10', color: 'linear-gradient(90deg, #a855f7, #ec4899, #3b82f6)', name: '레인보우', price: 500 }
+    { id: 'hc9', color: '#C0C0C0', name: '은색', price: 100 },
+    { id: 'hc10', color: '#F5F5F5', name: '백발', price: 150 },
+    { id: 'hc11', color: 'linear-gradient(90deg, #ff6b6b, #4ecdc4)', name: '그라데이션', price: 200 },
+    { id: 'hc12', color: 'linear-gradient(90deg, #a855f7, #ec4899, #3b82f6)', name: '레인보우', price: 500 }
   ],
   // 옷/의상 (확장) - svgType과 color 추가
   clothes: [
@@ -305,7 +308,38 @@ export default function StudentDashboard({ user, userData }) {
     studentName: userData.name
   });
 
-  const [debouncedContent] = useDebounce(currentWriting.content, 10000); // 10초마다 자동 저장
+  // 🚀 탭 이동 시 경고창 함수 - 작성 중인 글 보호
+  const handleTabChange = (newTab) => {
+    // 글쓰기 탭에서 다른 탭으로 이동하려 하고, 작성 중인 글이 있는 경우
+    if (activeTab === "write" && newTab !== "write" && currentWriting.content && currentWriting.content.trim().length > 0) {
+      const confirmMove = window.confirm(
+        `⚠️ 작성 중인 글이 있습니다!\n\n` +
+        `주제: "${currentWriting.topic || '(주제 미선택)'}"\n` +
+        `작성된 글자 수: ${currentWriting.wordCount}자\n\n` +
+        `다른 탭으로 이동하면 작성 중인 글이 삭제됩니다.\n` +
+        `그래도 이동하시겠습니까?\n\n` +
+        `💡 팁: 글을 유지하려면 '취소'를 누른 후 '제출하기'로 저장하세요.`
+      );
+
+      if (!confirmMove) {
+        return; // 취소 시 이동하지 않음
+      }
+
+      // 확인 시 글 초기화
+      setCurrentWriting({
+        topic: "",
+        content: "",
+        wordCount: 0,
+        gradeLevel: userData.gradeLevel,
+        studentName: userData.name
+      });
+      setSelectedTopic(null);
+    }
+
+    setActiveTab(newTab);
+  };
+
+  // 🚀 자동저장 제거 - Firestore 비용 최적화 (주제 이동 시 경고창으로 대체)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -386,6 +420,17 @@ export default function StudentDashboard({ user, userData }) {
   const [savingDraft, setSavingDraft] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(false);
 
+  // 랭킹 관련 state
+  const [rankingData, setRankingData] = useState([]);
+  const [rankingPeriod, setRankingPeriod] = useState('weekly');
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [myRank, setMyRank] = useState(null);
+  const [rankingLastLoaded, setRankingLastLoaded] = useState(null); // 🚀 캐시 타임스탬프
+
+  // 닉네임 변경 알림 모달
+  const [showNicknameAlert, setShowNicknameAlert] = useState(false);
+  const [nicknameAlertInput, setNicknameAlertInput] = useState('');
+
   useEffect(() => {
     loadData();
     // 음성 인식 지원 확인
@@ -393,13 +438,76 @@ export default function StudentDashboard({ user, userData }) {
       setSpeechSupported(true);
       initSpeechRecognition();
     }
+    // 닉네임 변경 여부 체크 - 한번도 변경하지 않은 경우 알림
+    if (!userData.nicknameChanged) {
+      setShowNicknameAlert(true);
+    }
   }, []);
 
+  // 모바일 뒤로가기 처리 - 글쓰기 중 뒤로가기 시 로그인 풀림 방지
   useEffect(() => {
-    if (debouncedContent && currentWriting.topic) {
-      autoSave();
-    }
-  }, [debouncedContent]);
+    // history에 상태 추가
+    const pushState = () => {
+      window.history.pushState({ studentDashboard: true }, '');
+    };
+
+    const handlePopState = (event) => {
+      // 피드백 화면에서 뒤로가기 -> 피드백 닫기
+      if (feedback) {
+        event.preventDefault();
+        setFeedback(null);
+        setSubmittedWriting(null);
+        pushState();
+        return;
+      }
+
+      // 글쓰기 중에 뒤로가기 -> 주제 선택으로 돌아가기
+      if (currentWriting.content && currentWriting.content.trim().length > 0) {
+        event.preventDefault();
+        if (window.confirm('작성 중인 글이 있습니다. 주제 선택으로 돌아가시겠습니까?\n(임시 저장된 내용은 유지됩니다)')) {
+          setCurrentWriting(prev => ({
+            ...prev,
+            topic: '',
+            content: '',
+            wordCount: 0
+          }));
+          setSelectedTopic(null);
+          setAiHelp(null);
+          setQuickAdvice(null);
+          setRewriteMode(null);
+        }
+        pushState();
+        return;
+      }
+
+      // 주제 선택 중에 뒤로가기 -> 탭 유지
+      if (selectedTopic || currentWriting.topic) {
+        event.preventDefault();
+        setSelectedTopic(null);
+        setCurrentWriting(prev => ({
+          ...prev,
+          topic: '',
+          content: '',
+          wordCount: 0
+        }));
+        pushState();
+        return;
+      }
+
+      // 그 외의 경우 기본 뒤로가기 동작 허용 (하지만 history 상태 유지)
+      pushState();
+    };
+
+    // 초기 상태 추가
+    pushState();
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [feedback, currentWriting.content, currentWriting.topic, selectedTopic]);
+
+  // 🚀 자동저장 useEffect 제거 - Firestore 비용 최적화
 
   // userData 변경시 프로필 정보 업데이트
   useEffect(() => {
@@ -424,6 +532,42 @@ export default function StudentDashboard({ user, userData }) {
       decorations: []
     });
   }, [userData]);
+
+  // 랭킹 탭 선택 시 데이터 로드
+  // 🚀 최적화: classInfo 객체 대신 classCode만 의존성으로 사용 + 캐시 가드
+  useEffect(() => {
+    if (activeTab === 'ranking' && classInfo?.classCode) {
+      // 🚀 캐시 가드: 60초 이내에 로드했으면 재로드하지 않음
+      const now = Date.now();
+      if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
+        return;
+      }
+      loadRankingData(classInfo.classCode, rankingPeriod);
+    }
+  }, [activeTab, classInfo?.classCode, rankingPeriod]);
+
+  // 랭킹 데이터 로드 함수
+  const loadRankingData = async (classCode, period, forceRefresh = false) => {
+    // 🚀 캐시 가드: 강제 새로고침이 아니고 최근 로드했으면 스킵
+    if (!forceRefresh && rankingLastLoaded && (Date.now() - rankingLastLoaded) < 60000 && rankingData.length > 0) {
+      return;
+    }
+    setLoadingRanking(true);
+    try {
+      const data = await getClassRanking(classCode, period);
+      setRankingData(data);
+      setRankingLastLoaded(Date.now()); // 🚀 로드 시간 기록
+      // 내 순위 찾기
+      const myRankIndex = data.findIndex(r => r.studentId === user.uid);
+      if (myRankIndex !== -1) {
+        setMyRank(myRankIndex + 1);
+      }
+    } catch (error) {
+      console.error('랭킹 데이터 로드 에러:', error);
+    } finally {
+      setLoadingRanking(false);
+    }
+  };
 
   // 음성 인식 초기화
   const initSpeechRecognition = () => {
@@ -586,17 +730,41 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
+  // 🚀 최적화: 병렬 데이터 로드
   const loadData = async () => {
     try {
-      const studentWritings = await getStudentWritings(user.uid);
-      setWritings(studentWritings);
+      // 1단계: 기본 데이터 병렬 로드
+      const [studentWritings, studentStats] = await Promise.all([
+        getStudentWritings(user.uid),
+        getStudentStats(user.uid)
+      ]);
 
+      setWritings(studentWritings);
+      setStats(studentStats);
+
+      // 2단계: 반 정보가 있으면 반 관련 데이터 병렬 로드
       if (userData.classCode) {
-        const cls = await getClassByCode(userData.classCode);
+        const [cls, classAssignments] = await Promise.all([
+          getClassByCode(userData.classCode),
+          getAssignmentsByClass(userData.classCode)
+        ]);
+
         setClassInfo(cls);
 
-        // 반의 과제 불러오기
-        const classAssignments = await getAssignmentsByClass(userData.classCode);
+        // 🏅 헤더에 메달 표시를 위해 주간 랭킹 미리 로드
+        if (cls?.classCode) {
+          try {
+            const weeklyData = await getClassRanking(cls.classCode, 'weekly');
+            setRankingData(weeklyData);
+            setRankingLastLoaded(Date.now());
+            const myRankIndex = weeklyData.findIndex(r => r.studentId === user.uid);
+            if (myRankIndex !== -1) {
+              setMyRank(myRankIndex + 1);
+            }
+          } catch (e) {
+            console.error('주간 랭킹 로드 에러:', e);
+          }
+        }
 
         // 목표에 도달한 과제 필터링 (제출글 중 해당 과제 주제로 목표 점수 이상 받은 것 제외)
         const completedTopics = studentWritings
@@ -614,9 +782,6 @@ export default function StudentDashboard({ user, userData }) {
 
         setAssignments(pendingAssignments);
       }
-
-      const studentStats = await getStudentStats(user.uid);
-      setStats(studentStats);
     } catch (error) {
       console.error("데이터 로드 에러:", error);
     }
@@ -638,21 +803,8 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  const autoSave = useCallback(async () => {
-    if (!currentWriting.topic || !currentWriting.content) return;
-    if (currentWriting.content.length < 10) return; // 최소 10자 이상일 때만 저장
-
-    setIsSaving(true);
-    try {
-      await saveWriting(user.uid, currentWriting, true);
-      setLastSavedAt(new Date());
-      console.log('자동 저장 완료:', new Date().toLocaleTimeString());
-    } catch (error) {
-      console.error("자동 저장 에러:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [currentWriting, user.uid]);
+  // 🚀 autoSave 함수 제거 - Firestore 비용 최적화
+  // 주제 이동 시 경고창으로 대체 (handleTopicSelect에서 처리)
 
   const handleJoinClass = async (e) => {
     e.preventDefault();
@@ -665,21 +817,27 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
+  // 🚀 주제 이동 시 경고창 추가 - 자동저장 대체
   const handleTopicSelect = (topic) => {
-    // 현재 작성 중인 글이 있으면 임시 저장
-    if (currentWriting.topic && currentWriting.content) {
-      setDraftsByTopic(prev => ({
-        ...prev,
-        [currentWriting.topic]: {
-          content: currentWriting.content,
-          wordCount: currentWriting.wordCount
-        }
-      }));
+    // 현재 작성 중인 글이 있고, 다른 주제로 이동하려는 경우 경고
+    if (currentWriting.topic && currentWriting.topic !== topic.title && currentWriting.content && currentWriting.content.trim().length > 0) {
+      const confirmMove = window.confirm(
+        `⚠️ 작성 중인 글이 있습니다!\n\n` +
+        `현재 주제: "${currentWriting.topic}"\n` +
+        `작성된 글자 수: ${currentWriting.wordCount}자\n\n` +
+        `"${topic.title}" 주제로 이동하면 작성 중인 글이 삭제됩니다.\n` +
+        `그래도 이동하시겠습니까?\n\n` +
+        `💡 팁: 글을 유지하려면 '취소'를 누른 후 '제출하기'로 저장하세요.`
+      );
+
+      if (!confirmMove) {
+        return; // 취소 시 이동하지 않음
+      }
     }
 
     setSelectedTopic(topic);
 
-    // 해당 주제에 이전에 저장된 글이 있는지 확인
+    // 해당 주제에 이전에 저장된 글이 있는지 확인 (로컬 메모리)
     const savedDraft = draftsByTopic[topic.title];
 
     // 과제별 기준점수 적용 (과제가 아니면 기본 PASSING_SCORE 사용)
@@ -834,6 +992,11 @@ export default function StudentDashboard({ user, userData }) {
       setRewriteMode(null); // 고쳐쓰기 모드 종료
 
       loadData();
+
+      // 랭킹 데이터 새로고침 (순위 표시를 위해)
+      if (classInfo) {
+        loadRankingData(classInfo.classCode, rankingPeriod);
+      }
     } catch (error) {
       alert(error.message || "제출에 실패했습니다.");
     } finally {
@@ -860,13 +1023,35 @@ export default function StudentDashboard({ user, userData }) {
       return;
     }
     try {
-      await updateUserData(user.uid, { nickname: newNickname.trim() });
+      await updateUserData(user.uid, { nickname: newNickname.trim(), nicknameChanged: true });
       setNickname(newNickname.trim());
       setEditingNickname(false);
       setNewNickname('');
+      setShowNicknameAlert(false);
       alert('닉네임이 변경되었습니다!');
     } catch (error) {
       alert('닉네임 변경에 실패했습니다.');
+    }
+  };
+
+  // 닉네임 알림 모달에서 변경
+  const handleNicknameAlertSave = async () => {
+    if (!nicknameAlertInput.trim()) {
+      alert('닉네임을 입력해주세요.');
+      return;
+    }
+    if (nicknameAlertInput.length > 10) {
+      alert('닉네임은 10자 이하로 입력해주세요.');
+      return;
+    }
+    try {
+      await updateUserData(user.uid, { nickname: nicknameAlertInput.trim(), nicknameChanged: true });
+      setNickname(nicknameAlertInput.trim());
+      setShowNicknameAlert(false);
+      setNicknameAlertInput('');
+      alert('닉네임이 설정되었습니다! 환영합니다!');
+    } catch (error) {
+      alert('닉네임 설정에 실패했습니다.');
     }
   };
 
@@ -1119,6 +1304,65 @@ export default function StudentDashboard({ user, userData }) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       {showConfetti && <Confetti />}
 
+      {/* 닉네임 변경 알림 모달 */}
+      {showNicknameAlert && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 transform animate-bounce-in">
+            {/* 아이콘 */}
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center shadow-lg">
+                <span className="text-4xl">👋</span>
+              </div>
+            </div>
+
+            {/* 제목 */}
+            <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+              환영합니다!
+            </h2>
+            <p className="text-center text-gray-600 mb-6">
+              친구들이 알아볼 수 있도록<br />
+              <span className="font-semibold text-blue-600">나만의 닉네임</span>을 설정해주세요!
+            </p>
+
+            {/* 입력 필드 */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                닉네임 (최대 10자)
+              </label>
+              <input
+                type="text"
+                value={nicknameAlertInput}
+                onChange={(e) => setNicknameAlertInput(e.target.value)}
+                placeholder="예: 글쓰기왕, 책벌레123"
+                maxLength={10}
+                className="w-full px-4 py-3 text-lg border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-1 text-right">
+                {nicknameAlertInput.length}/10
+              </p>
+            </div>
+
+            {/* 버튼 */}
+            <button
+              onClick={handleNicknameAlertSave}
+              disabled={!nicknameAlertInput.trim()}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
+                nicknameAlertInput.trim()
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              시작하기
+            </button>
+
+            <p className="text-xs text-center text-gray-400 mt-4">
+              닉네임은 나중에 프로필에서 변경할 수 있어요
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-gradient-to-r from-blue-800 via-blue-600 to-cyan-500 text-white shadow-xl relative overflow-hidden">
         {/* 마법 효과 */}
@@ -1171,31 +1415,25 @@ export default function StudentDashboard({ user, userData }) {
                   if (face.svgType === 'human') {
                     return (
                       <div className="relative" style={{ width: avatarSize, height: avatarSize }}>
-                        {/* 옷 */}
+                        {/* 옷 (맨 뒤) */}
                         {clothes.svgType && clothes.svgType !== 'none' && (
-                          <div className="absolute bottom-[-3px] left-1/2 -translate-x-1/2 z-0">
+                          <div className="absolute bottom-[-3px] left-1/2 -translate-x-1/2" style={{ zIndex: 1 }}>
                             <ClothesSVG type={clothes.svgType} color={clothes.color} size={avatarSize} />
                           </div>
                         )}
-                        {/* 머리카락 (긴머리는 뒤에) */}
-                        {hair.svgStyle && hair.svgStyle !== 'none' && ['long', 'princess', 'curly'].includes(hair.svgStyle) && (
-                          <div className="absolute inset-0 z-5">
-                            <HairSVG style={hair.svgStyle} color={hairColor.color || '#1a1a1a'} size={avatarSize} />
-                          </div>
-                        )}
                         {/* 얼굴 */}
-                        <div className="absolute inset-0 z-10">
+                        <div className="absolute inset-0" style={{ zIndex: 10 }}>
                           <FaceSVG skinColor={face.skinColor} expression={face.expression} size={avatarSize} gender={face.gender || 'male'} />
                         </div>
-                        {/* 머리카락 (짧은머리는 앞에) */}
-                        {hair.svgStyle && hair.svgStyle !== 'none' && !['long', 'princess', 'curly'].includes(hair.svgStyle) && (
-                          <div className="absolute inset-0 z-20">
-                            <HairSVG style={hair.svgStyle} color={hairColor.color || '#1a1a1a'} size={avatarSize} />
+                        {/* 머리카락 (항상 얼굴 위에) - hair.defaultColor가 있으면 우선 사용 */}
+                        {hair.svgStyle && hair.svgStyle !== 'none' && (
+                          <div className="absolute inset-0" style={{ zIndex: 20 }}>
+                            <HairSVG style={hair.svgStyle} color={hair.defaultColor || hairColor.color || '#1a1a1a'} size={avatarSize} />
                           </div>
                         )}
-                        {/* 악세서리 */}
+                        {/* 악세서리 (맨 앞) */}
                         {accessory.svgType && accessory.svgType !== 'none' && (
-                          <div className="absolute inset-0 z-30">
+                          <div className="absolute inset-0" style={{ zIndex: 30 }}>
                             <AccessorySVG type={accessory.svgType} size={avatarSize} />
                           </div>
                         )}
@@ -1213,12 +1451,24 @@ export default function StudentDashboard({ user, userData }) {
               {(() => {
                 const levelInfo = getLevelInfo(points);
                 return (
-                  <div className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
-                    <span className="text-sm">{levelInfo.emoji}</span>
-                    <span className="text-xs font-bold text-white whitespace-nowrap">Lv.{levelInfo.level}</span>
+                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
+                    <span className="text-xs sm:text-sm">{levelInfo.emoji}</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-white whitespace-nowrap">Lv.{levelInfo.level}</span>
                   </div>
                 );
               })()}
+
+              {/* 주간 랭킹 1~3위 메달 표시 */}
+              {myRank && myRank <= 3 && (
+                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 shadow-md animate-pulse">
+                  <span className="text-sm sm:text-lg">
+                    {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : '🥉'}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-amber-900 whitespace-nowrap hidden sm:inline">
+                    주간 {myRank}위
+                  </span>
+                </div>
+              )}
 
               {/* 업적 표시 - 가장 좋은 업적만 */}
               {(() => {
@@ -1236,9 +1486,9 @@ export default function StudentDashboard({ user, userData }) {
                 const bestAchievement = earnedAchievements.length > 0 ? earnedAchievements[earnedAchievements.length - 1] : null;
 
                 return bestAchievement ? (
-                  <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 backdrop-blur border border-white/20 shadow-md">
-                    <span className="text-sm">{bestAchievement.emoji}</span>
-                    <span className="text-xs font-medium text-white whitespace-nowrap hidden lg:inline">{bestAchievement.name}</span>
+                  <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-white/10 backdrop-blur border border-white/20 shadow-md">
+                    <span className="text-xs sm:text-sm">{bestAchievement.emoji}</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-white whitespace-nowrap hidden sm:inline">{bestAchievement.name}</span>
                   </div>
                 ) : null;
               })()}
@@ -1303,9 +1553,9 @@ export default function StudentDashboard({ user, userData }) {
 
         {/* Tabs - 모바일 최적화 */}
         <div className="mb-6">
-          <nav className="grid grid-cols-4 gap-1 sm:flex sm:space-x-2 bg-white/80 backdrop-blur p-1.5 rounded-2xl shadow-sm border border-blue-100">
+          <nav className="grid grid-cols-5 gap-1 sm:flex sm:space-x-2 bg-white/80 backdrop-blur p-1.5 rounded-2xl shadow-sm border border-blue-100">
             <button
-              onClick={() => setActiveTab("write")}
+              onClick={() => handleTabChange("write")}
               className={`${
                 activeTab === "write"
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
@@ -1315,17 +1565,27 @@ export default function StudentDashboard({ user, userData }) {
               <span>✍️</span> <span className="hidden sm:inline">글쓰기</span><span className="sm:hidden">글쓰기</span>
             </button>
             <button
-              onClick={() => setActiveTab("history")}
+              onClick={() => handleTabChange("history")}
               className={`${
                 activeTab === "history"
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
                   : "text-gray-600 hover:bg-blue-50"
               } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
             >
-              <span>📋</span> <span className="hidden sm:inline">제출 기록 ({writings.filter((w) => !w.isDraft).length})</span><span className="sm:hidden">기록</span>
+              <span>📋</span> <span className="hidden sm:inline">제출 기록</span><span className="sm:hidden">기록</span>
             </button>
             <button
-              onClick={() => setActiveTab("stats")}
+              onClick={() => handleTabChange("ranking")}
+              className={`${
+                activeTab === "ranking"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-blue-50"
+              } flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all`}
+            >
+              <span>🏆</span> <span className="hidden sm:inline">학급랭킹</span><span className="sm:hidden">랭킹</span>
+            </button>
+            <button
+              onClick={() => handleTabChange("stats")}
               className={`${
                 activeTab === "stats"
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
@@ -1335,7 +1595,7 @@ export default function StudentDashboard({ user, userData }) {
               <span>📊</span> <span className="hidden sm:inline">통계</span><span className="sm:hidden">통계</span>
             </button>
             <button
-              onClick={() => setActiveTab("profile")}
+              onClick={() => handleTabChange("profile")}
               className={`${
                 activeTab === "profile"
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md"
@@ -1694,12 +1954,122 @@ export default function StudentDashboard({ user, userData }) {
                       <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h5 className="font-medium text-sm text-yellow-900 mb-1">
+                            <h5 className="font-medium text-sm text-yellow-900 mb-2">
                               {aiHelp.type === 'hint' && '💡 힌트'}
-                              {aiHelp.type === 'grammar' && '✏️ 문법 검사'}
+                              {aiHelp.type === 'polish' && '✨ 표현 다듬기'}
                               {aiHelp.type === 'expand' && '📝 확장 아이디어'}
+                              {aiHelp.type === 'grammar' && '✏️ 문법 검사'}
                             </h5>
-                            {aiHelp.type === 'grammar' && aiHelp.content.hasErrors !== undefined ? (
+
+                            {/* 힌트 타입 */}
+                            {aiHelp.type === 'hint' && aiHelp.content && (
+                              <div className="space-y-2">
+                                {aiHelp.content.hints && (
+                                  <div>
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">💡 힌트:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.hints.map((hint, idx) => (
+                                        <li key={idx} className="text-sm text-yellow-800 pl-2 border-l-2 border-yellow-300">
+                                          {hint}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {aiHelp.content.questions && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">❓ 생각해볼 질문:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.questions.map((q, idx) => (
+                                        <li key={idx} className="text-sm text-yellow-800 pl-2 border-l-2 border-orange-300">
+                                          {q}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* 표현 다듬기 타입 */}
+                            {aiHelp.type === 'polish' && aiHelp.content && (
+                              <div className="space-y-2">
+                                {aiHelp.content.polished && (
+                                  <div className="bg-white p-2 rounded border border-yellow-200">
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">✨ 다듬어진 글:</p>
+                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{aiHelp.content.polished}</p>
+                                  </div>
+                                )}
+                                {aiHelp.content.changes && aiHelp.content.changes.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">🔄 변경 사항:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.changes.map((change, idx) => (
+                                        <li key={idx} className="text-xs text-yellow-800 bg-white p-1.5 rounded">
+                                          <span className="line-through text-red-500">{change.before}</span>
+                                          <span className="mx-1">→</span>
+                                          <span className="text-green-600 font-medium">{change.after}</span>
+                                          {change.reason && <span className="text-gray-500 ml-1">({change.reason})</span>}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {aiHelp.content.tips && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">💡 팁:</p>
+                                    <ul className="list-disc list-inside text-xs text-yellow-800">
+                                      {aiHelp.content.tips.map((tip, idx) => (
+                                        <li key={idx}>{tip}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* 확장 아이디어 타입 */}
+                            {aiHelp.type === 'expand' && aiHelp.content && (
+                              <div className="space-y-2">
+                                {aiHelp.content.expandIdeas && (
+                                  <div>
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">💡 확장 아이디어:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.expandIdeas.map((idea, idx) => (
+                                        <li key={idx} className="text-sm text-yellow-800 pl-2 border-l-2 border-purple-300">
+                                          {idea}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {aiHelp.content.detailSuggestions && aiHelp.content.detailSuggestions.length > 0 && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">📝 세부 제안:</p>
+                                    <ul className="space-y-1">
+                                      {aiHelp.content.detailSuggestions.map((s, idx) => (
+                                        <li key={idx} className="text-xs text-yellow-800 bg-white p-1.5 rounded">
+                                          <span className="font-medium text-purple-700">{s.part}:</span> {s.suggestion}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {aiHelp.content.examples && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">📌 예시:</p>
+                                    <ul className="list-disc list-inside text-xs text-yellow-800">
+                                      {aiHelp.content.examples.map((ex, idx) => (
+                                        <li key={idx}>{ex}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* 문법 검사 타입 */}
+                            {aiHelp.type === 'grammar' && aiHelp.content && (
                               <div>
                                 {aiHelp.content.hasErrors ? (
                                   <div>
@@ -1713,16 +2083,27 @@ export default function StudentDashboard({ user, userData }) {
                                         </li>
                                       ))}
                                     </ul>
-                                    {aiHelp.content.suggestion && (
-                                      <p className="text-xs text-yellow-700 mt-2">{aiHelp.content.suggestion}</p>
-                                    )}
                                   </div>
                                 ) : (
                                   <p className="text-sm text-yellow-800">문법 오류가 발견되지 않았습니다! 👍</p>
                                 )}
                               </div>
-                            ) : (
-                              <p className="text-sm text-yellow-800 whitespace-pre-wrap">{aiHelp.content.text}</p>
+                            )}
+
+                            {/* 기본 조언 (fallback) */}
+                            {!['hint', 'polish', 'expand', 'grammar'].includes(aiHelp.type) && aiHelp.content && (
+                              <div>
+                                {aiHelp.content.advice && (
+                                  <p className="text-sm text-yellow-800">{aiHelp.content.advice}</p>
+                                )}
+                                {aiHelp.content.tips && (
+                                  <ul className="mt-1 list-disc list-inside text-xs text-yellow-700">
+                                    {aiHelp.content.tips.map((tip, idx) => (
+                                      <li key={idx}>{tip}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
                             )}
                           </div>
                           <button
@@ -1968,6 +2349,30 @@ export default function StudentDashboard({ user, userData }) {
                       </div>
                     )}
 
+                    {/* 학급 내 순위 카드 (기준점수 통과 시에만) */}
+                    {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) && classInfo && myRank && (
+                      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-5 shadow-lg text-white">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-indigo-100 text-sm mb-1">현재 학급 내 나의 순위</p>
+                            <p className="text-4xl font-black">{myRank}등</p>
+                            <p className="text-indigo-100 text-xs mt-1">{classInfo.className} 전체 {rankingData.length}명 중</p>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <div className="text-5xl mb-1">
+                              {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}
+                            </div>
+                            <button
+                              onClick={() => handleTabChange('ranking')}
+                              className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all"
+                            >
+                              랭킹 보기 →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 제출한 글 내용 */}
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                       <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
@@ -2028,14 +2433,31 @@ export default function StudentDashboard({ user, userData }) {
                             AI 가능성 {feedback.aiUsageCheck.aiProbability}%
                           </div>
                         </div>
-                        <p className="text-sm text-gray-700 mb-3">{feedback.aiUsageCheck.explanation}</p>
+                        {feedback.aiUsageCheck.explanation && (
+                          <p className="text-sm text-gray-700 mb-3">{feedback.aiUsageCheck.explanation}</p>
+                        )}
                         {feedback.aiUsageCheck.humanLikeFeatures?.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {feedback.aiUsageCheck.humanLikeFeatures.map((feature, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-white/60 rounded-full text-xs text-emerald-700">
-                                <span>✓</span> {feature}
-                              </span>
-                            ))}
+                          <div className="mb-3">
+                            <p className="text-xs text-emerald-700 font-medium mb-2">사람이 쓴 것 같은 특징:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {feedback.aiUsageCheck.humanLikeFeatures.map((feature, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-white/60 rounded-full text-xs text-emerald-700">
+                                  <span>✓</span> {feature}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {feedback.aiUsageCheck.aiLikeFeatures?.length > 0 && feedback.aiUsageCheck.verdict !== 'LOW' && (
+                          <div>
+                            <p className="text-xs text-amber-700 font-medium mb-2">AI가 쓴 것 같은 특징:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {feedback.aiUsageCheck.aiLikeFeatures.map((feature, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-white/60 rounded-full text-xs text-amber-700">
+                                  <span>⚠️</span> {feature}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2217,7 +2639,7 @@ export default function StudentDashboard({ user, userData }) {
                         </button>
                       )}
                       <button
-                        onClick={() => setActiveTab("history")}
+                        onClick={() => handleTabChange("history")}
                         className="px-6 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
                       >
                         제출 기록 보기
@@ -2458,6 +2880,134 @@ export default function StudentDashboard({ user, userData }) {
           </div>
         )}
 
+        {/* Ranking Tab */}
+        {activeTab === "ranking" && (
+          <div className="space-y-6">
+            {/* 내 순위 카드 */}
+            {myRank && (
+              <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-2xl p-6 shadow-xl text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm mb-1">나의 {rankingPeriod === 'weekly' ? '주간' : '월간'} 순위</p>
+                    <p className="text-4xl font-black">{myRank}등</p>
+                    <p className="text-amber-100 text-sm mt-1">총 {rankingData.length}명 중</p>
+                  </div>
+                  <div className="text-6xl">
+                    {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 기간 선택 */}
+            <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl p-6 border border-blue-100">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-amber-500 to-yellow-500 rounded-lg flex items-center justify-center text-white text-sm">🏆</span>
+                  학급 랭킹
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (rankingPeriod !== 'weekly') {
+                        setRankingLastLoaded(null); // 🚀 기간 변경 시 캐시 무효화
+                        setRankingPeriod('weekly');
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      rankingPeriod === 'weekly'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    주간
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (rankingPeriod !== 'monthly') {
+                        setRankingLastLoaded(null); // 🚀 기간 변경 시 캐시 무효화
+                        setRankingPeriod('monthly');
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      rankingPeriod === 'monthly'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    월간
+                  </button>
+                </div>
+              </div>
+
+              {loadingRanking ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p className="text-gray-500">랭킹 로딩 중...</p>
+                </div>
+              ) : rankingData.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-4">📊</p>
+                  <p>아직 랭킹 데이터가 없습니다.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {rankingData.map((student, index) => {
+                    const isMe = student.studentId === user.uid;
+                    const rank = index + 1;
+                    return (
+                      <div
+                        key={student.studentId}
+                        className={`flex items-center gap-4 p-4 rounded-xl transition-all ${
+                          isMe
+                            ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 shadow-md'
+                            : 'bg-gray-50 hover:bg-gray-100'
+                        }`}
+                      >
+                        {/* 순위 */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                          rank === 1 ? 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white' :
+                          rank === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white' :
+                          rank === 3 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white' :
+                          'bg-gray-200 text-gray-600'
+                        }`}>
+                          {rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}
+                        </div>
+
+                        {/* 닉네임 */}
+                        <div className="flex-1">
+                          <p className={`font-semibold ${isMe ? 'text-blue-700' : 'text-gray-800'}`}>
+                            {student.nickname} {isMe && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full ml-2">나</span>}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            제출 {student.submissionCount}회 · 평균 {student.averageScore}점 · 통과 {student.passCount}회
+                          </p>
+                        </div>
+
+                        {/* 점수 */}
+                        <div className="text-right">
+                          <p className={`text-lg font-bold ${isMe ? 'text-blue-600' : 'text-gray-700'}`}>
+                            {student.rankingScore}점
+                          </p>
+                          <p className="text-xs text-gray-500">랭킹점수</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 랭킹 점수 설명 */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-xl">
+                <p className="text-sm text-blue-800 font-medium mb-2">📊 랭킹 점수 계산법</p>
+                <p className="text-xs text-blue-600">
+                  제출 수 × 10 + 평균 점수 + 통과 수 × 5
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Profile Tab */}
         {activeTab === "profile" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -2542,22 +3092,12 @@ export default function StudentDashboard({ user, userData }) {
                               <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 z-0">
                                 <ClothesSVG type={getPreviewClothes().svgType || 'tshirt'} color={getPreviewClothes().color || '#4A90D9'} size={90} />
                               </div>
-                              {/* 머리카락 (얼굴 뒤) - 긴머리/공주머리의 경우 */}
-                              {getPreviewHair().id !== 'hair1' && ['long', 'princess', 'curly'].includes(getPreviewHair().svgStyle) && (
-                                <div className="absolute inset-0 z-5">
-                                  <HairSVG
-                                    style={getPreviewHair().svgStyle || 'default'}
-                                    color={getPreviewHairColor().color || '#1a1a1a'}
-                                    size={100}
-                                  />
-                                </div>
-                              )}
                               {/* 얼굴 */}
                               <div className="absolute inset-0 z-10">
                                 <FaceSVG skinColor={face.skinColor} expression={face.expression} size={100} gender={face.gender || 'male'} />
                               </div>
-                              {/* 머리카락 (얼굴 위) - 짧은 머리, 단발 등 */}
-                              {getPreviewHair().id !== 'hair1' && !['long', 'princess', 'curly'].includes(getPreviewHair().svgStyle) && (
+                              {/* 머리카락 (항상 얼굴 위에) */}
+                              {getPreviewHair().id !== 'hair1' && (
                                 <div className="absolute inset-0 z-20">
                                   <HairSVG
                                     style={getPreviewHair().svgStyle || 'default'}
@@ -2766,100 +3306,139 @@ export default function StudentDashboard({ user, userData }) {
               </div>
 
               {/* 마이룸 미리보기 - 3D 스타일 */}
-              <div className={`bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border ${previewRoomItem ? 'border-purple-300 ring-2 ring-purple-200' : 'border-blue-100'}`}>
-                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center text-white text-sm shadow-lg">🏠</span>
+              <div className={`bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur shadow-2xl rounded-2xl p-6 border ${previewRoomItem ? 'border-purple-400 ring-2 ring-purple-400/50' : 'border-slate-600'}`}>
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center text-white text-sm shadow-lg shadow-cyan-500/30">🏠</span>
                   {previewRoomItem ? '미리보기' : '마이룸'}
                   {previewRoomItem && (
-                    <span className="ml-2 text-sm font-normal text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                    <span className="ml-2 text-sm font-normal text-purple-300 bg-purple-900/50 px-2 py-0.5 rounded-full border border-purple-500/30">
                       👀 {previewRoomItem.item.name}
                     </span>
                   )}
                 </h3>
 
-                {/* 3D 등각 투영 스타일 방 미리보기 */}
-                <div className={`relative rounded-xl overflow-hidden min-h-[240px] ${previewRoomItem ? 'ring-4 ring-purple-300 ring-opacity-50' : ''}`} style={{ perspective: '800px' }}>
-                  {/* 배경 그라데이션 */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${
-                    ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper())?.color || 'from-slate-100 to-slate-200'
-                  }`}></div>
+                {/* 3D 아이소메트릭 스타일 방 미리보기 */}
+                <div className={`relative rounded-2xl overflow-hidden min-h-[280px] bg-gradient-to-b from-indigo-900/50 via-slate-800/80 to-slate-900 ${previewRoomItem ? 'ring-4 ring-purple-400/40' : ''}`} style={{ perspective: '1200px' }}>
+
+                  {/* 배경 하늘/공간 효과 */}
+                  <div className="absolute inset-0 overflow-hidden">
+                    {/* 별 효과 */}
+                    <div className="absolute top-2 left-4 w-1 h-1 bg-white rounded-full animate-pulse opacity-60"></div>
+                    <div className="absolute top-6 right-8 w-1.5 h-1.5 bg-white rounded-full animate-pulse opacity-40" style={{ animationDelay: '0.5s' }}></div>
+                    <div className="absolute top-4 left-1/3 w-1 h-1 bg-cyan-300 rounded-full animate-pulse opacity-50" style={{ animationDelay: '1s' }}></div>
+                    <div className="absolute top-8 right-1/4 w-1 h-1 bg-purple-300 rounded-full animate-pulse opacity-40" style={{ animationDelay: '1.5s' }}></div>
+                    {/* 부드러운 글로우 */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-gradient-to-b from-purple-500/10 via-indigo-500/5 to-transparent rounded-full blur-2xl"></div>
+                  </div>
 
                   {/* 3D 방 컨테이너 */}
-                  <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
-                    {/* 뒷벽 (왼쪽) */}
+                  <div className="absolute inset-4 bottom-6" style={{ transformStyle: 'preserve-3d', transform: 'rotateX(5deg)' }}>
+
+                    {/* 뒷벽 - 왼쪽 패널 */}
                     <div
-                      className="absolute left-0 top-0 w-[65%] h-[70%] bg-gradient-to-br from-white/90 to-slate-100/80 border-b-4 border-r-4 border-slate-200/50"
+                      className="absolute left-0 top-0 w-[60%] h-[65%] rounded-tl-xl overflow-hidden"
                       style={{
-                        transform: 'skewY(5deg)',
-                        boxShadow: 'inset -10px 0 30px rgba(0,0,0,0.05), inset 0 -10px 30px rgba(0,0,0,0.03)'
+                        transform: 'skewY(3deg)',
+                        background: `linear-gradient(135deg, ${
+                          ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper())?.color?.includes('from-')
+                            ? '#e8e4e0' : '#f5f3f0'
+                        } 0%, #d4cfc8 100%)`,
+                        boxShadow: 'inset -15px 0 40px rgba(0,0,0,0.08), inset 0 -20px 40px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.3)'
                       }}
                     >
-                      {/* 벽 무늬 */}
-                      <div className="absolute inset-0 opacity-20" style={{
-                        backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 30px, rgba(200,200,200,0.3) 30px, rgba(200,200,200,0.3) 31px)',
+                      {/* 벽지 패턴 */}
+                      <div className="absolute inset-0 opacity-[0.15]" style={{
+                        backgroundImage: `repeating-linear-gradient(90deg, transparent 0px, transparent 25px, rgba(160,140,120,0.4) 25px, rgba(160,140,120,0.4) 26px),
+                                         repeating-linear-gradient(0deg, transparent 0px, transparent 25px, rgba(160,140,120,0.2) 25px, rgba(160,140,120,0.2) 26px)`,
                       }}></div>
+                      {/* 벽 하이라이트 */}
+                      <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/20 to-transparent"></div>
                       {/* 벽 장식 - 액자/그림 */}
-                      <div className="absolute top-6 left-8">
+                      <div className="absolute top-8 left-10 drop-shadow-lg">
                         {getPreviewRoomDecorations().slice(0, 1).map((decoId) => {
                           const svgTypeMap = {
                             'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy',
-                            'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain',
-                            'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy'
+                            'deco4': 'tent', 'deco5': 'christmasTree', 'deco6': 'fountain',
+                            'deco7': 'statue', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'castle'
                           };
-                          return <DecorationSVG key={decoId} type={svgTypeMap[decoId] || 'painting'} size={45} />;
+                          return <DecorationSVG key={decoId} type={svgTypeMap[decoId] || 'painting'} size={50} />;
                         })}
                         {getPreviewRoomDecorations().length === 0 && (
-                          <div className="w-12 h-10 bg-gradient-to-br from-amber-100 to-amber-200 rounded border-2 border-amber-300 shadow-md"></div>
+                          <div className="w-14 h-12 bg-gradient-to-br from-amber-200 to-amber-300 rounded-sm border-4 border-amber-600 shadow-xl" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.5)' }}></div>
                         )}
                       </div>
+                      {/* 코너 몰딩 */}
+                      <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-amber-900/30 to-amber-700/10"></div>
                     </div>
 
-                    {/* 뒷벽 (오른쪽) */}
+                    {/* 뒷벽 - 오른쪽 패널 */}
                     <div
-                      className="absolute right-0 top-0 w-[45%] h-[70%] bg-gradient-to-bl from-white/80 to-slate-100/70"
+                      className="absolute right-0 top-0 w-[50%] h-[65%] rounded-tr-xl overflow-hidden"
                       style={{
-                        transform: 'skewY(-5deg)',
-                        boxShadow: 'inset 10px 0 30px rgba(0,0,0,0.05), inset 0 -10px 30px rgba(0,0,0,0.03)'
+                        transform: 'skewY(-3deg)',
+                        background: 'linear-gradient(225deg, #ece8e4 0%, #ccc7c0 100%)',
+                        boxShadow: 'inset 15px 0 40px rgba(0,0,0,0.06), inset 0 -20px 40px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.3)'
                       }}
                     >
-                      {/* 창문 효과 */}
-                      <div className="absolute top-4 right-6 w-14 h-12 bg-gradient-to-br from-sky-200 to-sky-300 rounded-sm border-4 border-slate-300 shadow-inner">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent"></div>
-                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-300"></div>
-                        <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-300"></div>
+                      {/* 창문 */}
+                      <div className="absolute top-6 right-8 w-16 h-14 rounded-md overflow-hidden" style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.4), inset 0 0 20px rgba(135,206,235,0.3)' }}>
+                        <div className="absolute inset-0 bg-gradient-to-br from-sky-300 via-sky-400 to-indigo-400"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-transparent"></div>
+                        {/* 창틀 */}
+                        <div className="absolute inset-0 border-4 border-slate-500 rounded-md"></div>
+                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-500 -translate-y-1/2"></div>
+                        <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-slate-500 -translate-x-1/2"></div>
+                        {/* 빛 반사 */}
+                        <div className="absolute top-1 left-1 w-3 h-5 bg-white/60 rounded-sm rotate-12 blur-[1px]"></div>
                       </div>
                       {/* 가전 */}
-                      <div className="absolute bottom-0 right-4">
+                      <div className="absolute bottom-2 right-6 drop-shadow-xl" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}>
                         {(() => {
                           const elecId = getPreviewRoomElectronics();
                           const svgTypeMap = {
                             'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker',
                             'elec5': 'tv', 'elec6': 'tv', 'elec7': 'tv', 'elec8': 'computer', 'elec9': 'vr'
                           };
-                          return <ElectronicsSVG type={svgTypeMap[elecId] || 'tv'} size={50} />;
+                          return <ElectronicsSVG type={svgTypeMap[elecId] || 'tv'} size={55} />;
                         })()}
                       </div>
+                      {/* 코너 몰딩 */}
+                      <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-amber-900/30 to-amber-700/10"></div>
                     </div>
 
-                    {/* 바닥 - 등각 투영 */}
+                    {/* 바닥 - 3D 효과 강화 */}
                     <div
-                      className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-amber-200/90 via-amber-100/80 to-amber-50/70"
+                      className="absolute bottom-0 left-0 right-0 h-[45%] rounded-b-xl overflow-hidden"
                       style={{
-                        transform: 'rotateX(60deg) translateZ(-20px)',
-                        transformOrigin: 'bottom center',
-                        boxShadow: 'inset 0 20px 60px rgba(0,0,0,0.1)'
+                        background: 'linear-gradient(180deg, #c4a882 0%, #a08060 50%, #8b6b4a 100%)',
+                        boxShadow: 'inset 0 20px 60px rgba(0,0,0,0.15), inset 0 -10px 30px rgba(255,255,255,0.1), 0 -2px 10px rgba(0,0,0,0.2)'
                       }}
                     >
-                      {/* 나무 바닥 무늬 */}
-                      <div className="absolute inset-0 opacity-30" style={{
-                        backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139,69,19,0.2) 20px, rgba(139,69,19,0.2) 21px)',
+                      {/* 나무 바닥 무늬 - 향상된 */}
+                      <div className="absolute inset-0" style={{
+                        backgroundImage: `repeating-linear-gradient(90deg,
+                          rgba(139,69,19,0.15) 0px,
+                          transparent 2px,
+                          transparent 30px,
+                          rgba(139,69,19,0.15) 30px),
+                          repeating-linear-gradient(0deg,
+                          rgba(0,0,0,0.05) 0px,
+                          transparent 1px,
+                          transparent 80px)`,
                       }}></div>
+                      {/* 바닥 광택 */}
+                      <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-white/15 to-transparent"></div>
+                      {/* 바닥 깊이감 */}
+                      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/20 to-transparent"></div>
                     </div>
 
+                    {/* 벽-바닥 모서리 라인 */}
+                    <div className="absolute left-0 right-0" style={{ bottom: '45%', height: '4px', background: 'linear-gradient(90deg, #6b5740, #8b7355, #6b5740)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}></div>
+
                     {/* 바닥 아이템들 영역 */}
-                    <div className="absolute bottom-2 left-0 right-0 h-[45%] flex items-end justify-between px-4">
+                    <div className="absolute bottom-4 left-0 right-0 h-[40%] flex items-end justify-between px-6">
                       {/* 왼쪽 - 가구 */}
-                      <div className="relative z-10" style={{ transform: 'translateY(-5px)' }}>
+                      <div className="relative z-10" style={{ transform: 'translateY(-8px)', filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))' }}>
                         {(() => {
                           const furnitureId = getPreviewRoomFurniture();
                           const svgTypeMap = {
@@ -2867,36 +3446,36 @@ export default function StudentDashboard({ user, userData }) {
                             'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa',
                             'furn9': 'bed', 'furn10': 'throne'
                           };
-                          return <FurnitureSVG type={svgTypeMap[furnitureId] || 'sofa'} size={65} />;
+                          return <FurnitureSVG type={svgTypeMap[furnitureId] || 'sofa'} size={70} />;
                         })()}
                       </div>
 
                       {/* 중앙 - 펫 */}
                       {getPreviewRoomPet() && (
-                        <div className="relative z-20 animate-bounce" style={{ animationDuration: '2s' }}>
+                        <div className="relative z-20" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))', animation: 'bounce 2s ease-in-out infinite' }}>
                           {(() => {
                             const petId = getPreviewRoomPet();
                             const svgTypeMap = {
-                              'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'hamster',
-                              'pet5': 'parrot', 'pet6': 'hamster', 'pet7': 'cat', 'pet8': 'unicorn',
-                              'pet9': 'dragon', 'pet10': 'parrot'
+                              'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'rabbit',
+                              'pet5': 'parrot', 'pet6': 'fish', 'pet7': 'fox', 'pet8': 'unicorn',
+                              'pet9': 'dragon', 'pet10': 'eagle'
                             };
-                            return <PetSVG type={svgTypeMap[petId] || 'dog'} size={55} />;
+                            return <PetSVG type={svgTypeMap[petId] || 'dog'} size={58} />;
                           })()}
                         </div>
                       )}
 
                       {/* 오른쪽 - 차량 */}
                       {getPreviewRoomVehicle() && (
-                        <div className="relative z-10" style={{ transform: 'translateY(-5px)' }}>
+                        <div className="relative z-10" style={{ transform: 'translateY(-8px)', filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))' }}>
                           {(() => {
                             const vehicleId = getPreviewRoomVehicle();
                             const svgTypeMap = {
                               'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car',
                               'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht',
-                              'car8': 'helicopter', 'car9': 'rocket'
+                              'car8': 'privateJet', 'car9': 'rocket'
                             };
-                            return <VehicleSVG type={svgTypeMap[vehicleId] || 'car'} size={60} />;
+                            return <VehicleSVG type={svgTypeMap[vehicleId] || 'car'} size={65} />;
                           })()}
                         </div>
                       )}
@@ -2905,26 +3484,38 @@ export default function StudentDashboard({ user, userData }) {
                     {/* 추가 장식 (벽 외) */}
                     {getPreviewRoomDecorations().slice(1, 3).map((decoId, idx) => (
                       <div key={decoId} className="absolute z-10" style={{
-                        bottom: `${25 + idx * 10}%`,
-                        left: `${30 + idx * 25}%`
+                        bottom: `${30 + idx * 8}%`,
+                        left: `${28 + idx * 22}%`,
+                        filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))'
                       }}>
                         {(() => {
                           const svgTypeMap = {
                             'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy',
-                            'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain',
-                            'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy'
+                            'deco4': 'tent', 'deco5': 'christmasTree', 'deco6': 'fountain',
+                            'deco7': 'statue', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'castle'
                           };
-                          return <DecorationSVG type={svgTypeMap[decoId] || 'plant'} size={35} />;
+                          return <DecorationSVG type={svgTypeMap[decoId] || 'plant'} size={38} />;
                         })()}
                       </div>
                     ))}
 
-                    {/* 조명 효과 */}
-                    <div className="absolute top-0 left-1/4 w-32 h-32 bg-gradient-radial from-yellow-200/30 via-transparent to-transparent rounded-full pointer-events-none"></div>
+                    {/* 조명 효과 - 강화 */}
+                    <div className="absolute top-4 left-1/3 w-40 h-40 pointer-events-none" style={{
+                      background: 'radial-gradient(ellipse at center, rgba(255,248,220,0.25) 0%, rgba(255,248,220,0.1) 40%, transparent 70%)',
+                      filter: 'blur(8px)'
+                    }}></div>
+                    {/* 창문에서 들어오는 빛 */}
+                    <div className="absolute top-8 right-0 w-24 h-40 pointer-events-none opacity-30" style={{
+                      background: 'linear-gradient(135deg, rgba(135,206,235,0.4) 0%, transparent 60%)',
+                      transform: 'skewX(-15deg)',
+                      filter: 'blur(4px)'
+                    }}></div>
                   </div>
 
-                  {/* 테두리 그림자 */}
-                  <div className="absolute inset-0 rounded-xl border-2 border-slate-200/50 shadow-lg pointer-events-none"></div>
+                  {/* 고급 프레임 */}
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+                    boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.1), inset 0 0 0 4px rgba(0,0,0,0.2), 0 8px 32px rgba(0,0,0,0.4)'
+                  }}></div>
                 </div>
 
                 {/* 마이룸 미리보기 버튼들 */}
@@ -3076,10 +3667,10 @@ export default function StudentDashboard({ user, userData }) {
                             (() => {
                               const svgTypeMap = {
                                 furniture: { 'furn1': 'sofa', 'furn2': 'bed', 'furn3': 'chair', 'furn4': 'desk', 'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa', 'furn9': 'bed', 'furn10': 'throne' },
-                                electronics: { 'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker', 'elec5': 'tv', 'elec6': 'tv', 'elec7': 'tv', 'elec8': 'computer', 'elec9': 'vr' },
-                                vehicles: { 'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'helicopter', 'car9': 'rocket' },
-                                pets: { 'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'hamster', 'pet5': 'parrot', 'pet6': 'hamster', 'pet7': 'cat', 'pet8': 'unicorn', 'pet9': 'dragon', 'pet10': 'parrot' },
-                                decorations: { 'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy', 'deco4': 'plant', 'deco5': 'plant', 'deco6': 'fountain', 'deco7': 'trophy', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'trophy' }
+                                electronics: { 'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker', 'elec5': 'aircon', 'elec6': 'bigTv', 'elec7': 'homeTheater', 'elec8': 'aiRobot', 'elec9': 'vr' },
+                                vehicles: { 'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'privateJet', 'car9': 'rocket' },
+                                pets: { 'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'rabbit', 'pet5': 'parrot', 'pet6': 'fish', 'pet7': 'fox', 'pet8': 'unicorn', 'pet9': 'dragon', 'pet10': 'eagle' },
+                                decorations: { 'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy', 'deco4': 'tent', 'deco5': 'christmasTree', 'deco6': 'fountain', 'deco7': 'statue', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'castle' }
                               };
                               if (avatarTab === 'furniture' && svgTypeMap.furniture[item.id]) {
                                 return <FurnitureSVG type={svgTypeMap.furniture[item.id]} size={40} />;
