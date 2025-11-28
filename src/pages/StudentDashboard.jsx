@@ -3,7 +3,7 @@
 import Confetti from "react-confetti";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import { signOut, updateUserData } from "../services/authService";
-import { joinClass, getClassByCode } from "../services/classService";
+import { getClassByCode } from "../services/classService";
 import {
   saveWriting,
   getStudentWritings,
@@ -13,7 +13,8 @@ import {
   saveDraftByTopic,
   getDraftByTopic,
   deleteDraft,
-  getClassRanking
+  getClassRanking,
+  cleanupOldFailedWritings
 } from "../services/writingService";
 import { getAssignmentsByClass } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
@@ -98,23 +99,23 @@ const AVATAR_ITEMS = {
   clothes: [
     { id: 'cloth1', emoji: '👕', name: '기본 티셔츠', price: 0, svgType: 'tshirt', color: '#4A90D9' },
     { id: 'cloth2', emoji: '👔', name: '셔츠', price: 50, svgType: 'shirt', color: '#FFFFFF' },
-    { id: 'cloth3', emoji: '🎽', name: '운동복', price: 40, svgType: 'tshirt', color: '#FF6B6B' },
+    { id: 'cloth3', emoji: '🎽', name: '운동복', price: 40, svgType: 'sportswear', color: '#FF6B6B' },
     { id: 'cloth4', emoji: '👗', name: '원피스', price: 80, svgType: 'dress', color: '#FF69B4' },
-    { id: 'cloth5', emoji: '🧥', name: '코트', price: 100, svgType: 'hoodie', color: '#8B4513' },
+    { id: 'cloth5', emoji: '🧥', name: '코트', price: 100, svgType: 'coat', color: '#8B4513' },
     { id: 'cloth6', emoji: '🥋', name: '도복', price: 120, svgType: 'tshirt', color: '#FFFFFF' },
-    { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'hanbok', color: '#E91E63' },
-    { id: 'cloth8', emoji: '🦸', name: '히어로 슈트', price: 300, svgType: 'suit', color: '#1E3A8A' },
-    { id: 'cloth9', emoji: '👑', name: '왕족 의상', price: 500, svgType: 'dress', color: '#FFD700' },
-    { id: 'cloth10', emoji: '🧙', name: '마법사 로브', price: 400, svgType: 'hoodie', color: '#4B0082' },
-    { id: 'cloth11', emoji: '🎅', name: '산타복', price: 150, svgType: 'hoodie', color: '#DC2626' },
-    { id: 'cloth12', emoji: '🤵', name: '턱시도', price: 250, svgType: 'suit', color: '#1a1a1a' },
-    { id: 'cloth13', emoji: '👩‍🎤', name: '록스타 재킷', price: 220, svgType: 'hoodie', color: '#1a1a1a' },
-    { id: 'cloth14', emoji: '🥷', name: '닌자복', price: 280, svgType: 'tshirt', color: '#1a1a1a' },
+    { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'kimono', color: '#E91E63' },
+    { id: 'cloth8', emoji: '🦸', name: '히어로 슈트', price: 300, svgType: 'superhero', color: '#1E3A8A' },
+    { id: 'cloth9', emoji: '👑', name: '왕족 의상', price: 500, svgType: 'princess', color: '#FFD700' },
+    { id: 'cloth10', emoji: '🧙', name: '마법사 로브', price: 400, svgType: 'wizard', color: '#4B0082' },
+    { id: 'cloth11', emoji: '🎅', name: '산타복', price: 150, svgType: 'sweater', color: '#DC2626' },
+    { id: 'cloth12', emoji: '🤵', name: '턱시도', price: 250, svgType: 'tuxedo', color: '#1a1a1a' },
+    { id: 'cloth13', emoji: '👩‍🎤', name: '록스타 재킷', price: 220, svgType: 'jacket', color: '#1a1a1a' },
+    { id: 'cloth14', emoji: '🥷', name: '닌자복', price: 280, svgType: 'ninja', color: '#1a1a1a' },
     { id: 'cloth15', emoji: '👨‍🚀', name: '우주복', price: 450, special: true, svgType: 'tshirt', color: '#F5F5F5' },
-    { id: 'cloth16', emoji: '🧛', name: '뱀파이어 망토', price: 350, special: true, svgType: 'hoodie', color: '#800020' },
-    { id: 'cloth17', emoji: '🧚', name: '요정 드레스', price: 380, special: true, svgType: 'dress', color: '#98FB98' },
+    { id: 'cloth16', emoji: '🧛', name: '뱀파이어 망토', price: 350, special: true, svgType: 'robe', color: '#800020' },
+    { id: 'cloth17', emoji: '🧚', name: '요정 드레스', price: 380, special: true, svgType: 'princess', color: '#98FB98' },
     { id: 'cloth18', emoji: '🎭', name: '오페라 의상', price: 320, svgType: 'dress', color: '#8B0000' },
-    { id: 'cloth19', emoji: '🏴‍☠️', name: '해적 의상', price: 270, svgType: 'shirt', color: '#654321' },
+    { id: 'cloth19', emoji: '🏴‍☠️', name: '해적 의상', price: 270, svgType: 'pirate', color: '#654321' },
     { id: 'cloth20', emoji: '⚔️', name: '기사 갑옷', price: 550, special: true, svgType: 'armor', color: '#C0C0C0' }
   ],
   // 소품/악세서리 (확장) - svgType 추가
@@ -126,27 +127,27 @@ const AVATAR_ITEMS = {
     { id: 'acc5', emoji: '🎩', name: '모자', price: 60, svgType: 'hat' },
     { id: 'acc6', emoji: '👒', name: '밀짚모자', price: 70, svgType: 'hat' },
     { id: 'acc7', emoji: '🧢', name: '캡모자', price: 50, svgType: 'hat' },
-    { id: 'acc8', emoji: '💍', name: '반지', price: 100, svgType: 'none' },
-    { id: 'acc9', emoji: '📿', name: '목걸이', price: 80, svgType: 'none' },
+    { id: 'acc8', emoji: '💍', name: '반지', price: 100, svgType: 'ring' },
+    { id: 'acc9', emoji: '📿', name: '목걸이', price: 80, svgType: 'necklace' },
     { id: 'acc10', emoji: '👑', name: '왕관', price: 300, svgType: 'crown' },
-    { id: 'acc11', emoji: '🎭', name: '마스크', price: 150, svgType: 'none' },
+    { id: 'acc11', emoji: '🎭', name: '마스크', price: 150, svgType: 'mask' },
     { id: 'acc12', emoji: '🦋', name: '나비장식', price: 120, svgType: 'bow' },
-    { id: 'acc13', emoji: '⭐', name: '별장식', price: 100, svgType: 'none' },
-    { id: 'acc14', emoji: '🌸', name: '꽃장식', price: 90, svgType: 'bow' },
+    { id: 'acc13', emoji: '⭐', name: '별장식', price: 100, svgType: 'star' },
+    { id: 'acc14', emoji: '🌸', name: '꽃장식', price: 90, svgType: 'flower' },
     { id: 'acc15', emoji: '🎧', name: '헤드폰', price: 80, svgType: 'headphones' },
-    { id: 'acc16', emoji: '🦴', name: '뼈다귀', price: 60, svgType: 'none' },
+    { id: 'acc16', emoji: '🦴', name: '뼈다귀', price: 60, svgType: 'bone' },
     { id: 'acc17', emoji: '🔮', name: '수정구슬', price: 200, special: true, svgType: 'wand' },
-    { id: 'acc18', emoji: '🗡️', name: '검', price: 250, special: true, svgType: 'none' },
-    { id: 'acc19', emoji: '🏹', name: '활', price: 220, svgType: 'none' },
+    { id: 'acc18', emoji: '🗡️', name: '검', price: 250, special: true, svgType: 'sword' },
+    { id: 'acc19', emoji: '🏹', name: '활', price: 220, svgType: 'bow_weapon' },
     { id: 'acc20', emoji: '🪄', name: '마법 지팡이', price: 350, special: true, svgType: 'wand' },
-    { id: 'acc21', emoji: '🎸', name: '기타', price: 180, svgType: 'none' },
-    { id: 'acc22', emoji: '🎺', name: '트럼펫', price: 160, svgType: 'none' },
-    { id: 'acc23', emoji: '🎨', name: '팔레트', price: 140, svgType: 'none' },
-    { id: 'acc24', emoji: '📷', name: '카메라', price: 130, svgType: 'none' },
-    { id: 'acc25', emoji: '🎤', name: '마이크', price: 110, svgType: 'none' },
-    { id: 'acc26', emoji: '🌟', name: '빛나는 별', price: 400, special: true, svgType: 'none' },
-    { id: 'acc27', emoji: '💫', name: '유성', price: 500, special: true, svgType: 'none' },
-    { id: 'acc28', emoji: '🌙', name: '달', price: 450, special: true, svgType: 'none' }
+    { id: 'acc21', emoji: '🎸', name: '기타', price: 180, svgType: 'guitar' },
+    { id: 'acc22', emoji: '🎺', name: '트럼펫', price: 160, svgType: 'trumpet' },
+    { id: 'acc23', emoji: '🎨', name: '팔레트', price: 140, svgType: 'palette' },
+    { id: 'acc24', emoji: '📷', name: '카메라', price: 130, svgType: 'camera' },
+    { id: 'acc25', emoji: '🎤', name: '마이크', price: 110, svgType: 'microphone' },
+    { id: 'acc26', emoji: '🌟', name: '빛나는 별', price: 400, special: true, svgType: 'shining_star' },
+    { id: 'acc27', emoji: '💫', name: '유성', price: 500, special: true, svgType: 'meteor' },
+    { id: 'acc28', emoji: '🌙', name: '달', price: 450, special: true, svgType: 'moon' }
   ],
   // 배경 (확장)
   backgrounds: [
@@ -293,12 +294,12 @@ const CATEGORY_NAMES = {
 
 export default function StudentDashboard({ user, userData }) {
   const [classInfo, setClassInfo] = useState(null);
-  const [classCode, setClassCode] = useState("");
   const [activeTab, setActiveTab] = useState("write");
   const [writings, setWritings] = useState([]);
   const [stats, setStats] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [assignments, setAssignments] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]); // 모든 과제 저장 (minScore 조회용)
 
   const [currentWriting, setCurrentWriting] = useState({
     topic: "",
@@ -384,7 +385,7 @@ export default function StudentDashboard({ user, userData }) {
   });
   const [shopCategory, setShopCategory] = useState('avatar');
   const [avatarTab, setAvatarTab] = useState('faces');
-  const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'passed', 'failed'
+  const [showPassedWritings, setShowPassedWritings] = useState(false); // 달성 글 펼침 상태
   // 아바타 미리보기 상태
   const [previewItem, setPreviewItem] = useState(null); // { item, category }
   const [previewEquipped, setPreviewEquipped] = useState(null); // 미리보기용 임시 장착 상태
@@ -423,6 +424,7 @@ export default function StudentDashboard({ user, userData }) {
   // 랭킹 관련 state
   const [rankingData, setRankingData] = useState([]);
   const [rankingPeriod, setRankingPeriod] = useState('weekly');
+  const [rankingExpanded, setRankingExpanded] = useState(false);
   const [loadingRanking, setLoadingRanking] = useState(false);
   const [myRank, setMyRank] = useState(null);
   const [rankingLastLoaded, setRankingLastLoaded] = useState(null); // 🚀 캐시 타임스탬프
@@ -542,28 +544,50 @@ export default function StudentDashboard({ user, userData }) {
       if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
         return;
       }
-      loadRankingData(classInfo.classCode, rankingPeriod);
+      // 🔧 첫 로드 또는 데이터가 없으면 forceRefresh로 캐시 무시
+      const needsForceRefresh = !rankingLastLoaded || rankingData.length === 0;
+      loadRankingData(classInfo.classCode, rankingPeriod, needsForceRefresh);
     }
   }, [activeTab, classInfo?.classCode, rankingPeriod]);
 
   // 랭킹 데이터 로드 함수
+  // 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
   const loadRankingData = async (classCode, period, forceRefresh = false) => {
+    if (loadingRanking) return; // 🔥 동시 로드 방지
+
+    // 🔧 classCode 유효성 검사
+    if (!classCode) {
+      console.warn('랭킹 로드 실패: classCode가 없습니다');
+      setRankingData([]);
+      return;
+    }
+
     // 🚀 캐시 가드: 강제 새로고침이 아니고 최근 로드했으면 스킵
     if (!forceRefresh && rankingLastLoaded && (Date.now() - rankingLastLoaded) < 60000 && rankingData.length > 0) {
       return;
     }
     setLoadingRanking(true);
     try {
-      const data = await getClassRanking(classCode, period);
-      setRankingData(data);
+      // 🔧 forceRefresh 옵션 전달 - 캐시된 빈 데이터 문제 해결
+      const data = await getClassRanking(classCode, period, { forceRefresh });
+      setRankingData(data || []); // 🔧 null/undefined 방지
       setRankingLastLoaded(Date.now()); // 🚀 로드 시간 기록
       // 내 순위 찾기
-      const myRankIndex = data.findIndex(r => r.studentId === user.uid);
-      if (myRankIndex !== -1) {
-        setMyRank(myRankIndex + 1);
+      if (data && data.length > 0) {
+        const myRankIndex = data.findIndex(r => r.studentId === user.uid);
+        if (myRankIndex !== -1) {
+          setMyRank(myRankIndex + 1);
+        } else {
+          setMyRank(null);
+        }
+      } else {
+        setMyRank(null);
       }
     } catch (error) {
       console.error('랭킹 데이터 로드 에러:', error);
+      // 🔧 에러 발생 시 빈 배열로 설정 (UI 에러 방지)
+      setRankingData([]);
+      setMyRank(null);
     } finally {
       setLoadingRanking(false);
     }
@@ -657,13 +681,14 @@ export default function StudentDashboard({ user, userData }) {
 
   // 친구 글 불러오기
   const loadFriendWritings = async (topic) => {
-    if (!userData.classCode) {
-      alert('반에 가입해야 친구 글을 볼 수 있어요!');
+    if (!userData.classCode && !classInfo?.classCode) {
+      alert('학급 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
     setLoadingFriendWritings(true);
     try {
-      const friends = await getFriendWritings(userData.classCode, topic, user.uid);
+      const code = userData.classCode || classInfo?.classCode;
+      const friends = await getFriendWritings(code, topic, user.uid);
       setFriendWritings(friends);
       setShowFriendWritings(true);
     } catch (error) {
@@ -730,57 +755,95 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  // 🚀 최적화: 병렬 데이터 로드
+  // 🚀 최적화: 병렬 데이터 로드 + 과제 우선 표시
+  // 🔧 에러 핸들링 강화 - 개별 에러가 전체 로드를 막지 않도록
   const loadData = async () => {
     try {
-      // 1단계: 기본 데이터 병렬 로드
-      const [studentWritings, studentStats] = await Promise.all([
-        getStudentWritings(user.uid),
-        getStudentStats(user.uid)
-      ]);
+      // 🔧 개별 Promise로 처리하여 부분 실패 허용
+      let studentWritings = [];
+      let studentStats = null;
+      let cls = null;
+      let classAssignments = [];
 
+      // 1. 학생 글과 통계는 항상 로드 시도
+      try {
+        studentWritings = await getStudentWritings(user.uid);
+      } catch (err) {
+        console.error('학생 글 조회 에러:', err);
+        studentWritings = [];
+      }
+
+      try {
+        studentStats = await getStudentStats(user.uid);
+      } catch (err) {
+        console.error('학생 통계 조회 에러:', err);
+        studentStats = { totalSubmissions: 0, averageScore: 0, scores: [] };
+      }
+
+      // 🚀 24시간 지난 미달성 글 자동 삭제
+      if (studentWritings.length > 0) {
+        try {
+          const cleanupResult = await cleanupOldFailedWritings(user.uid, studentWritings, PASSING_SCORE);
+          if (cleanupResult.deleted > 0) {
+            // 삭제된 글이 있으면 목록에서 제거
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            studentWritings = studentWritings.filter(w =>
+              w.isDraft ||
+              !w.submittedAt ||
+              new Date(w.submittedAt) >= oneDayAgo ||
+              (w.score >= (w.minScore !== undefined ? w.minScore : PASSING_SCORE))
+            );
+            console.log(`[대시보드] 24시간 지난 미달성 글 ${cleanupResult.deleted}개 정리됨`);
+          }
+        } catch (err) {
+          console.error('미달성 글 정리 에러:', err);
+        }
+      }
+
+      // 즉시 UI 업데이트
       setWritings(studentWritings);
       setStats(studentStats);
 
-      // 2단계: 반 정보가 있으면 반 관련 데이터 병렬 로드
+      // 2. 반 정보가 있으면 과제도 로드
       if (userData.classCode) {
-        const [cls, classAssignments] = await Promise.all([
-          getClassByCode(userData.classCode),
-          getAssignmentsByClass(userData.classCode)
-        ]);
-
-        setClassInfo(cls);
-
-        // 🏅 헤더에 메달 표시를 위해 주간 랭킹 미리 로드
-        if (cls?.classCode) {
-          try {
-            const weeklyData = await getClassRanking(cls.classCode, 'weekly');
-            setRankingData(weeklyData);
-            setRankingLastLoaded(Date.now());
-            const myRankIndex = weeklyData.findIndex(r => r.studentId === user.uid);
-            if (myRankIndex !== -1) {
-              setMyRank(myRankIndex + 1);
-            }
-          } catch (e) {
-            console.error('주간 랭킹 로드 에러:', e);
-          }
+        try {
+          cls = await getClassByCode(userData.classCode);
+        } catch (err) {
+          console.error('학급 정보 조회 에러:', err);
+          cls = null;
         }
 
-        // 목표에 도달한 과제 필터링 (제출글 중 해당 과제 주제로 목표 점수 이상 받은 것 제외)
-        const completedTopics = studentWritings
-          .filter(w => !w.isDraft && w.score >= PASSING_SCORE)
-          .map(w => w.topic);
+        try {
+          classAssignments = await getAssignmentsByClass(userData.classCode);
+        } catch (err) {
+          console.error('과제 조회 에러:', err);
+          classAssignments = [];
+        }
+      }
 
+      if (cls) {
+        setClassInfo(cls);
+
+        // 목표에 도달한 과제 필터링 - 각 과제의 minScore 고려
         const pendingAssignments = classAssignments.filter(assignment => {
-          // 해당 과제 제목과 일치하는 제출글이 있고, 목표 점수에 도달했으면 숨김
-          return !completedTopics.includes(assignment.title);
+          // 해당 과제(topic)에 대한 제출물 중 목표 점수 이상인 것이 있는지 확인
+          const assignmentMinScore = assignment.minScore !== undefined ? assignment.minScore : PASSING_SCORE;
+          const hasPassingSubmission = studentWritings.some(
+            w => !w.isDraft &&
+                 w.topic === assignment.title &&
+                 w.score >= assignmentMinScore
+          );
+          return !hasPassingSubmission;
         });
 
-        // 완료한 과제 수 계산
         const completedCount = classAssignments.length - pendingAssignments.length;
         setCompletedAssignmentsCount(completedCount);
 
+        // 🚀 과제 먼저 표시
         setAssignments(pendingAssignments);
+        setAllAssignments(classAssignments); // 모든 과제 저장 (히스토리 탭에서 minScore 조회용)
+
+        // 🚀 비용 최적화: 랭킹은 랭킹 탭 클릭 시에만 로드 (loadData에서 자동 로드 제거)
       }
     } catch (error) {
       console.error("데이터 로드 에러:", error);
@@ -806,17 +869,6 @@ export default function StudentDashboard({ user, userData }) {
   // 🚀 autoSave 함수 제거 - Firestore 비용 최적화
   // 주제 이동 시 경고창으로 대체 (handleTopicSelect에서 처리)
 
-  const handleJoinClass = async (e) => {
-    e.preventDefault();
-    try {
-      await joinClass(classCode.toUpperCase(), user.uid, userData.name);
-      alert("반에 성공적으로 가입했습니다.");
-      loadData();
-    } catch (error) {
-      alert(error.message || "반 가입에 실패했습니다.");
-    }
-  };
-
   // 🚀 주제 이동 시 경고창 추가 - 자동저장 대체
   const handleTopicSelect = (topic) => {
     // 현재 작성 중인 글이 있고, 다른 주제로 이동하려는 경우 경고
@@ -841,7 +893,7 @@ export default function StudentDashboard({ user, userData }) {
     const savedDraft = draftsByTopic[topic.title];
 
     // 과제별 기준점수 적용 (과제가 아니면 기본 PASSING_SCORE 사용)
-    const topicMinScore = topic.minScore || PASSING_SCORE;
+    const topicMinScore = topic.minScore !== undefined ? topic.minScore : PASSING_SCORE;
 
     setCurrentWriting({
       ...currentWriting,
@@ -946,11 +998,17 @@ export default function StudentDashboard({ user, userData }) {
 
     setIsSubmitting(true);
     try {
-      // 고쳐쓰기 모드 여부 전달
-      const result = await submitWriting(user.uid, currentWriting, !!rewriteMode);
+      // 🚀 최적화: classCode와 userData 전달하여 Firestore 읽기 2회 감소
+      const result = await submitWriting(
+        user.uid,
+        currentWriting,
+        !!rewriteMode,
+        userData.classCode || classInfo?.classCode,
+        userData
+      );
 
       // 과제별 기준점수 (과제가 아니면 기본 PASSING_SCORE 사용)
-      const requiredScore = currentWriting.minScore || PASSING_SCORE;
+      const requiredScore = currentWriting.minScore !== undefined ? currentWriting.minScore : PASSING_SCORE;
 
       // 제출한 글 내용 저장 (피드백과 함께 표시하기 위해)
       setSubmittedWriting({
@@ -993,10 +1051,7 @@ export default function StudentDashboard({ user, userData }) {
 
       loadData();
 
-      // 랭킹 데이터 새로고침 (순위 표시를 위해)
-      if (classInfo) {
-        loadRankingData(classInfo.classCode, rankingPeriod);
-      }
+      // 🚀 비용 최적화: 글 제출 후 랭킹 새로고침 제거 (랭킹 탭에서만 로드)
     } catch (error) {
       alert(error.message || "제출에 실패했습니다.");
     } finally {
@@ -1071,8 +1126,6 @@ export default function StudentDashboard({ user, userData }) {
       const newOwnedItems = [...ownedItems, item.id];
       const newPoints = points - item.price;
 
-      console.log('구매 시도:', { item: item.id, newOwnedItems, newPoints });
-
       await updateUserData(user.uid, {
         ownedItems: newOwnedItems,
         points: newPoints
@@ -1081,8 +1134,6 @@ export default function StudentDashboard({ user, userData }) {
       // 로컬 state 즉시 업데이트
       setOwnedItems(newOwnedItems);
       setPoints(newPoints);
-
-      console.log('구매 완료:', { ownedItems: newOwnedItems, points: newPoints });
 
       alert(`${item.name}을(를) 구매했습니다!\n이제 '장착' 버튼을 눌러 아바타에 적용하세요.`);
     } catch (error) {
@@ -1093,10 +1144,7 @@ export default function StudentDashboard({ user, userData }) {
 
   // 아이템 장착 (아바타)
   const handleEquipItem = async (item, category) => {
-    console.log('handleEquipItem 호출됨:', { itemId: item.id, itemName: item.name, category });
-
     if (!ownedItems.includes(item.id)) {
-      console.log('아이템 미보유:', item.id, 'ownedItems:', ownedItems);
       alert('먼저 아이템을 구매해주세요.');
       return;
     }
@@ -1112,12 +1160,9 @@ export default function StudentDashboard({ user, userData }) {
     const categoryKey = categoryMap[category] || category;
     const newEquippedItems = { ...equippedItems, [categoryKey]: item.id };
 
-    console.log('장착 시도:', { item: item.id, category, categoryKey, newEquippedItems, 현재equippedItems: equippedItems });
-
     try {
       await updateUserData(user.uid, { equippedItems: newEquippedItems });
       setEquippedItems(newEquippedItems);
-      console.log('장착 완료! 새 equippedItems:', newEquippedItems);
     } catch (error) {
       console.error('장착 실패:', error);
       alert('장착에 실패했습니다: ' + error.message);
@@ -1249,15 +1294,6 @@ export default function StudentDashboard({ user, userData }) {
       }
     }
     return roomItems.decorations || [];
-  };
-
-  // 제출글 필터링
-  const getFilteredWritings = () => {
-    const submitted = writings.filter(w => !w.isDraft);
-    if (historyFilter === 'all') return submitted;
-    if (historyFilter === 'passed') return submitted.filter(w => w.score >= PASSING_SCORE);
-    if (historyFilter === 'failed') return submitted.filter(w => w.score < PASSING_SCORE);
-    return submitted;
   };
 
   // 상점 아이템 가져오기
@@ -1402,7 +1438,7 @@ export default function StudentDashboard({ user, userData }) {
 
             {/* 아바타 + 레벨 + 업적 + 사용자 정보 */}
             <div className="ml-2 sm:ml-4 pl-2 sm:pl-4 border-l border-white/20 flex items-center gap-2 sm:gap-3">
-              {/* 미니 아바타 - 장착 아이템 모두 반영 */}
+              {/* 미니 아바타 - 상반신 형태 (옷 위에 얼굴) */}
               <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${getEquippedBackground().color} ${getEquippedFrame().style} flex items-center justify-center overflow-hidden relative`}>
                 {(() => {
                   const face = getEquippedFace();
@@ -1411,36 +1447,63 @@ export default function StudentDashboard({ user, userData }) {
                   const clothes = getEquippedClothes();
                   const accessory = getEquippedAccessory();
                   const avatarSize = 32;
+                  // 🎨 은발 등 defaultColor가 있으면 우선 사용
+                  const actualHairColor = hair.defaultColor || hairColor.color || '#1a1a1a';
 
                   if (face.svgType === 'human') {
                     return (
-                      <div className="relative" style={{ width: avatarSize, height: avatarSize }}>
-                        {/* 옷 (맨 뒤) */}
+                      <div className="relative" style={{ width: avatarSize, height: avatarSize * 1.2 }}>
+                        {/* 옷 (상반신 아래쪽) - 팔, 목 포함 */}
                         {clothes.svgType && clothes.svgType !== 'none' && (
-                          <div className="absolute bottom-[-3px] left-1/2 -translate-x-1/2" style={{ zIndex: 1 }}>
-                            <ClothesSVG type={clothes.svgType} color={clothes.color} size={avatarSize} />
+                          <div className="absolute" style={{ bottom: -avatarSize * 0.4, left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}>
+                            <ClothesSVG type={clothes.svgType} color={clothes.color} size={avatarSize * 0.9} skinColor={face.skinColor || '#FFD5B8'} />
                           </div>
                         )}
-                        {/* 얼굴 */}
-                        <div className="absolute inset-0" style={{ zIndex: 10 }}>
-                          <FaceSVG skinColor={face.skinColor} expression={face.expression} size={avatarSize} gender={face.gender || 'male'} />
+                        {/* 얼굴 (상반신 위쪽) */}
+                        <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+                          <FaceSVG skinColor={face.skinColor} expression={face.expression} size={avatarSize * 0.85} gender={face.gender || 'male'} />
                         </div>
-                        {/* 머리카락 (항상 얼굴 위에) - hair.defaultColor가 있으면 우선 사용 */}
+                        {/* 머리카락 (얼굴 위 레이어) */}
                         {hair.svgStyle && hair.svgStyle !== 'none' && (
-                          <div className="absolute inset-0" style={{ zIndex: 20 }}>
-                            <HairSVG style={hair.svgStyle} color={hair.defaultColor || hairColor.color || '#1a1a1a'} size={avatarSize} />
+                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
+                            <HairSVG style={hair.svgStyle} color={actualHairColor} size={avatarSize * 0.85} />
                           </div>
                         )}
                         {/* 악세서리 (맨 앞) */}
                         {accessory.svgType && accessory.svgType !== 'none' && (
-                          <div className="absolute inset-0" style={{ zIndex: 30 }}>
-                            <AccessorySVG type={accessory.svgType} size={avatarSize} />
+                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                            <AccessorySVG type={accessory.svgType} size={avatarSize * 0.85} />
                           </div>
                         )}
                       </div>
                     );
                   } else if (face.svgType === 'animal' && face.animalType) {
-                    return <AnimalFaceSVG type={face.animalType} size={28} />;
+                    return (
+                      <div className="relative" style={{ width: avatarSize, height: avatarSize * 1.2 }}>
+                        {/* 옷 (상반신 아래쪽) - 동물은 기본 피부색 */}
+                        {clothes.svgType && clothes.svgType !== 'none' && (
+                          <div className="absolute" style={{ bottom: -avatarSize * 0.4, left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}>
+                            <ClothesSVG type={clothes.svgType} color={clothes.color} size={avatarSize * 0.9} skinColor="#FFD5B8" />
+                          </div>
+                        )}
+                        {/* 동물 얼굴 (상반신 위쪽) */}
+                        <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+                          <AnimalFaceSVG type={face.animalType} size={avatarSize * 0.85} />
+                        </div>
+                        {/* 머리카락 */}
+                        {hair.svgStyle && hair.svgStyle !== 'none' && (
+                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
+                            <HairSVG style={hair.svgStyle} color={actualHairColor} size={avatarSize * 0.85} />
+                          </div>
+                        )}
+                        {/* 악세서리 (맨 앞) */}
+                        {accessory.svgType && accessory.svgType !== 'none' && (
+                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                            <AccessorySVG type={accessory.svgType} size={avatarSize * 0.85} />
+                          </div>
+                        )}
+                      </div>
+                    );
                   } else {
                     return <span className="text-sm sm:text-lg">{face.emoji}</span>;
                   }
@@ -1458,17 +1521,7 @@ export default function StudentDashboard({ user, userData }) {
                 );
               })()}
 
-              {/* 주간 랭킹 1~3위 메달 표시 */}
-              {myRank && myRank <= 3 && (
-                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 shadow-md animate-pulse">
-                  <span className="text-sm sm:text-lg">
-                    {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : '🥉'}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-bold text-amber-900 whitespace-nowrap hidden sm:inline">
-                    주간 {myRank}위
-                  </span>
-                </div>
-              )}
+              {/* 🚀 비용 최적화: 메달 표시 제거 (랭킹 탭에서만 확인) */}
 
               {/* 업적 표시 - 가장 좋은 업적만 */}
               {(() => {
@@ -1525,31 +1578,6 @@ export default function StudentDashboard({ user, userData }) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Class Join Section */}
-        {!classInfo && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-            <h3 className="text-lg font-semibold text-yellow-900 mb-2">반에 가입하세요</h3>
-            <p className="text-sm text-yellow-800 mb-4">
-              선생님께 받은 클래스 코드를 입력해 반에 가입해 주세요.
-            </p>
-            <form onSubmit={handleJoinClass} className="flex space-x-2">
-              <input
-                type="text"
-                value={classCode}
-                onChange={(e) => setClassCode(e.target.value)}
-                placeholder="클래스 코드 (예: ABC123)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                maxLength={6}
-              />
-              <button
-                type="submit"
-                className="bg-indigo-500 text-white px-6 py-2 rounded hover:bg-indigo-600"
-              >
-                가입
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* Tabs - 모바일 최적화 */}
         <div className="mb-6">
@@ -1648,7 +1676,10 @@ export default function StudentDashboard({ user, userData }) {
                   {/* 교사 과제 */}
                   {assignments.length > 0 ? (
                     <div className="space-y-2">
-                      {assignments.map((assignment) => (
+                      {assignments.map((assignment) => {
+                        const assignmentMinScore = assignment.minScore !== undefined ? assignment.minScore : PASSING_SCORE;
+
+                        return (
                         <button
                           key={assignment.id}
                           onClick={() => handleTopicSelect({
@@ -1656,7 +1687,7 @@ export default function StudentDashboard({ user, userData }) {
                             title: assignment.title,
                             description: assignment.description,
                             isAssignment: true,
-                            minScore: assignment.minScore || PASSING_SCORE
+                            minScore: assignmentMinScore
                           })}
                           className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                             selectedTopic?.id === assignment.id
@@ -1677,15 +1708,14 @@ export default function StudentDashboard({ user, userData }) {
                               <span>마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
                             </div>
                           )}
-                          {assignment.minScore && (
-                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                                목표 {assignment.minScore}점+
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                            <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                              목표 {assignmentMinScore}점+
+                            </span>
+                          </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : completedAssignmentsCount > 0 ? (
                     <div className="text-center py-8">
@@ -1763,7 +1793,7 @@ export default function StudentDashboard({ user, userData }) {
                               💾 {lastSavedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 저장됨
                             </>
                           ) : (
-                            '10초마다 자동 저장'
+                            ''
                           )}
                         </p>
                       </div>
@@ -1860,7 +1890,7 @@ export default function StudentDashboard({ user, userData }) {
                     <textarea
                       value={currentWriting.content}
                       onChange={handleContentChange}
-                      placeholder={isListening ? "말씀하세요... 음성이 텍스트로 변환됩니다." : "주제에 맞춰 글을 작성해 보세요.. (10초마다 자동 저장)"}
+                      placeholder={isListening ? "말씀하세요... 음성이 텍스트로 변환됩니다." : "주제에 맞춰 글을 작성해 보세요..."}
                       className={`w-full h-64 px-4 py-3 border rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
                         rewriteMode ? 'border-orange-300 bg-orange-50/30' : isListening ? 'border-red-300 bg-red-50/30' : 'border-gray-300'
                       }`}
@@ -2266,10 +2296,15 @@ export default function StudentDashboard({ user, userData }) {
                   </>
                 ) : feedback && submittedWriting ? (
                   /* 피드백 결과 화면 */
+                  (() => {
+                    const requiredScore = submittedWriting.minScore !== undefined ? submittedWriting.minScore : PASSING_SCORE;
+                    const isPassed = feedback.score >= requiredScore;
+
+                    return (
                   <div className="space-y-6">
                     {/* 헤더 - 점수 및 통과 여부 */}
                     <div className={`relative overflow-hidden rounded-2xl p-8 text-white ${
-                      feedback.score >= (submittedWriting.minScore || PASSING_SCORE)
+                      isPassed
                         ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500'
                         : 'bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500'
                     }`}>
@@ -2278,20 +2313,20 @@ export default function StudentDashboard({ user, userData }) {
 
                       <div className="relative z-10 text-center">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
-                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? (
+                          {isPassed ? (
                             <span className="text-3xl">🎉</span>
                           ) : (
                             <span className="text-3xl">💪</span>
                           )}
                         </div>
                         <h2 className="text-lg font-medium opacity-90 mb-2">
-                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? '축하합니다!' : '조금만 더 노력해봐요!'}
+                          {isPassed ? '축하합니다!' : '조금만 더 노력해봐요!'}
                         </h2>
                         <div className="text-7xl font-black mb-2">{feedback.score}<span className="text-3xl">점</span></div>
                         <p className="text-sm opacity-80">
-                          {feedback.score >= (submittedWriting.minScore || PASSING_SCORE)
+                          {isPassed
                             ? '기준 점수를 통과했어요!'
-                            : `기준 점수 ${submittedWriting.minScore || PASSING_SCORE}점까지 ${(submittedWriting.minScore || PASSING_SCORE) - feedback.score}점 남았어요`}
+                            : `기준 점수 ${requiredScore}점까지 ${requiredScore - feedback.score}점 남았어요`}
                         </p>
                       </div>
                     </div>
@@ -2349,29 +2384,7 @@ export default function StudentDashboard({ user, userData }) {
                       </div>
                     )}
 
-                    {/* 학급 내 순위 카드 (기준점수 통과 시에만) */}
-                    {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) && classInfo && myRank && (
-                      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-5 shadow-lg text-white">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-indigo-100 text-sm mb-1">현재 학급 내 나의 순위</p>
-                            <p className="text-4xl font-black">{myRank}등</p>
-                            <p className="text-indigo-100 text-xs mt-1">{classInfo.className} 전체 {rankingData.length}명 중</p>
-                          </div>
-                          <div className="flex flex-col items-center">
-                            <div className="text-5xl mb-1">
-                              {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}
-                            </div>
-                            <button
-                              onClick={() => handleTabChange('ranking')}
-                              className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all"
-                            >
-                              랭킹 보기 →
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {/* 🚀 비용 최적화: 실시간 순위 표시 제거 - 랭킹 탭에서만 확인 가능 */}
 
                     {/* 제출한 글 내용 */}
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -2579,9 +2592,30 @@ export default function StudentDashboard({ user, userData }) {
 
                     {/* 버튼 */}
                     <div className="flex flex-wrap gap-3">
-                      {feedback.score >= (submittedWriting.minScore || PASSING_SCORE) ? (
-                        // 기준 점수 달성 시 - 새 글쓰기 + 친구 글 보기
+                      {isPassed ? (
+                        // 기준 점수 달성 시 - 다시 쓰기 + 새 글쓰기 + 친구 글 보기
                         <>
+                          <button
+                            onClick={() => {
+                              // 제출했던 글 내용을 다시 복원
+                              setSelectedTopic({ id: 'rewrite', title: submittedWriting.topic });
+                              setCurrentWriting({
+                                topic: submittedWriting.topic,
+                                content: submittedWriting.content,
+                                wordCount: submittedWriting.wordCount,
+                                gradeLevel: userData.gradeLevel,
+                                studentName: userData.name,
+                                minScore: requiredScore,
+                                isAssignment: submittedWriting.isAssignment
+                              });
+                              // 피드백 닫기
+                              setFeedback(null);
+                              setSubmittedWriting(null);
+                            }}
+                            className="flex-1 min-w-[140px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-200"
+                          >
+                            다시 쓰기
+                          </button>
                           <button
                             onClick={() => {
                               setFeedback(null);
@@ -2646,6 +2680,8 @@ export default function StudentDashboard({ user, userData }) {
                       </button>
                     </div>
                   </div>
+                  );
+                  })()
                 ) : (
                   <div className="text-center py-12">
                     <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2663,100 +2699,66 @@ export default function StudentDashboard({ user, userData }) {
         {/* History Tab */}
         {activeTab === "history" && (
           <div className="space-y-6">
-            {/* 필터 및 통계 헤더 */}
+            {/* 통계 헤더 */}
             <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-blue-100">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 {/* 통계 카드들 */}
                 <div className="flex gap-4">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl px-4 py-3 border border-blue-200">
-                    <div className="text-xs text-blue-600 font-medium">전체</div>
-                    <div className="text-2xl font-bold text-blue-700">{writings.filter(w => !w.isDraft).length}</div>
-                  </div>
                   <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl px-4 py-3 border border-emerald-200">
                     <div className="text-xs text-emerald-600 font-medium">달성</div>
-                    <div className="text-2xl font-bold text-emerald-700">{writings.filter(w => !w.isDraft && w.score >= PASSING_SCORE).length}</div>
+                    <div className="text-2xl font-bold text-emerald-700">{writings.filter(w => {
+                      if (w.isDraft) return false;
+                      const requiredScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
+                      return w.score >= requiredScore;
+                    }).length}</div>
                   </div>
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl px-4 py-3 border border-orange-200">
                     <div className="text-xs text-orange-600 font-medium">미달성</div>
-                    <div className="text-2xl font-bold text-orange-700">{writings.filter(w => !w.isDraft && w.score < PASSING_SCORE).length}</div>
+                    <div className="text-2xl font-bold text-orange-700">{writings.filter(w => {
+                      if (w.isDraft) return false;
+                      const requiredScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
+                      return w.score < requiredScore;
+                    }).length}</div>
                   </div>
-                </div>
-
-                {/* 필터 버튼 */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setHistoryFilter('all')}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      historyFilter === 'all'
-                        ? 'bg-blue-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    📋 전체
-                  </button>
-                  <button
-                    onClick={() => setHistoryFilter('passed')}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      historyFilter === 'passed'
-                        ? 'bg-emerald-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    ✅ 달성
-                  </button>
-                  <button
-                    onClick={() => setHistoryFilter('failed')}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      historyFilter === 'failed'
-                        ? 'bg-orange-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    🔄 미달성
-                  </button>
                 </div>
               </div>
             </div>
 
-            {/* 글 목록 */}
-            {getFilteredWritings().length === 0 ? (
-              <div className="bg-white shadow rounded-2xl p-12 text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">📝</span>
-                </div>
-                <p className="text-gray-600 font-medium">
-                  {historyFilter === 'all' && '아직 제출한 글이 없습니다.'}
-                  {historyFilter === 'passed' && '목표 점수를 달성한 글이 없습니다.'}
-                  {historyFilter === 'failed' && '미달성 글이 없습니다. 대단해요!'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {getFilteredWritings().map((writing) => (
+            {/* 🚀 미달성 글 섹션 (기본 표시) */}
+            {(() => {
+              const assignmentMap = new Map(allAssignments.map(a => [a.title, a.minScore]));
+              const allSubmitted = writings.filter(w => !w.isDraft);
+
+              const failedWritings = allSubmitted.filter(w => {
+                const requiredScore = w.minScore !== undefined ? w.minScore : (assignmentMap.get(w.topic) ?? PASSING_SCORE);
+                return w.score < requiredScore;
+              });
+
+              const passedWritings = allSubmitted.filter(w => {
+                const requiredScore = w.minScore !== undefined ? w.minScore : (assignmentMap.get(w.topic) ?? PASSING_SCORE);
+                return w.score >= requiredScore;
+              });
+
+              // 글 카드 렌더링 함수
+              const renderWritingCard = (writing) => {
+                const writingRequiredScore = writing.minScore !== undefined ? writing.minScore : (assignmentMap.get(writing.topic) ?? PASSING_SCORE);
+                const isPassed = writing.score >= writingRequiredScore;
+
+                return (
                   <div
                     key={writing.writingId}
                     className={`bg-white shadow-lg rounded-2xl overflow-hidden border-l-4 ${
-                      writing.score >= PASSING_SCORE
-                        ? 'border-l-emerald-500'
-                        : 'border-l-orange-500'
+                      isPassed ? 'border-l-emerald-500' : 'border-l-orange-500'
                     }`}
                   >
-                    {/* 헤더 */}
-                    <div className={`px-6 py-4 ${
-                      writing.score >= PASSING_SCORE
-                        ? 'bg-gradient-to-r from-emerald-50 to-white'
-                        : 'bg-gradient-to-r from-orange-50 to-white'
-                    }`}>
+                    <div className={`px-6 py-4 ${isPassed ? 'bg-gradient-to-r from-emerald-50 to-white' : 'bg-gradient-to-r from-orange-50 to-white'}`}>
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              writing.score >= PASSING_SCORE
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-orange-100 text-orange-700'
-                            }`}>
-                              {writing.score >= PASSING_SCORE ? '✅ 달성' : '🔄 미달성'}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${isPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {isPassed ? '✅ 달성' : '🔄 미달성'}
                             </span>
+                            <span className="text-xs text-gray-500">목표: {writingRequiredScore}점</span>
                           </div>
                           <h3 className="text-lg font-bold text-gray-900">{writing.topic}</h3>
                           <p className="text-sm text-gray-500 mt-1">
@@ -2764,27 +2766,20 @@ export default function StudentDashboard({ user, userData }) {
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className={`text-3xl font-black ${
-                            writing.score >= PASSING_SCORE ? 'text-emerald-600' : 'text-orange-600'
-                          }`}>
+                          <div className={`text-3xl font-black ${writing.score >= PASSING_SCORE ? 'text-emerald-600' : 'text-orange-600'}`}>
                             {writing.score}<span className="text-lg">점</span>
                           </div>
                           <div className="text-sm text-gray-500">{writing.wordCount}자</div>
                         </div>
                       </div>
                     </div>
-
-                    {/* 본문 */}
                     <div className="px-6 py-4">
                       <div className="bg-gray-50 rounded-xl p-4 max-h-32 overflow-y-auto">
                         <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{writing.content}</p>
                       </div>
                     </div>
-
-                    {/* 분석 결과 */}
                     {writing.analysis && (
                       <div className="px-6 pb-6 space-y-4">
-                        {/* 점수 그리드 */}
                         <div className="grid grid-cols-5 gap-2">
                           {[
                             { label: '내용', score: writing.analysis.contentScore, max: 30, color: 'blue' },
@@ -2799,43 +2794,86 @@ export default function StudentDashboard({ user, userData }) {
                             </div>
                           ))}
                         </div>
-
-                        {/* AI 활용 분석 */}
                         {writing.aiUsageCheck && (
                           <div className={`p-3 rounded-xl text-sm ${
-                            writing.aiUsageCheck.verdict === 'HIGH'
-                              ? 'bg-red-50 border border-red-200'
-                              : writing.aiUsageCheck.verdict === 'MEDIUM'
-                              ? 'bg-amber-50 border border-amber-200'
-                              : 'bg-emerald-50 border border-emerald-200'
+                            writing.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-50 border border-red-200' :
+                            writing.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-50 border border-amber-200' :
+                            'bg-emerald-50 border border-emerald-200'
                           }`}>
                             <div className="flex items-center justify-between">
-                              <span className="font-medium text-xs flex items-center gap-1">
-                                🤖 AI 활용 분석
-                              </span>
+                              <span className="font-medium text-xs">🤖 AI 활용 분석</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                                writing.aiUsageCheck.verdict === 'HIGH'
-                                  ? 'bg-red-200 text-red-800'
-                                  : writing.aiUsageCheck.verdict === 'MEDIUM'
-                                  ? 'bg-amber-200 text-amber-800'
-                                  : 'bg-emerald-200 text-emerald-800'
+                                writing.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-200 text-red-800' :
+                                writing.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-200 text-amber-800' :
+                                'bg-emerald-200 text-emerald-800'
                               }`}>
                                 {writing.aiUsageCheck.aiProbability}%
                               </span>
                             </div>
                           </div>
                         )}
-
-                        {/* 피드백 요약 */}
                         <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-xl">
                           💬 {writing.analysis.overallFeedback}
                         </p>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              };
+
+              return (
+                <>
+                  {/* 미달성 글 (기본 표시) */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold text-orange-700 flex items-center gap-2">
+                      <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">🔄</span>
+                      미달성 글 ({failedWritings.length}개)
+                    </h3>
+                    {failedWritings.length === 0 ? (
+                      <div className="bg-white shadow rounded-2xl p-8 text-center">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="text-2xl">🎉</span>
+                        </div>
+                        <p className="text-gray-600 font-medium">미달성 글이 없습니다. 대단해요!</p>
+                      </div>
+                    ) : (
+                      failedWritings.map(renderWritingCard)
+                    )}
+                  </div>
+
+                  {/* 달성 글 (아코디언 - 클릭 시 펼침) */}
+                  <div className="mt-6">
+                    <button
+                      onClick={() => setShowPassedWritings(!showPassedWritings)}
+                      className="w-full bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white text-lg">✅</span>
+                        <div className="text-left">
+                          <h3 className="text-lg font-bold text-emerald-700">달성 글 ({passedWritings.length}개)</h3>
+                          <p className="text-xs text-emerald-600">클릭하여 {showPassedWritings ? '접기' : '펼치기'}</p>
+                        </div>
+                      </div>
+                      <span className={`text-2xl text-emerald-600 transition-transform ${showPassedWritings ? 'rotate-180' : ''}`}>
+                        ▼
+                      </span>
+                    </button>
+
+                    {showPassedWritings && (
+                      <div className="mt-4 space-y-4">
+                        {passedWritings.length === 0 ? (
+                          <div className="bg-white shadow rounded-2xl p-8 text-center">
+                            <p className="text-gray-500">아직 달성한 글이 없습니다.</p>
+                          </div>
+                        ) : (
+                          passedWritings.map(renderWritingCard)
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -2951,8 +2989,15 @@ export default function StudentDashboard({ user, userData }) {
                   <p>아직 랭킹 데이터가 없습니다.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {rankingData.map((student, index) => {
+                (() => {
+                  // 🚀 최적화: 1~3등 + 내 순위만 기본 표시 (나머지는 접기/펼치기)
+                  const myRanking = rankingData.find(s => s.studentId === user.uid);
+                  const myRankNum = myRanking ? rankingData.indexOf(myRanking) + 1 : null;
+                  const top3 = rankingData.slice(0, 3);
+                  const showMyRankSeparately = myRankNum && myRankNum > 3;
+                  const restStudents = rankingData.slice(3).filter(s => s.studentId !== user.uid);
+
+                  const renderRankingCard = (student, index) => {
                     const isMe = student.studentId === user.uid;
                     const rank = index + 1;
                     return (
@@ -2993,8 +3038,63 @@ export default function StudentDashboard({ user, userData }) {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Top 3 */}
+                      {top3.map((student, index) => renderRankingCard(student, index))}
+
+                      {/* 내 순위가 4등 이하면 별도 표시 (접힌 상태) */}
+                      {!rankingExpanded && showMyRankSeparately && myRanking && (
+                        <>
+                          <div className="flex items-center gap-2 py-2">
+                            <div className="flex-1 border-t border-dashed border-gray-300"></div>
+                            <span className="text-xs text-gray-400 px-2">⋯ {myRankNum - 4}명 ⋯</span>
+                            <div className="flex-1 border-t border-dashed border-gray-300"></div>
+                          </div>
+                          {renderRankingCard(myRanking, myRankNum - 1)}
+                        </>
+                      )}
+
+                      {/* 펼친 상태: 4등 이하 모든 학생 표시 */}
+                      {rankingExpanded && rankingData.slice(3).map((student, index) =>
+                        renderRankingCard(student, index + 3)
+                      )}
+
+                      {/* 접기/펼치기 버튼 (4등 이하 학생이 있을 때만) */}
+                      {rankingData.length > 3 && (
+                        <button
+                          onClick={() => setRankingExpanded(!rankingExpanded)}
+                          className="w-full py-3 mt-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all flex items-center justify-center gap-2"
+                        >
+                          {rankingExpanded ? (
+                            <>
+                              <span>접기</span>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            </>
+                          ) : (
+                            <>
+                              <span>전체 랭킹 보기 ({rankingData.length - 3}명 더)</span>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* 전체 인원 표시 */}
+                      <div className="text-center pt-2">
+                        <p className="text-xs text-gray-400">
+                          총 {rankingData.length}명 중 {myRankNum ? `${myRankNum}위` : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
               )}
 
               {/* 랭킹 점수 설명 */}
@@ -3079,43 +3179,74 @@ export default function StudentDashboard({ user, userData }) {
                   )}
                 </h3>
 
-                {/* 아바타 프리뷰 - SVG 실사 스타일 (미리보기 지원) */}
+                {/* 아바타 프리뷰 - 상반신 형태 (미리보기 지원) */}
                 <div className="flex justify-center mb-4">
                   <div className="relative">
                     <div className={`w-40 h-40 rounded-full bg-gradient-to-br ${getPreviewBackground().color} ${getPreviewFrame().style} flex items-center justify-center shadow-xl overflow-hidden relative ${previewItem ? 'ring-4 ring-purple-400 ring-opacity-50' : ''}`}>
                       {(() => {
                         const face = getPreviewFace();
+                        const previewHair = getPreviewHair();
+                        // 🎨 은발 등 defaultColor가 있으면 우선 사용
+                        const actualHairColor = previewHair.defaultColor || getPreviewHairColor().color || '#1a1a1a';
+
                         if (face.svgType === 'human') {
                           return (
-                            <div className="relative w-[100px] h-[100px]">
-                              {/* 옷 (맨 아래) */}
-                              <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 z-0">
-                                <ClothesSVG type={getPreviewClothes().svgType || 'tshirt'} color={getPreviewClothes().color || '#4A90D9'} size={90} />
+                            <div className="relative" style={{ width: 120, height: 140 }}>
+                              {/* 옷 (상반신 아래쪽) - 팔, 목 포함 */}
+                              <div className="absolute" style={{ bottom: -30, left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}>
+                                <ClothesSVG type={getPreviewClothes().svgType || 'tshirt'} color={getPreviewClothes().color || '#4A90D9'} size={110} skinColor={face.skinColor || '#FFD5B8'} />
                               </div>
-                              {/* 얼굴 */}
-                              <div className="absolute inset-0 z-10">
-                                <FaceSVG skinColor={face.skinColor} expression={face.expression} size={100} gender={face.gender || 'male'} />
+                              {/* 얼굴 (상반신 위쪽) */}
+                              <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+                                <FaceSVG skinColor={face.skinColor} expression={face.expression} size={95} gender={face.gender || 'male'} />
                               </div>
                               {/* 머리카락 (항상 얼굴 위에) */}
-                              {getPreviewHair().id !== 'hair1' && (
-                                <div className="absolute inset-0 z-20">
+                              {previewHair.svgStyle && previewHair.svgStyle !== 'none' && (
+                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
                                   <HairSVG
-                                    style={getPreviewHair().svgStyle || 'default'}
-                                    color={getPreviewHairColor().color || '#1a1a1a'}
-                                    size={100}
+                                    style={previewHair.svgStyle || 'default'}
+                                    color={actualHairColor}
+                                    size={95}
                                   />
                                 </div>
                               )}
                               {/* 악세서리 */}
                               {getPreviewAccessory().id !== 'acc1' && getPreviewAccessory().svgType && getPreviewAccessory().svgType !== 'none' && (
-                                <div className="absolute inset-0 z-30">
-                                  <AccessorySVG type={getPreviewAccessory().svgType} size={100} />
+                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                                  <AccessorySVG type={getPreviewAccessory().svgType} size={95} />
                                 </div>
                               )}
                             </div>
                           );
                         } else if (face.svgType === 'animal' && face.animalType) {
-                          return <AnimalFaceSVG type={face.animalType} size={100} />;
+                          return (
+                            <div className="relative" style={{ width: 120, height: 140 }}>
+                              {/* 옷 (상반신 아래쪽) - 동물은 기본 피부색 */}
+                              <div className="absolute" style={{ bottom: -30, left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}>
+                                <ClothesSVG type={getPreviewClothes().svgType || 'tshirt'} color={getPreviewClothes().color || '#4A90D9'} size={110} skinColor="#FFD5B8" />
+                              </div>
+                              {/* 동물 얼굴 (상반신 위쪽) */}
+                              <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+                                <AnimalFaceSVG type={face.animalType} size={95} />
+                              </div>
+                              {/* 머리카락 (항상 얼굴 위에) */}
+                              {previewHair.svgStyle && previewHair.svgStyle !== 'none' && (
+                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
+                                  <HairSVG
+                                    style={previewHair.svgStyle || 'default'}
+                                    color={actualHairColor}
+                                    size={95}
+                                  />
+                                </div>
+                              )}
+                              {/* 악세서리 */}
+                              {getPreviewAccessory().id !== 'acc1' && getPreviewAccessory().svgType && getPreviewAccessory().svgType !== 'none' && (
+                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                                  <AccessorySVG type={getPreviewAccessory().svgType} size={95} />
+                                </div>
+                              )}
+                            </div>
+                          );
                         } else {
                           return <span className="text-6xl">{face.emoji}</span>;
                         }

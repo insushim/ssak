@@ -6,10 +6,18 @@ import { db } from '../config/firebase';
 // ============================================
 const assignmentsCache = new Map(); // classCode -> { data, timestamp }
 const submissionsCache = new Map(); // key -> { data, timestamp }
-const CACHE_TTL = 60000; // 1분
 
-function isCacheValid(timestamp) {
-  return timestamp && (Date.now() - timestamp) < CACHE_TTL;
+// 🚀 캐시 TTL 극대화 (100,000명 대응)
+const CACHE_TTL = {
+  assignments: 600000,  // 10분 (이전 3분)
+  submissions: 300000   // 5분 (이전 2분)
+};
+
+function isCacheValid(timestamp, ttl) {
+  if (!timestamp) return false;
+  // 10% jitter 추가로 thundering herd 방지
+  const jitter = ttl * 0.1 * Math.random();
+  return (Date.now() - timestamp) < (ttl + jitter);
 }
 
 // 과제 캐시 무효화
@@ -54,11 +62,18 @@ export async function createAssignment(teacherId, classCode, title, description,
 }
 
 // 🚀 최적화: 캐싱 + 정렬을 Firestore에서 처리
+// 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
 export async function getAssignmentsByClass(classCode, forceRefresh = false) {
   try {
+    // 🔧 classCode 유효성 검사
+    if (!classCode || typeof classCode !== 'string') {
+      console.warn('getAssignmentsByClass: 유효하지 않은 classCode:', classCode);
+      return [];
+    }
+
     // 캐시 확인
     const cached = assignmentsCache.get(classCode);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp)) {
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.assignments)) {
       return cached.data;
     }
 
@@ -66,7 +81,7 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
       collection(db, 'assignments'),
       where('classCode', '==', classCode),
       orderBy('createdAt', 'desc'),
-      limit(50) // 최대 50개 과제까지
+      limit(100) // 🚀 최대 100개로 증가 (50개 → 100개)
     );
     const snapshot = await getDocs(q);
     const assignments = [];
@@ -83,7 +98,8 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
     return assignments;
   } catch (error) {
     console.error('과제 목록 로드 에러:', error);
-    throw error;
+    // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
+    return [];
   }
 }
 
@@ -128,7 +144,7 @@ export async function getSubmissionsByAssignment(assignmentId, forceRefresh = fa
   try {
     const cacheKey = `assignment_${assignmentId}`;
     const cached = submissionsCache.get(cacheKey);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp)) {
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.submissions)) {
       return cached.data;
     }
 
@@ -161,7 +177,7 @@ export async function getSubmissionsByStudent(studentId, forceRefresh = false) {
   try {
     const cacheKey = `student_${studentId}`;
     const cached = submissionsCache.get(cacheKey);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp)) {
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.submissions)) {
       return cached.data;
     }
 

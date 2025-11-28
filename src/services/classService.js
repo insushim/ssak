@@ -24,10 +24,11 @@ const studentDetailsCache = new Map(); // studentIds key -> { data, timestamp }
 const classCache = new Map(); // classCode -> { data, timestamp }
 const teacherClassesCache = new Map(); // teacherId -> { data, timestamp }
 
+// 🚀 캐시 TTL 극대화 (100,000명 대응)
 const CACHE_TTL = {
-  studentDetails: 300000, // 5분
-  classData: 300000,      // 5분
-  teacherClasses: 120000, // 2분
+  studentDetails: 1800000, // 30분 (이전 5분)
+  classData: 600000,       // 10분 (이전 5분)
+  teacherClasses: 600000,  // 10분 (이전 5분)
 };
 
 function isCacheValid(timestamp, ttl) {
@@ -88,8 +89,15 @@ export async function createClass(teacherId, className, gradeLevel, description 
 }
 
 // 🚀 최적화: 캐싱 추가 (10,000명 대응)
+// 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
 export async function getClassByCode(classCode, forceRefresh = false) {
   try {
+    // 🔧 classCode 유효성 검사
+    if (!classCode || typeof classCode !== 'string') {
+      console.warn('getClassByCode: 유효하지 않은 classCode:', classCode);
+      return null;
+    }
+
     // 캐시 확인
     if (!forceRefresh) {
       const cached = classCache.get(classCode);
@@ -109,7 +117,8 @@ export async function getClassByCode(classCode, forceRefresh = false) {
     return result;
   } catch (error) {
     console.error('학급 조회 에러:', error);
-    throw error;
+    // 🔧 에러 시 null 반환 (앱 중단 방지)
+    return null;
   }
 }
 

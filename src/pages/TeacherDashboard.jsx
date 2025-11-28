@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { signOut } from "../services/authService";
 import {
@@ -130,6 +130,9 @@ export default function TeacherDashboard({ user, userData }) {
     { value: "상상글", label: "상상글", icon: "🦄", desc: "창의력을 발휘" },
   ];
 
+  // 🚀 Ref to track previous classCode to prevent unnecessary re-renders
+  const prevClassCodeRef = useRef(null);
+
   useEffect(() => {
     loadClasses();
     // 온보딩 체크 - 처음 접속한 선생님인지 확인
@@ -139,16 +142,21 @@ export default function TeacherDashboard({ user, userData }) {
   }, []);
 
   useEffect(() => {
-    if (selectedClass) {
-      loadClassWritings(selectedClass.classCode);
-      loadAssignments(selectedClass.classCode);
-      loadSchedulerSettings(selectedClass.classCode);
-      // 자동 출제 스케줄러 체크 (페이지 로드 시)
-      runSchedulerCheck(selectedClass.classCode, selectedClass.gradeLevel);
+    const currentClassCode = selectedClass?.classCode;
+
+    // 🚀 Check if classCode actually changed to prevent duplicate calls
+    if (currentClassCode && currentClassCode !== prevClassCodeRef.current) {
+      prevClassCodeRef.current = currentClassCode;
+
+      loadClassWritings(currentClassCode);
+      loadAssignments(currentClassCode);
+      loadSchedulerSettings(currentClassCode);
+      // 자동 출제 스케줄러 체크 (페이지 로드 시) - 문자열로 전달
+      runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
       // 🚀 클래스 변경 시 랭킹 캐시 무효화
       setRankingLastLoaded(null);
     }
-  }, [selectedClass]);
+  }, [selectedClass?.classCode]);
 
   // 자동 출제 스케줄러 실행
   const runSchedulerCheck = async (classCode, gradeLevel) => {
@@ -157,8 +165,6 @@ export default function TeacherDashboard({ user, userData }) {
       if (result.executed) {
         alert(result.message);
         loadAssignments(classCode);
-      } else {
-        console.log('스케줄러 결과:', result.reason);
       }
     } catch (error) {
       console.error('스케줄러 체크 에러:', error);
@@ -166,20 +172,23 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   // 랭킹 탭 선택 시 데이터 로드
-  // 🚀 최적화: 캐시 가드 추가
+  // 🚀 최적화: 캐시 가드 추가 + classCode 의존성으로 변경
   useEffect(() => {
-    if (activeTab === 'ranking' && selectedClass) {
+    const currentClassCode = selectedClass?.classCode;
+    if (activeTab === 'ranking' && currentClassCode) {
       // 60초 이내에 로드했으면 재로드하지 않음
       const now = Date.now();
       if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
         return;
       }
-      loadRankingData(selectedClass.classCode, rankingPeriod);
+      loadRankingData(currentClassCode, rankingPeriod);
     }
-  }, [activeTab, selectedClass, rankingPeriod]);
+  }, [activeTab, selectedClass?.classCode, rankingPeriod]);
 
   // 랭킹 데이터 로드
   const loadRankingData = async (classCode, period, forceRefresh = false) => {
+    if (rankingLoading) return; // 🔥 동시 로드 방지
+
     // 🚀 캐시 가드
     if (!forceRefresh && rankingLastLoaded && (Date.now() - rankingLastLoaded) < 60000 && rankingData.length > 0) {
       return;
@@ -605,23 +614,17 @@ export default function TeacherDashboard({ user, userData }) {
   const handleOnboardingCreateClass = async (e) => {
     e.preventDefault();
     try {
-      const classCode = await createClass(
+      const createdClass = await createClass(
         user.uid,
         newClass.className,
         newClass.gradeLevel,
         newClass.description
       );
+      // createClass가 전체 classData 객체를 반환하므로 그대로 사용
       await loadClasses();
-      // 생성된 클래스 찾기
-      const createdClass = {
-        classCode,
-        className: newClass.className,
-        gradeLevel: newClass.gradeLevel,
-        students: []
-      };
       setOnboardingClass(createdClass);
       setSelectedClass(createdClass);
-      setBatchTargetClass(classCode);
+      setBatchTargetClass(createdClass.classCode);
       setNewClass({ className: "", gradeLevel: "", description: "" });
       setOnboardingStep(2);
     } catch (error) {
@@ -636,17 +639,29 @@ export default function TeacherDashboard({ user, userData }) {
       alert("학생 수를 입력해주세요.");
       return;
     }
+
+    if (!onboardingClass) {
+      alert("클래스 정보를 찾을 수 없습니다.");
+      return;
+    }
+
     setBatchLoading(true);
     try {
-      const result = await batchCreateStudents(batchTargetClass, batchCount, batchPrefix);
-      setBatchResults(result.accounts);
+      const result = await batchCreateStudents({
+        classCode: batchTargetClass,
+        count: batchCount,
+        prefix: batchPrefix || batchTargetClass,
+        gradeLevel: onboardingClass.gradeLevel
+      });
+
+      setBatchResults(result.results || []);
       setClassAccounts(prev => ({
         ...prev,
-        [batchTargetClass]: [...(prev[batchTargetClass] || []), ...result.accounts]
+        [batchTargetClass]: [...(prev[batchTargetClass] || []), ...(result.results || [])]
       }));
-      setBatchMessage(`${result.successCount}명의 학생 계정이 생성되었습니다!`);
+      setBatchMessage(`${result.created}명의 학생 계정이 생성되었습니다!`);
       await loadClasses();
-      setOnboardingStep(3);
+      // Don't automatically go to next step - let user review results first
     } catch (error) {
       console.error("학생 일괄 생성 에러:", error);
       alert("학생 생성에 실패했습니다: " + error.message);
@@ -1466,7 +1481,13 @@ export default function TeacherDashboard({ user, userData }) {
                           const filteredWritings = classWritings.filter(w => {
                             const topic = w.topic || '기타';
                             const isTopicCompleted = completedTopics.includes(topic);
-                            return isCompletedTab ? isTopicCompleted : !isTopicCompleted;
+
+                            // 🎯 도달점수 필터링: 과제의 minScore 이상인 글만 표시
+                            const assignment = assignments.find(a => a.title === topic);
+                            const minScore = assignment?.minScore || 70; // 기본값 70점
+                            const meetsMinScore = (w.score || 0) >= minScore;
+
+                            return meetsMinScore && (isCompletedTab ? isTopicCompleted : !isTopicCompleted);
                           });
 
                           const groupedByTopic = filteredWritings.reduce((acc, writing) => {
@@ -2956,27 +2977,66 @@ export default function TeacherDashboard({ user, userData }) {
 
                     {aiTopics.length > 0 && (
                       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4">
-                        <h4 className="font-bold text-purple-800 mb-3">AI 추천 주제</h4>
+                        <h4 className="font-bold text-purple-800 mb-3">✨ AI 추천 주제 - 클릭하여 과제 출제하기</h4>
                         <div className="space-y-2">
                           {aiTopics.map((topic, idx) => (
-                            <div key={idx} className="bg-white rounded-lg p-3 shadow-sm">
+                            <button
+                              key={idx}
+                              onClick={async () => {
+                                if (!onboardingClass) {
+                                  alert('클래스 정보를 찾을 수 없습니다.');
+                                  return;
+                                }
+                                if (!confirm(`"${topic.title}" 주제로 과제를 출제하시겠습니까?`)) {
+                                  return;
+                                }
+                                try {
+                                  await createAssignment(
+                                    user.uid,
+                                    onboardingClass.classCode,
+                                    topic.title,
+                                    topic.description,
+                                    null, // 마감일 없음
+                                    70, // 기본 목표 점수
+                                    50  // 기본 AI 확률 임계값
+                                  );
+                                  alert(`"${topic.title}" 과제가 출제되었습니다! 🎉`);
+                                  // 해당 주제를 목록에서 제거
+                                  setAiTopics(prev => prev.filter((_, i) => i !== idx));
+                                } catch (error) {
+                                  console.error('과제 출제 에러:', error);
+                                  alert('과제 출제에 실패했습니다.');
+                                }
+                              }}
+                              className="w-full text-left bg-white rounded-lg p-3 shadow-sm hover:shadow-md hover:bg-purple-50 transition-all border-2 border-transparent hover:border-purple-300"
+                            >
                               <p className="font-medium text-gray-800">{topic.title}</p>
                               <p className="text-sm text-gray-500">{topic.description}</p>
-                            </div>
+                              <p className="text-xs text-purple-600 mt-2">👆 클릭하여 과제로 출제하기</p>
+                            </button>
                           ))}
                         </div>
                         <p className="text-xs text-purple-600 mt-3">
-                          이 주제들은 과제 출제 시 다시 확인할 수 있어요!
+                          💡 원하는 주제를 클릭하면 바로 과제로 출제됩니다!
                         </p>
                       </div>
                     )}
 
-                    <button
-                      onClick={handleOnboardingComplete}
-                      className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg mt-4"
-                    >
-                      🎉 설정 완료! 시작하기
-                    </button>
+                    <div className="mt-6 space-y-3">
+                      {aiTopics.length > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm text-blue-700">
+                            💡 위 주제를 클릭하여 과제로 출제하거나, 나중에 출제하실 수도 있습니다.
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        onClick={handleOnboardingComplete}
+                        className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg"
+                      >
+                        🎉 설정 완료! 시작하기
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

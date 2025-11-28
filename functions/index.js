@@ -345,8 +345,21 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
 ${text}
 """
 
-다음 기준에 따라 공정하게 평가해주세요.
-평균적인 글은 65-75점대, 잘 쓴 글은 75-85점대, 매우 뛰어난 글은 85점 이상입니다.
+**⚠️ 무의미한 글 감지 (최우선 확인!):**
+다음 중 하나라도 해당하면 즉시 0점 처리:
+- 같은 글자/단어 반복 (예: "아아아아아", "ㅋㅋㅋㅋ", "하하하하", "가나다라마바사아자차카타파하" 반복)
+- 의미없는 알파벳 나열 (예: "asdfgh", "qwerty", "abcdef" 등)
+- 의미없는 숫자 나열 (예: "123456", "111111" 등)
+- 키보드 순서대로 입력 (예: "ㅂㅈㄷㄱㅅㅛ", "qwertyuiop")
+- 의미없는 문장 반복 (예: "나는 밥을 먹었다. 나는 밥을 먹었다. 나는 밥을 먹었다.")
+- 주제와 전혀 관련없는 횡설수설
+- 글의 50% 이상이 무의미한 내용으로 채워진 경우
+
+위 경우 score는 반드시 0점, feedback에 "의미있는 글을 작성해주세요"라고 적어주세요.
+
+다음 기준에 따라 엄격하게 평가해주세요.
+분량이 부족하면 내용이 아무리 좋아도 높은 점수를 받을 수 없습니다.
+평균적인 글은 60-70점대, 잘 쓴 글은 70-80점대, 매우 뛰어난 글은 80점 이상입니다.
 
 1. 내용 (30점):
    - 25-30점: 주제에 대한 깊이 있는 이해와 창의적인 시각, 구체적인 예시와 근거
@@ -378,9 +391,12 @@ ${text}
    - 3-5점: 평범하지만 성실한 시도
    - 0-2점: 틀에 박힌 내용
 
-글자 수 감점:
-- 권장 글자 수의 80% 미만: -5점
-- 권장 글자 수의 60% 미만: -10점
+글자 수 감점 (매우 중요!):
+- 권장 글자 수의 90% 미만: -5점
+- 권장 글자 수의 70% 미만: -15점
+- 권장 글자 수의 50% 미만: -25점
+- 권장 글자 수의 30% 미만: -35점
+- 권장 글자 수의 20% 미만: -50점 (매우 부족, 최대 50점까지만 가능)
 
 **피드백 작성 지침 (매우 중요!):**
 1. "잘한 점"은 학생이 실제로 잘한 구체적인 부분을 3-4개 이상 찾아서 칭찬해주세요 (문장 인용 포함)
@@ -867,5 +883,152 @@ ${categoryText}
   } catch (error) {
     console.error('AI 주제 생성 에러:', error);
     throw new HttpsError('internal', `주제 생성 실패: ${error.message}`);
+  }
+});
+
+// 🚀 기존 글에 classCode 일괄 업데이트 (관리자용) - 학급별 데이터 분리 최적화
+exports.migrateWritingsClassCode = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼 관리자만 실행 가능
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 실행할 수 있습니다.');
+  }
+
+  try {
+    // 1. 모든 학생의 classCode 조회 (users 컬렉션)
+    const usersSnapshot = await db.collection('users')
+      .where('role', '==', 'student')
+      .get();
+
+    const studentClassMap = new Map(); // studentId -> classCode
+    usersSnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.classCode) {
+        studentClassMap.set(docSnap.id, data.classCode);
+      }
+    });
+
+    if (studentClassMap.size === 0) {
+      return { updated: 0, message: 'classCode가 있는 학생이 없습니다.' };
+    }
+
+    // 2. classCode가 없는 글 조회
+    const writingsSnapshot = await db.collection('writings').get();
+
+    const toUpdate = [];
+    writingsSnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      // classCode가 없거나 빈 문자열인 글만 업데이트
+      if (!data.classCode && data.studentId) {
+        const classCode = studentClassMap.get(data.studentId);
+        if (classCode) {
+          toUpdate.push({ ref: docSnap.ref, classCode });
+        }
+      }
+    });
+
+    if (toUpdate.length === 0) {
+      return { updated: 0, message: '업데이트할 글이 없습니다. 모든 글에 classCode가 있습니다.' };
+    }
+
+    // 3. 배치 업데이트 (500개씩)
+    const batchSize = 500;
+    let updatedCount = 0;
+
+    for (let i = 0; i < toUpdate.length; i += batchSize) {
+      const batch = db.batch();
+      const batchDocs = toUpdate.slice(i, i + batchSize);
+      batchDocs.forEach(({ ref, classCode }) => {
+        batch.update(ref, { classCode });
+      });
+      await batch.commit();
+      updatedCount += batchDocs.length;
+    }
+
+    return {
+      updated: updatedCount,
+      totalStudents: studentClassMap.size,
+      message: `${updatedCount}개의 글에 classCode가 추가되었습니다.`
+    };
+  } catch (error) {
+    console.error('classCode 마이그레이션 에러:', error);
+    throw new HttpsError('internal', `마이그레이션 실패: ${error.message}`);
+  }
+});
+
+// 🚀 24시간 지난 미달성 글 일괄 삭제 (관리자/교사용)
+exports.cleanupOldFailedWritings = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 권한 확인 (슈퍼 관리자 또는 교사)
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists) {
+    throw new HttpsError('permission-denied', '사용자 정보를 찾을 수 없습니다.');
+  }
+
+  const userData = userSnap.data();
+  if (userData.role !== 'teacher' && userData.role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '교사 또는 관리자만 실행할 수 있습니다.');
+  }
+
+  try {
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const PASSING_SCORE = 70;
+
+    // 24시간 지난 미달성 글 조회 (isDraft가 false이고 submittedAt이 24시간 이전)
+    const writingsRef = db.collection('writings');
+    const snapshot = await writingsRef
+      .where('isDraft', '==', false)
+      .where('submittedAt', '<', oneDayAgo.toISOString())
+      .get();
+
+    if (snapshot.empty) {
+      return { deleted: 0, message: '삭제할 글이 없습니다.' };
+    }
+
+    // 미달성 글만 필터링 (score < minScore 또는 score < PASSING_SCORE)
+    const toDelete = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const minScore = data.minScore !== undefined ? data.minScore : PASSING_SCORE;
+      if (data.score < minScore) {
+        toDelete.push(docSnap.ref);
+      }
+    });
+
+    if (toDelete.length === 0) {
+      return { deleted: 0, message: '삭제할 미달성 글이 없습니다.' };
+    }
+
+    // 배치 삭제 (500개씩)
+    const batchSize = 500;
+    let deletedCount = 0;
+
+    for (let i = 0; i < toDelete.length; i += batchSize) {
+      const batch = db.batch();
+      const batchDocs = toDelete.slice(i, i + batchSize);
+      batchDocs.forEach((ref) => batch.delete(ref));
+      await batch.commit();
+      deletedCount += batchDocs.length;
+    }
+
+    return {
+      deleted: deletedCount,
+      message: `${deletedCount}개의 24시간 지난 미달성 글이 삭제되었습니다.`
+    };
+  } catch (error) {
+    console.error('미달성 글 삭제 에러:', error);
+    throw new HttpsError('internal', `삭제 실패: ${error.message}`);
   }
 });

@@ -45,6 +45,66 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "classCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "autoAssignmentLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "classCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "writings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "classCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isDraft",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "submittedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "writings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "classCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isDraft",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

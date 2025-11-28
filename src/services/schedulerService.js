@@ -9,7 +9,7 @@ import { createAssignment, getAssignmentsByClass } from './assignmentService';
 const schedulerCache = new Map(); // classCode -> { data, timestamp }
 const autoAssignmentTodayCache = new Map(); // classCode -> { result, date }
 
-const CACHE_TTL = 300000; // 5분
+const CACHE_TTL = 1800000; // 30분 - 스케줄러 설정은 거의 변경 안됨 (이전 10분)
 
 function isCacheValid(timestamp) {
   if (!timestamp) return false;
@@ -45,6 +45,12 @@ export async function saveSchedulerSettings(classCode, settings) {
 // 🚀 최적화: 캐싱 추가 (10,000명 대응)
 export async function getSchedulerSettings(classCode, forceRefresh = false) {
   try {
+    // classCode 유효성 검사
+    if (!classCode || typeof classCode !== 'string') {
+      console.error('유효하지 않은 classCode:', classCode);
+      return null;
+    }
+
     // 캐시 확인
     if (!forceRefresh) {
       const cached = schedulerCache.get(classCode);
@@ -158,6 +164,9 @@ export async function generateAutoAssignment(classCode, gradeLevel, teacherId, s
       createdAt: new Date().toISOString()
     });
 
+    // 🚀 캐시 무효화
+    invalidateAutoAssignmentCache(classCode);
+
     return assignment;
   } catch (error) {
     console.error('자동 과제 생성 에러:', error);
@@ -184,31 +193,39 @@ function calculateSimilarity(str1, str2) {
   return matches / longer.length;
 }
 
-// 🚀 최적화: 오늘 날짜 캐싱 (같은 날 반복 체크 방지)
-export async function hasAutoAssignmentToday(classCode) {
+// 🚀 최적화: 오늘 날짜 캐싱 + Firestore 서버사이드 필터링
+export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
   try {
-    const today = new Date().toISOString().split('T')[0];
-
-    // 캐시 확인 (같은 날짜면 캐시 사용)
-    const cached = autoAssignmentTodayCache.get(classCode);
-    if (cached && cached.date === today) {
-      return cached.result;
+    // classCode 유효성 검사
+    if (!classCode || typeof classCode !== 'string') {
+      console.error('유효하지 않은 classCode:', classCode);
+      return false;
     }
 
+    const today = new Date().toISOString().split('T')[0];
+
+    // 캐시 확인 (같은 날짜면 캐시 사용, forceRefresh가 아닐 때만)
+    if (!forceRefresh) {
+      const cached = autoAssignmentTodayCache.get(classCode);
+      if (cached && cached.date === today) {
+        return cached.result;
+      }
+    }
+
+    // 🚀 오늘 날짜 범위 계산
+    const todayStart = `${today}T00:00:00.000Z`;
+    const todayEnd = `${today}T23:59:59.999Z`;
+
+    // 🚀 Firestore에서 직접 필터링 (클라이언트 필터링 제거)
     const q = query(
       collection(db, 'autoAssignmentLogs'),
-      where('classCode', '==', classCode)
+      where('classCode', '==', classCode),
+      where('createdAt', '>=', todayStart),
+      where('createdAt', '<=', todayEnd)
     );
     const snapshot = await getDocs(q);
 
-    let result = false;
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
-      if (data.createdAt && data.createdAt.startsWith(today)) {
-        result = true;
-        break;
-      }
-    }
+    const result = !snapshot.empty;
 
     // 캐시 저장
     autoAssignmentTodayCache.set(classCode, { result, date: today });
@@ -218,6 +235,11 @@ export async function hasAutoAssignmentToday(classCode) {
     console.error('오늘 자동 과제 확인 에러:', error);
     return false;
   }
+}
+
+// 자동 출제 캐시 무효화 (과제 생성 후 호출)
+export function invalidateAutoAssignmentCache(classCode) {
+  autoAssignmentTodayCache.delete(classCode);
 }
 
 // 스케줄 실행 (클라이언트에서 호출 - 페이지 로드시 체크)
@@ -244,8 +266,8 @@ export async function checkAndRunScheduler(classCode, gradeLevel, teacherId) {
       return { executed: false, reason: `출제 시간(${scheduledHour}시) 이전입니다. 현재: ${currentHour}시` };
     }
 
-    // 이미 오늘 출제되었는지 확인
-    const alreadyAssigned = await hasAutoAssignmentToday(classCode);
+    // 이미 오늘 출제되었는지 확인 (forceRefresh=true로 실시간 확인)
+    const alreadyAssigned = await hasAutoAssignmentToday(classCode, true);
     if (alreadyAssigned) {
       return { executed: false, reason: '오늘 이미 자동 출제됨' };
     }

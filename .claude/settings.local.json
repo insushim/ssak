@@ -20,7 +20,11 @@
       "Bash(git clone:*)",
       "Bash(findstr:*)",
       "Bash(git commit:*)",
-      "Bash(firebase functions:delete:*)"
+      "Bash(firebase functions:delete:*)",
+      "Bash(git clean:*)",
+      "Bash(firebase firestore:indexes:*)",
+      "Bash(npm install:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

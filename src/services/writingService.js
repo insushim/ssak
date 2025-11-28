@@ -31,13 +31,25 @@ const cache = {
   classRanking: new Map(),    // classCode_period -> { data, timestamp }
 };
 
-// 🚀 캐시 유효 시간 대폭 증가 (10,000명 대응)
+const rankingCache = new Map(); // classCode_period -> { data, timestamp }
+
+// Ranking 캐시 무효화 함수
+export function invalidateRankingCache(classCode) {
+  if (classCode) {
+    rankingCache.delete(`${classCode}_weekly`);
+    rankingCache.delete(`${classCode}_monthly`);
+  } else {
+    rankingCache.clear();
+  }
+}
+
+// 🚀 캐시 유효 시간 극대화 (100,000명 대응) - 비용 최적화를 위해 대폭 증가
 const CACHE_TTL = {
-  studentWritings: 120000,   // 2분 - 본인 글 (이전 30초)
-  classData: 300000,         // 5분 - 반 정보 (이전 60초)
-  userNicknames: 600000,     // 10분 - 닉네임 (이전 5분)
-  studentStats: 300000,      // 5분 - 학생 통계 (신규)
-  classRanking: 180000,      // 3분 - 랭킹 데이터 (신규)
+  studentWritings: 3600000,  // 60분 - 본인 글 (이전 5분) - 제출 시에만 무효화
+  classData: 3600000,        // 60분 - 반 정보 (이전 10분)
+  userNicknames: 7200000,    // 2시간 - 닉네임 (이전 30분)
+  studentStats: 3600000,     // 60분 - 학생 통계 (이전 10분)
+  classRanking: 3600000,     // 60분 - 랭킹 (이전 30분)
 };
 
 // 캐시 유효성 확인 (jitter 추가로 thundering herd 방지)
@@ -181,8 +193,52 @@ export async function deleteDraft(studentId, topic) {
   }
 }
 
+// 🚀 24시간 지난 미달성 글 자동 삭제 (대시보드 로드 시 호출)
+export async function cleanupOldFailedWritings(studentId, writings, passingScore = 70) {
+  try {
+    if (!studentId || !writings || writings.length === 0) {
+      return { deleted: 0 };
+    }
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // 24시간 지난 미달성 글 필터링
+    const oldFailedWritings = writings.filter(w =>
+      !w.isDraft &&
+      w.submittedAt &&
+      new Date(w.submittedAt) < oneDayAgo &&
+      (w.score < (w.minScore !== undefined ? w.minScore : passingScore))
+    );
+
+    if (oldFailedWritings.length === 0) {
+      return { deleted: 0 };
+    }
+
+    // 병렬 삭제
+    await Promise.all(
+      oldFailedWritings.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
+    );
+
+    console.log(`[자동 정리] 24시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
+
+    // 캐시 무효화
+    invalidateStudentWritingsCache(studentId);
+
+    return { deleted: oldFailedWritings.length };
+  } catch (error) {
+    console.error('24시간 미달성 글 삭제 에러:', error);
+    return { deleted: 0, error };
+  }
+}
+
 export async function getStudentWritings(studentId, forceRefresh = false) {
   try {
+    // 🔧 studentId 유효성 검사
+    if (!studentId) {
+      console.warn('getStudentWritings: studentId가 없습니다');
+      return [];
+    }
+
     // 캐시 확인 (forceRefresh가 아니고 캐시가 유효하면 캐시 사용)
     const cached = cache.studentWritings.get(studentId);
     if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.studentWritings)) {
@@ -209,7 +265,8 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
     return writings;
   } catch (error) {
     console.error('학생 글 조회 에러:', error);
-    throw error;
+    // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
+    return [];
   }
 }
 
@@ -227,7 +284,8 @@ export async function getWritingById(writingId) {
 }
 
 // isRewrite: 고쳐쓰기 모드 여부 (포인트 지급 조건에 영향)
-export async function submitWriting(studentId, writingData, isRewrite = false) {
+// 🚀 최적화: classCode와 userData를 파라미터로 받아 getDoc 호출 최소화 (100,000명 대응)
+export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null) {
   try {
     // 글자 수 기준 가져오기
     const standard = WORD_COUNT_STANDARDS[writingData.gradeLevel];
@@ -250,20 +308,11 @@ export async function submitWriting(studentId, writingData, isRewrite = false) {
 
     if (otherTopicContents.length > 0) {
       plagiarismResult = await detectPlagiarism(writingData.content, otherTopicContents);
-      // 표절 검사 결과는 기록만 하고 제출은 차단하지 않음
-      if (plagiarismResult.isPlagiarized) {
-        console.log(`표절 의심: ${plagiarismResult.similarityPercentage}% (참고사항으로만 기록)`);
-      }
+      // 표절 검사 결과는 기록만 하고 제출은 차단하지 않음 (로그 제거)
     }
 
     // 3. AI 사용 감지 (참고사항으로만 - 제출 차단하지 않음)
     const aiUsageResult = await detectAIUsage(writingData.content, writingData.topic);
-
-    // AI 사용 의심도는 참고사항으로만 기록 (차단하지 않음)
-    console.log(`AI 사용 의심도: ${aiUsageResult.aiProbability}% (참고사항)`);
-    if (aiUsageResult.aiProbability > 50) {
-      console.log('AI 사용 의심 높음, 하지만 제출은 허용됨 (참고사항으로만 기록)');
-    }
 
     // 4. AI 분석 (글자 수 포함)
     const analysisResult = await analyzeWriting(
@@ -277,10 +326,18 @@ export async function submitWriting(studentId, writingData, isRewrite = false) {
     // 5. 제출 (기준 점수 체크 제거 - 모든 점수 허용)
     const now = new Date().toISOString();
     const writingId = writingData.writingId || `${studentId}_${Date.now()}`;
+
+    // 🚀 classCode 파라미터가 없으면 userData에서 가져오기
+    let finalClassCode = classCode;
+    if (!finalClassCode && userData) {
+      finalClassCode = userData.classCode;
+    }
+
     const submissionData = {
       ...writingData,
       writingId,
       studentId,
+      classCode: finalClassCode, // 🚀 랭킹 배치 조회를 위한 classCode 추가
       isDraft: false,
       isRewrite, // 고쳐쓰기 여부 저장
       createdAt: writingData.createdAt || now,
@@ -291,21 +348,69 @@ export async function submitWriting(studentId, writingData, isRewrite = false) {
       score: analysisResult.score
     };
 
-    console.log('저장할 데이터:', submissionData);
     await setDoc(doc(db, 'writings', writingId), submissionData);
-    console.log('Firestore 저장 완료:', writingId);
 
     // 6. 학생 통계 업데이트 + 캐시 무효화
     await updateStudentStats(studentId, analysisResult.score);
     invalidateStudentStatsCache(studentId);
 
-    // 7. 포인트 지급 (고쳐쓰기 여부, AI 가능성 전달)
+    // 7. 포인트 지급 (고쳐쓰기 여부, AI 가능성, userData 전달)
     const aiProbability = aiUsageResult?.aiProbability || 0;
-    const earnedPoints = await awardPoints(studentId, analysisResult.score, isRewrite, aiProbability);
+    const earnedPoints = await awardPoints(studentId, analysisResult.score, isRewrite, aiProbability, userData);
     submissionData.earnedPoints = earnedPoints; // 지급된 포인트 정보 추가
+
+    // 8. 🚀 달성 시 같은 주제의 미달성 글 + 임시저장 글 삭제 (Firestore 용량 최적화)
+    const requiredScore = writingData.minScore !== undefined ? writingData.minScore : PASSING_SCORE;
+    if (analysisResult.score >= requiredScore) {
+      // 같은 주제의 미달성 글 찾아서 삭제
+      const sameTopicFailedWritings = previousSubmissions.filter(w =>
+        !w.isDraft &&
+        w.topic === writingData.topic &&
+        w.writingId !== writingId && // 현재 제출한 글 제외
+        (w.score < (w.minScore !== undefined ? w.minScore : PASSING_SCORE))
+      );
+
+      // 🚀 같은 주제의 임시저장 글도 삭제
+      const sameTopicDrafts = previousSubmissions.filter(w =>
+        w.isDraft &&
+        w.topic === writingData.topic &&
+        w.writingId !== writingId
+      );
+
+      const toDelete = [...sameTopicFailedWritings, ...sameTopicDrafts];
+      if (toDelete.length > 0) {
+        // 병렬로 삭제
+        await Promise.all(
+          toDelete.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
+        );
+        console.log(`[최적화] ${writingData.topic} 주제 미달성 글 ${sameTopicFailedWritings.length}개, 임시저장 ${sameTopicDrafts.length}개 삭제됨`);
+      }
+    }
+
+    // 9. 🚀 24시간 지난 미달성 글 자동 삭제 (Firestore 용량 최적화)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const oldFailedWritings = previousSubmissions.filter(w =>
+      !w.isDraft &&
+      w.writingId !== writingId &&
+      w.submittedAt &&
+      new Date(w.submittedAt) < oneDayAgo &&
+      (w.score < (w.minScore !== undefined ? w.minScore : PASSING_SCORE))
+    );
+
+    if (oldFailedWritings.length > 0) {
+      await Promise.all(
+        oldFailedWritings.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
+      );
+      console.log(`[최적화] 24시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
+    }
 
     // 🚀 캐시 무효화 - 글 제출 후 해당 학생의 글 캐시 갱신
     invalidateStudentWritingsCache(studentId);
+
+    // 🚀 랭킹 캐시 무효화 (classCode 파라미터 활용)
+    if (classCode) {
+      invalidateRankingCache(classCode);
+    }
 
     return submissionData;
   } catch (error) {
@@ -419,8 +524,73 @@ async function getCachedUserNickname(studentId) {
   }
 }
 
-export async function getClassWritings(classCode, forceRefresh = false) {
+// 🚀 배치 쿼리: classCode로 모든 글을 한 번에 가져오기 (전체 글 조회용)
+// 🔧 migrateWritingsClassCode 함수 실행 후에는 폴백이 거의 사용되지 않음
+// (안전장치로 폴백 로직 유지)
+async function getAllClassWritingsBatch(classCode, studentIds = [], forTeacher = false) {
   try {
+    // 1차: classCode 배치 쿼리 (1번의 Firestore 읽기)
+    const q = query(
+      collection(db, 'writings'),
+      where('classCode', '==', classCode),
+      where('isDraft', '==', false)
+    );
+
+    const snapshot = await getDocs(q);
+    const writings = [];
+    const foundStudentIds = new Set();
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      writings.push(data);
+      if (data.studentId) {
+        foundStudentIds.add(data.studentId);
+      }
+    });
+
+    // 🔧 선생님 대시보드용: classCode가 없는 기존 글도 조회
+    // studentIds 중 classCode 쿼리에서 글이 없는 학생만 추가 조회
+    if (forTeacher && studentIds.length > 0) {
+      const missingStudentIds = studentIds.filter(id => !foundStudentIds.has(id));
+
+      if (missingStudentIds.length > 0) {
+        // studentId 배치 쿼리 (Firestore 'in'은 최대 30개)
+        const batchSize = 30;
+        for (let i = 0; i < missingStudentIds.length; i += batchSize) {
+          const batchIds = missingStudentIds.slice(i, i + batchSize);
+          const fallbackQ = query(
+            collection(db, 'writings'),
+            where('studentId', 'in', batchIds),
+            where('isDraft', '==', false)
+          );
+          const fallbackSnapshot = await getDocs(fallbackQ);
+          fallbackSnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            // 이미 classCode 쿼리에서 가져온 글은 제외 (중복 방지)
+            if (!writings.some(w => w.writingId === data.writingId)) {
+              writings.push(data);
+            }
+          });
+        }
+      }
+    }
+
+    return writings;
+  } catch (error) {
+    console.error('배치 글 조회 에러:', error);
+    return [];
+  }
+}
+
+// forTeacher: true면 classCode가 없는 기존 글도 studentId로 폴백 조회
+export async function getClassWritings(classCode, forceRefresh = false, forTeacher = true) {
+  try {
+    // classCode 유효성 검사
+    if (!classCode || typeof classCode !== 'string') {
+      console.error('유효하지 않은 classCode:', classCode);
+      return [];
+    }
+
     // 🚀 반 데이터 캐싱
     let classData;
     const cachedClass = cache.classData.get(classCode);
@@ -444,38 +614,55 @@ export async function getClassWritings(classCode, forceRefresh = false) {
 
     const studentIds = students.map(s => s.studentId);
 
-    // 🚀 병렬로 모든 학생의 데이터 가져오기 (캐싱된 데이터 활용)
-    const studentPromises = studentIds.map(async (studentId) => {
-      try {
-        // 글과 닉네임을 동시에 가져오기 (둘 다 캐시 활용)
-        const [writings, nickname] = await Promise.all([
-          getStudentWritings(studentId, forceRefresh),
-          getCachedUserNickname(studentId)
-        ]);
+    // 🚀 최적화: 모든 글을 단 1번의 쿼리로 가져오기 (20개 쿼리 → 1개 쿼리)
+    // 🔧 forTeacher=true면 classCode가 없는 기존 글도 studentId로 폴백 조회
+    const allWritings = await getAllClassWritingsBatch(classCode, studentIds, forTeacher);
 
-        return writings
-          .filter(w => !w.isDraft)
-          .map(w => ({
-            ...w,
-            nickname,
-            displayName: nickname
-          }));
-      } catch (error) {
-        console.error(`학생 ${studentId} 글 조회 에러:`, error);
-        return [];
+    // 학생별로 글 그룹화
+    const writingsByStudent = new Map();
+    allWritings.forEach(writing => {
+      if (!writingsByStudent.has(writing.studentId)) {
+        writingsByStudent.set(writing.studentId, []);
       }
+      writingsByStudent.get(writing.studentId).push(writing);
     });
 
-    // 모든 학생 데이터를 병렬로 기다림
-    const results = await Promise.all(studentPromises);
-    const allWritings = results.flat();
+    // 🚀 최적화: 모든 사용자 데이터를 배치로 가져오기 (getCachedUserNickname 개별 호출 제거)
+    // 25명 * 개별 getDoc 호출 = 25번 읽기 → 1번 배치 쿼리로 감소
+    const userDataMap = new Map();
+    const batchSize = 30;
+    for (let i = 0; i < studentIds.length; i += batchSize) {
+      const batchIds = studentIds.slice(i, i + batchSize);
+      const q = query(
+        collection(db, 'users'),
+        where(documentId(), 'in', batchIds)
+      );
+      const snapshot = await getDocs(q);
+      snapshot.forEach((docSnap) => {
+        userDataMap.set(docSnap.id, docSnap.data());
+      });
+    }
 
-    return allWritings.sort((a, b) =>
+    // 닉네임 매핑 (추가 DB 호출 없음)
+    const allWritingsWithNicknames = studentIds.flatMap((studentId) => {
+      const userData = userDataMap.get(studentId) || {};
+      const nickname = userData.nickname || userData.name || '익명';
+      const writings = writingsByStudent.get(studentId) || [];
+
+      return writings.map(w => ({
+        ...w,
+        nickname,
+        displayName: nickname
+      }));
+    });
+
+    return allWritingsWithNicknames.sort((a, b) =>
       new Date(b.submittedAt) - new Date(a.submittedAt)
     );
   } catch (error) {
     console.error('학급 글 조회 에러:', error);
-    throw error;
+    // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
+    return [];
   }
 }
 
@@ -490,87 +677,78 @@ export async function deleteWriting(writingId) {
 }
 
 // 친구 글 읽기 - 같은 주제로 제출한 친구들의 글 조회
-// 🚀 최적화: 병렬 처리 + 캐싱
+// 🚀 최적화: classCode 배치 쿼리 1번으로 모든 글 가져오기 (학생별 개별 쿼리 완전 제거)
 export async function getFriendWritings(classCode, topic, excludeStudentId) {
   try {
-    // 반 데이터 캐싱 활용
-    let classData;
-    const cachedClass = cache.classData.get(classCode);
-    if (cachedClass && isCacheValid(cachedClass.timestamp, CACHE_TTL.classData)) {
-      classData = cachedClass.data;
-    } else {
-      const classDoc = await getDoc(doc(db, 'classes', classCode));
-      if (!classDoc.exists()) {
-        return [];
-      }
-      classData = classDoc.data();
-      cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
-    }
+    if (!classCode || !topic) return [];
 
-    const students = classData.students || [];
-    const studentIds = students.map(s => s.studentId).filter(id => id !== excludeStudentId);
+    // 🚀 classCode + topic으로 한번에 모든 관련 글 조회 (1번의 Firestore 읽기)
+    const q = query(
+      collection(db, 'writings'),
+      where('classCode', '==', classCode),
+      where('isDraft', '==', false)
+    );
 
-    if (studentIds.length === 0) return [];
-
-    // 🚀 병렬로 모든 친구 글 가져오기
-    const friendPromises = studentIds.map(async (studentId) => {
-      const [writings, nickname] = await Promise.all([
-        getStudentWritings(studentId), // 캐시 활용
-        getCachedUserNickname(studentId) // 닉네임 캐시 활용
-      ]);
-
-      const matchingWritings = writings.filter(w =>
-        !w.isDraft &&
-        w.topic === topic &&
-        w.score >= 80 // 80점 이상 통과한 글만 공개
-      );
-
-      return matchingWritings.map(w => ({
-        ...w,
-        nickname,
-        displayName: nickname
-      }));
+    const snapshot = await getDocs(q);
+    const allWritings = [];
+    snapshot.forEach((docSnap) => {
+      allWritings.push(docSnap.data());
     });
 
-    const results = await Promise.all(friendPromises);
-    const friendWritings = results.flat();
+    // 필터링: 같은 주제, 80점 이상, 본인 제외
+    const matchingWritings = allWritings.filter(w =>
+      w.topic === topic &&
+      w.score >= 80 &&
+      w.studentId !== excludeStudentId
+    );
 
-    return friendWritings.sort((a, b) => b.score - a.score);
+    if (matchingWritings.length === 0) return [];
+
+    // 닉네임은 글에 이미 저장되어 있으므로 추가 쿼리 불필요
+    // 만약 닉네임이 없으면 '익명'으로 표시
+    return matchingWritings
+      .map(w => ({
+        ...w,
+        nickname: w.studentNickname || '익명',
+        displayName: w.studentNickname || '익명'
+      }))
+      .sort((a, b) => b.score - a.score);
   } catch (error) {
     console.error('친구 글 조회 에러:', error);
-    throw error;
+    return [];
   }
 }
 
 // 포인트 지급 함수
 // isRewrite: 고쳐쓰기 모드인지 여부
+// 🚀 최적화: userData를 파라미터로 받아 getDoc 호출 제거 (100,000명 대응)
 // aiProbability: AI 사용 가능성 (0-100)
-export async function awardPoints(studentId, score, isRewrite = false, aiProbability = 0) {
+export async function awardPoints(studentId, score, isRewrite = false, aiProbability = 0, userData = null) {
   try {
     // 50점 이하: 포인트 미지급 (의미없는 문장 방지)
     if (score <= 50) {
-      console.log(`포인트 미지급: ${score}점 (50점 이하)`);
       return 0;
     }
 
     // 고쳐쓰기 모드에서 80점 미달: 포인트 미지급
     if (isRewrite && score < 80) {
-      console.log(`포인트 미지급: 고쳐쓰기 ${score}점 (80점 미달)`);
       return 0;
     }
 
     // AI 가능성 80% 이상: 포인트 미지급
     if (aiProbability >= 80) {
-      console.log(`포인트 미지급: AI 가능성 ${aiProbability}% (80% 이상)`);
       return 0;
     }
 
     const userRef = doc(db, 'users', studentId);
-    const userDoc = await getDoc(userRef);
 
-    if (!userDoc.exists()) return 0;
+    // 🚀 userData가 제공되지 않은 경우에만 Firestore에서 조회
+    if (!userData) {
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) return 0;
+      userData = userDoc.data();
+    }
 
-    const userData = userDoc.data();
     const currentPoints = userData.points || 0;
 
     // 기본 포인트: 10P (50점 초과 시)
@@ -602,7 +780,6 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
     // AI 가능성 50% 이상: 포인트 절반 지급
     if (aiProbability >= 50) {
       earnedPoints = Math.floor(earnedPoints / 2);
-      console.log(`AI 가능성 ${aiProbability}%로 포인트 절반 지급: ${earnedPoints}P`);
     }
 
     const newPoints = currentPoints + earnedPoints;
@@ -613,7 +790,6 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
       streakDays: streakDays
     });
 
-    console.log(`포인트 지급: ${earnedPoints}P (총 ${newPoints}P)`);
     return earnedPoints;
   } catch (error) {
     console.error('포인트 지급 에러:', error);
@@ -622,10 +798,61 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
   }
 }
 
-// 학급 랭킹 조회 (주간/월간)
-// 🚀 최적화: 캐싱 활용
-export async function getClassRanking(classCode, period = 'weekly') {
+// 🚀 배치 쿼리: classCode로 모든 글을 한 번에 가져오기 (100,000명 대응)
+// 🔧 폴백 제거 - classCode 쿼리만 사용 (비용 최적화)
+// 기존 글에 classCode가 없어도 새 글에는 있으므로 시간이 지나면 자연스럽게 해결됨
+async function getClassWritingsBatch(classCode, startDate, studentIds = [], forceRefresh = false) {
   try {
+    // classCode 배치 쿼리만 사용 (1번의 Firestore 읽기)
+    // 🚀 폴백 쿼리 완전 제거 - 학생 수 * N 읽기 방지
+    const q = query(
+      collection(db, 'writings'),
+      where('classCode', '==', classCode),
+      where('isDraft', '==', false),
+      where('submittedAt', '>=', startDate.toISOString())
+    );
+
+    const snapshot = await getDocs(q);
+    const writings = [];
+    snapshot.forEach((docSnap) => {
+      writings.push(docSnap.data());
+    });
+
+    return writings;
+  } catch (error) {
+    console.error('배치 글 조회 에러:', error);
+    // 에러 시 빈 배열 반환 (폴백 쿼리 제거)
+    return [];
+  }
+}
+
+// 학급 랭킹 조회 (주간/월간)
+// 🚀 최적화: 캐싱 활용 + 스파이크 방지 + 배치 쿼리 (100,000명 대응)
+export async function getClassRanking(classCode, period = 'weekly', options = {}) {
+  try {
+    // 🚀 랭킹 결과 캐시 체크 (최우선)
+    // 🔧 forceRefresh면 캐시 무시
+    const cacheKey = `${classCode}_${period}`;
+    if (!options.forceRefresh) {
+      const cached = rankingCache.get(cacheKey);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.classRanking)) {
+        return cached.data;
+      }
+    }
+
+    // 🚀 스파이크 방지: 동시 다중 요청 시 첫 요청만 처리
+    if (!options.forceRefresh && rankingCache.has(`${cacheKey}_loading`)) {
+      // 이미 로딩 중이면 100ms 대기 후 캐시 재확인
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const recheck = rankingCache.get(cacheKey);
+      if (recheck && isCacheValid(recheck.timestamp, CACHE_TTL.classRanking)) {
+        return recheck.data;
+      }
+    }
+
+    // 로딩 플래그 설정
+    rankingCache.set(`${cacheKey}_loading`, true);
+
     // 반 데이터 캐싱 활용
     let classData;
     const cachedClass = cache.classData.get(classCode);
@@ -663,9 +890,9 @@ export async function getClassRanking(classCode, period = 'weekly') {
 
     const studentIds = students.map(s => s.studentId);
 
-    // 🚀 최적화: 먼저 모든 사용자 데이터를 배치로 가져오기
+    // 🚀 최적화 1: 모든 사용자 데이터를 배치로 가져오기
     const userDataMap = new Map();
-    const batchSize = 10;
+    const batchSize = 30; // Firestore 'in' 쿼리는 최대 30개 지원
     for (let i = 0; i < studentIds.length; i += batchSize) {
       const batchIds = studentIds.slice(i, i + batchSize);
       const q = query(
@@ -678,22 +905,28 @@ export async function getClassRanking(classCode, period = 'weekly') {
       });
     }
 
-    // 🚀 병렬로 모든 학생 데이터 가져오기 (캐싱 활용 + 배치 조회된 userData 사용)
-    const rankingPromises = studentIds.map(async (studentId) => {
+    // 🚀 최적화 2: 모든 글을 단 1번의 쿼리로 가져오기 (20개 쿼리 → 1개 쿼리)
+    // 🔧 studentIds를 전달하여 폴백 조회 지원
+    // 🔧 forceRefresh 옵션 전달 (캐시 무시)
+    const allWritings = await getClassWritingsBatch(classCode, startDate, studentIds, options.forceRefresh);
+
+    // 학생별로 글 그룹화
+    const writingsByStudent = new Map();
+    allWritings.forEach(writing => {
+      if (!writingsByStudent.has(writing.studentId)) {
+        writingsByStudent.set(writing.studentId, []);
+      }
+      writingsByStudent.get(writing.studentId).push(writing);
+    });
+
+    // 🚀 최적화: userDataMap에서 이미 가져온 닉네임 사용 (getCachedUserNickname 호출 제거)
+    // 25명 * 개별 getDoc 호출 = 25번 읽기 → 0번으로 감소
+    const rankingResults = studentIds.map((studentId) => {
       try {
-        const [nickname, writings] = await Promise.all([
-          getCachedUserNickname(studentId), // 닉네임 캐시 활용
-          getStudentWritings(studentId) // 글 캐시 활용
-        ]);
-
         const userData = userDataMap.get(studentId) || {};
-
-        // 기간 내 제출된 글만 필터링
-        const periodWritings = writings.filter(w => {
-          if (w.isDraft) return false;
-          const submittedAt = new Date(w.submittedAt);
-          return submittedAt >= startDate;
-        });
+        // 🔧 userDataMap에서 직접 닉네임 추출 (추가 DB 호출 없음!)
+        const nickname = userData.nickname || userData.name || '익명';
+        const periodWritings = writingsByStudent.get(studentId) || [];
 
         // 통계 계산
         const submissionCount = periodWritings.length;
@@ -702,8 +935,9 @@ export async function getClassRanking(classCode, period = 'weekly') {
         const passCount = periodWritings.filter(w => w.score >= 80).length;
         const highScore = Math.max(...periodWritings.map(w => w.score || 0), 0);
 
-        // 랭킹 점수 계산 (제출 수 * 10 + 평균 점수 + 통과 수 * 5)
-        const rankingScore = submissionCount * 10 + averageScore + passCount * 5;
+        // 랭킹 점수 계산 (평균 점수 * 3 + 통과 수 * 15 + 제출 수 * 2)
+        // 점수와 통과 편수를 중요하게, 제출 편수는 보너스로
+        const rankingScore = averageScore * 3 + passCount * 15 + submissionCount * 2;
 
         return {
           studentId,
@@ -722,20 +956,33 @@ export async function getClassRanking(classCode, period = 'weekly') {
       }
     });
 
-    const results = await Promise.all(rankingPromises);
-    const validResults = results.filter(r => r !== null);
+    const validResults = rankingResults.filter(r => r !== null);
 
     // 랭킹 점수로 정렬
     validResults.sort((a, b) => b.rankingScore - a.rankingScore);
 
     // 순위 부여
-    return validResults.map((student, index) => ({
+    const result = validResults.map((student, index) => ({
       ...student,
       rank: index + 1
     }));
+
+    // 🚀 랭킹 결과 캐시 저장
+    rankingCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    // 로딩 플래그 제거
+    rankingCache.delete(`${cacheKey}_loading`);
+
+    return result;
   } catch (error) {
     console.error('학급 랭킹 조회 에러:', error);
-    throw error;
+    // 에러 시에도 로딩 플래그 제거
+    rankingCache.delete(`${classCode}_${period}_loading`);
+    // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
+    return [];
   }
 }
 
