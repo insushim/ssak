@@ -14,6 +14,7 @@ import {
 import { db } from '../config/firebase';
 import { analyzeWriting, detectPlagiarism, detectAIUsage } from '../utils/geminiAPI';
 import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS } from '../config/auth';
+import { updateAssignmentSubmission } from './assignmentService';
 
 // ============================================
 // 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
@@ -29,6 +30,7 @@ const cache = {
   userNicknames: new Map(),   // studentId -> { nickname, timestamp }
   studentStats: new Map(),    // studentId -> { data, timestamp }
   classRanking: new Map(),    // classCode_period -> { data, timestamp }
+  classWritings: new Map(),   // 🚀 classCode -> { data, timestamp } - 선생님용 제출글 캐시
 };
 
 const rankingCache = new Map(); // classCode_period -> { data, timestamp }
@@ -50,6 +52,7 @@ const CACHE_TTL = {
   userNicknames: 7200000,    // 2시간 - 닉네임 (이전 30분)
   studentStats: 3600000,     // 60분 - 학생 통계 (이전 10분)
   classRanking: 3600000,     // 60분 - 랭킹 (이전 30분)
+  classWritings: 300000,     // 🚀 5분 - 선생님용 제출글 (새 제출물 확인 위해 짧게)
 };
 
 // 캐시 유효성 확인 (jitter 추가로 thundering herd 방지)
@@ -410,6 +413,17 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     // 🚀 랭킹 캐시 무효화 (classCode 파라미터 활용)
     if (classCode) {
       invalidateRankingCache(classCode);
+      // 🚀 선생님용 제출글 캐시도 무효화 (새 글 반영)
+      invalidateClassWritingsCache(classCode);
+
+      // 🚀 assignments.submissions에 제출자 정보 추가 (선생님 주제 클릭 시 DB 읽기 0회!)
+      await updateAssignmentSubmission(classCode, writingData.topic, {
+        studentId,
+        nickname: userData?.nickname || userData?.name || '익명',
+        score: analysisResult.score,
+        writingId,
+        submittedAt: submissionData.submittedAt
+      });
     }
 
     return submissionData;
@@ -582,6 +596,105 @@ async function getAllClassWritingsBatch(classCode, studentIds = [], forTeacher =
   }
 }
 
+// 🚀 선생님용 제출글 캐시 무효화
+export function invalidateClassWritingsCache(classCode) {
+  if (classCode) {
+    cache.classWritings.delete(classCode);
+    // 주제별 캐시도 무효화
+    for (const key of cache.classWritings.keys()) {
+      if (key.startsWith(`${classCode}_topic_`)) {
+        cache.classWritings.delete(key);
+      }
+    }
+  } else {
+    cache.classWritings.clear();
+  }
+}
+
+// 🚀 주제별 제출 현황만 가져오기 (글 내용 없이 주제+학생수+평균점수만)
+// Firestore 읽기: 1번 (주제별 aggregate 또는 전체 글 메타데이터만)
+export async function getClassWritingsSummary(classCode, forceRefresh = false) {
+  try {
+    if (!classCode || typeof classCode !== 'string') {
+      return { topics: [], totalCount: 0 };
+    }
+
+    // 캐시 확인
+    const cacheKey = `${classCode}_summary`;
+    const cached = cache.classWritings.get(cacheKey);
+    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.classWritings)) {
+      console.log(`[캐시 히트] 주제 요약 (캐시에서 로드)`);
+      return cached.data;
+    }
+
+    // 🚀 writings 컬렉션에서 메타데이터만 조회 (topic, score, studentId, nickname만 필요)
+    const q = query(
+      collection(db, 'writings'),
+      where('classCode', '==', classCode),
+      where('isDraft', '==', false)
+    );
+
+    const snapshot = await getDocs(q);
+
+    // 주제별로 그룹화 (글 내용은 저장하지 않음!)
+    const topicMap = new Map();
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const topic = data.topic || '기타';
+
+      if (!topicMap.has(topic)) {
+        topicMap.set(topic, {
+          topic,
+          count: 0,
+          totalScore: 0,
+          students: [] // studentId만 저장
+        });
+      }
+
+      const topicData = topicMap.get(topic);
+      topicData.count++;
+      topicData.totalScore += (data.score || 0);
+      topicData.students.push({
+        studentId: data.studentId,
+        nickname: data.nickname || data.studentNickname || '익명',
+        score: data.score || 0,
+        writingId: data.writingId,
+        submittedAt: data.submittedAt
+      });
+    });
+
+    // 결과 정리
+    const topics = Array.from(topicMap.values()).map(t => ({
+      topic: t.topic,
+      count: t.count,
+      avgScore: t.count > 0 ? Math.round(t.totalScore / t.count) : 0,
+      students: t.students.sort((a, b) => b.score - a.score) // 점수 높은 순
+    }));
+
+    const result = {
+      topics: topics.sort((a, b) => b.count - a.count), // 제출 많은 순
+      totalCount: snapshot.size
+    };
+
+    // 캐시 저장
+    cache.classWritings.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    console.log(`[캐시 저장] 주제 요약 ${topics.length}개 주제, ${snapshot.size}개 글`);
+
+    return result;
+  } catch (error) {
+    console.error('주제 요약 조회 에러:', error);
+    return { topics: [], totalCount: 0 };
+  }
+}
+
+// 🚀 getTopicStudents 함수 제거됨!
+// 이제 assignment.submissions에서 학생 목록을 직접 가져옴 (DB 읽기 0회)
+// assignmentService.js의 updateAssignmentSubmission 참조
+
 // forTeacher: true면 classCode가 없는 기존 글도 studentId로 폴백 조회
 export async function getClassWritings(classCode, forceRefresh = false, forTeacher = true) {
   try {
@@ -589,6 +702,13 @@ export async function getClassWritings(classCode, forceRefresh = false, forTeach
     if (!classCode || typeof classCode !== 'string') {
       console.error('유효하지 않은 classCode:', classCode);
       return [];
+    }
+
+    // 🚀 제출글 캐시 확인 (선생님이 탭 전환할 때마다 500회 읽기 방지!)
+    const cachedWritings = cache.classWritings.get(classCode);
+    if (!forceRefresh && cachedWritings && isCacheValid(cachedWritings.timestamp, CACHE_TTL.classWritings)) {
+      console.log(`[캐시 히트] 제출글 ${cachedWritings.data.length}개 (캐시에서 로드)`);
+      return cachedWritings.data;
     }
 
     // 🚀 반 데이터 캐싱
@@ -656,9 +776,18 @@ export async function getClassWritings(classCode, forceRefresh = false, forTeach
       }));
     });
 
-    return allWritingsWithNicknames.sort((a, b) =>
+    const sortedWritings = allWritingsWithNicknames.sort((a, b) =>
       new Date(b.submittedAt) - new Date(a.submittedAt)
     );
+
+    // 🚀 캐시 저장 (5분간 유지 - 탭 전환 시 재조회 방지)
+    cache.classWritings.set(classCode, {
+      data: sortedWritings,
+      timestamp: Date.now()
+    });
+    console.log(`[캐시 저장] 제출글 ${sortedWritings.length}개 (Firestore에서 로드)`);
+
+    return sortedWritings;
   } catch (error) {
     console.error('학급 글 조회 에러:', error);
     // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
@@ -983,6 +1112,31 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
     rankingCache.delete(`${classCode}_${period}_loading`);
     // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
     return [];
+  }
+}
+
+// 🚀 학생용 랭킹 조회 - 내 랭킹 + 1,2,3등만 (DB 읽기 최소화)
+// 전체 랭킹을 로드하는 대신 캐시된 데이터에서 필요한 것만 추출
+export async function getStudentRankingOptimized(classCode, studentId, period = 'weekly', options = {}) {
+  try {
+    // 기존 getClassRanking 호출 (캐시 활용)
+    const fullRanking = await getClassRanking(classCode, period, options);
+
+    if (!fullRanking || fullRanking.length === 0) {
+      return { top3: [], myRank: null };
+    }
+
+    // 1, 2, 3등 추출
+    const top3 = fullRanking.slice(0, 3);
+
+    // 내 순위 찾기
+    const myRankIndex = fullRanking.findIndex(r => r.studentId === studentId);
+    const myRank = myRankIndex !== -1 ? fullRanking[myRankIndex] : null;
+
+    return { top3, myRank };
+  } catch (error) {
+    console.error('학생 랭킹 조회 에러:', error);
+    return { top3: [], myRank: null };
   }
 }
 

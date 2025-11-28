@@ -13,7 +13,7 @@ import {
   saveDraftByTopic,
   getDraftByTopic,
   deleteDraft,
-  getClassRanking,
+  getStudentRankingOptimized,
   cleanupOldFailedWritings
 } from "../services/writingService";
 import { getAssignmentsByClass } from "../services/assignmentService";
@@ -550,8 +550,7 @@ export default function StudentDashboard({ user, userData }) {
     }
   }, [activeTab, classInfo?.classCode, rankingPeriod]);
 
-  // 랭킹 데이터 로드 함수
-  // 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
+  // 🚀 랭킹 데이터 로드 함수 - 최적화: 1,2,3등 + 내 랭킹만 로드
   const loadRankingData = async (classCode, period, forceRefresh = false) => {
     if (loadingRanking) return; // 🔥 동시 로드 방지
 
@@ -568,24 +567,25 @@ export default function StudentDashboard({ user, userData }) {
     }
     setLoadingRanking(true);
     try {
-      // 🔧 forceRefresh 옵션 전달 - 캐시된 빈 데이터 문제 해결
-      const data = await getClassRanking(classCode, period, { forceRefresh });
-      setRankingData(data || []); // 🔧 null/undefined 방지
-      setRankingLastLoaded(Date.now()); // 🚀 로드 시간 기록
-      // 내 순위 찾기
-      if (data && data.length > 0) {
-        const myRankIndex = data.findIndex(r => r.studentId === user.uid);
-        if (myRankIndex !== -1) {
-          setMyRank(myRankIndex + 1);
-        } else {
-          setMyRank(null);
-        }
+      // 🚀 최적화: 1,2,3등 + 내 순위만 가져오기
+      const { top3, myRank: myRankData } = await getStudentRankingOptimized(classCode, user.uid, period, { forceRefresh });
+
+      // rankingData에는 top3 + 내 랭킹(4등 이하인 경우)만 저장
+      let displayData = [...top3];
+      if (myRankData && myRankData.rank > 3) {
+        displayData.push(myRankData);
+      }
+      setRankingData(displayData);
+      setRankingLastLoaded(Date.now());
+
+      // 내 순위 설정
+      if (myRankData) {
+        setMyRank(myRankData.rank);
       } else {
         setMyRank(null);
       }
     } catch (error) {
       console.error('랭킹 데이터 로드 에러:', error);
-      // 🔧 에러 발생 시 빈 배열로 설정 (UI 에러 방지)
       setRankingData([]);
       setMyRank(null);
     } finally {
@@ -2928,7 +2928,6 @@ export default function StudentDashboard({ user, userData }) {
                   <div>
                     <p className="text-amber-100 text-sm mb-1">나의 {rankingPeriod === 'weekly' ? '주간' : '월간'} 순위</p>
                     <p className="text-4xl font-black">{myRank}등</p>
-                    <p className="text-amber-100 text-sm mt-1">총 {rankingData.length}명 중</p>
                   </div>
                   <div className="text-6xl">
                     {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏅'}
@@ -2990,16 +2989,14 @@ export default function StudentDashboard({ user, userData }) {
                 </div>
               ) : (
                 (() => {
-                  // 🚀 최적화: 1~3등 + 내 순위만 기본 표시 (나머지는 접기/펼치기)
+                  // 🚀 최적화: 1~3등 + 내 순위만 표시 (DB 읽기 최소화)
                   const myRanking = rankingData.find(s => s.studentId === user.uid);
-                  const myRankNum = myRanking ? rankingData.indexOf(myRanking) + 1 : null;
-                  const top3 = rankingData.slice(0, 3);
-                  const showMyRankSeparately = myRankNum && myRankNum > 3;
-                  const restStudents = rankingData.slice(3).filter(s => s.studentId !== user.uid);
+                  const top3 = rankingData.filter(s => s.rank <= 3);
+                  const showMyRankSeparately = myRank && myRank > 3;
 
-                  const renderRankingCard = (student, index) => {
+                  const renderRankingCard = (student) => {
                     const isMe = student.studentId === user.uid;
-                    const rank = index + 1;
+                    const rank = student.rank;
                     return (
                       <div
                         key={student.studentId}
@@ -3043,53 +3040,24 @@ export default function StudentDashboard({ user, userData }) {
                   return (
                     <div className="space-y-3">
                       {/* Top 3 */}
-                      {top3.map((student, index) => renderRankingCard(student, index))}
+                      {top3.map((student) => renderRankingCard(student))}
 
-                      {/* 내 순위가 4등 이하면 별도 표시 (접힌 상태) */}
-                      {!rankingExpanded && showMyRankSeparately && myRanking && (
+                      {/* 내 순위가 4등 이하면 별도 표시 */}
+                      {showMyRankSeparately && myRanking && (
                         <>
                           <div className="flex items-center gap-2 py-2">
                             <div className="flex-1 border-t border-dashed border-gray-300"></div>
-                            <span className="text-xs text-gray-400 px-2">⋯ {myRankNum - 4}명 ⋯</span>
+                            <span className="text-xs text-gray-400 px-2">⋯</span>
                             <div className="flex-1 border-t border-dashed border-gray-300"></div>
                           </div>
-                          {renderRankingCard(myRanking, myRankNum - 1)}
+                          {renderRankingCard(myRanking)}
                         </>
                       )}
 
-                      {/* 펼친 상태: 4등 이하 모든 학생 표시 */}
-                      {rankingExpanded && rankingData.slice(3).map((student, index) =>
-                        renderRankingCard(student, index + 3)
-                      )}
-
-                      {/* 접기/펼치기 버튼 (4등 이하 학생이 있을 때만) */}
-                      {rankingData.length > 3 && (
-                        <button
-                          onClick={() => setRankingExpanded(!rankingExpanded)}
-                          className="w-full py-3 mt-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all flex items-center justify-center gap-2"
-                        >
-                          {rankingExpanded ? (
-                            <>
-                              <span>접기</span>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                              </svg>
-                            </>
-                          ) : (
-                            <>
-                              <span>전체 랭킹 보기 ({rankingData.length - 3}명 더)</span>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </>
-                          )}
-                        </button>
-                      )}
-
-                      {/* 전체 인원 표시 */}
+                      {/* 내 순위 표시 */}
                       <div className="text-center pt-2">
                         <p className="text-xs text-gray-400">
-                          총 {rankingData.length}명 중 {myRankNum ? `${myRankNum}위` : '-'}
+                          {myRank ? `나의 순위: ${myRank}위` : '-'}
                         </p>
                       </div>
                     </div>

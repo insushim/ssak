@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 // ============================================
@@ -202,5 +202,129 @@ export async function getSubmissionsByStudent(studentId, forceRefresh = false) {
   } catch (error) {
     console.error('내 제출 목록 로드 에러:', error);
     throw error;
+  }
+}
+
+// ============================================
+// 🚀 assignments.submissions - 제출 현황 관리
+// 선생님이 주제 클릭 시 DB 읽기 0회를 위해
+// 제출자 정보를 assignment 문서에 직접 저장
+// ============================================
+
+// 🚀 글 제출 시 assignment에 제출자 정보 추가/업데이트
+export async function updateAssignmentSubmission(classCode, topic, submissionInfo) {
+  try {
+    // topic(제목)으로 assignment 찾기
+    const q = query(
+      collection(db, 'assignments'),
+      where('classCode', '==', classCode),
+      where('title', '==', topic),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      console.log(`[submissions] "${topic}" 과제를 찾을 수 없음 (자유 주제일 수 있음)`);
+      return false;
+    }
+
+    const assignmentDoc = snapshot.docs[0];
+    const assignmentData = assignmentDoc.data();
+    const submissions = assignmentData.submissions || [];
+
+    // 같은 학생의 기존 제출 제거 (업데이트를 위해)
+    const filteredSubmissions = submissions.filter(
+      s => s.studentId !== submissionInfo.studentId
+    );
+
+    // 새 제출 정보 추가
+    filteredSubmissions.push({
+      studentId: submissionInfo.studentId,
+      nickname: submissionInfo.nickname,
+      score: submissionInfo.score,
+      writingId: submissionInfo.writingId,
+      submittedAt: submissionInfo.submittedAt,
+      reviewed: false
+    });
+
+    // assignment 문서 업데이트
+    await updateDoc(doc(db, 'assignments', assignmentDoc.id), {
+      submissions: filteredSubmissions
+    });
+
+    // 🚀 캐시 무효화
+    invalidateAssignmentsCache(classCode);
+
+    console.log(`[submissions] "${topic}" 과제에 ${submissionInfo.nickname} 제출 정보 추가됨`);
+    return true;
+  } catch (error) {
+    console.error('assignment submission 업데이트 에러:', error);
+    return false;
+  }
+}
+
+// 🚀 글 삭제 시 assignment에서 제출자 정보 제거
+export async function removeAssignmentSubmission(classCode, topic, writingId) {
+  try {
+    const q = query(
+      collection(db, 'assignments'),
+      where('classCode', '==', classCode),
+      where('title', '==', topic),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return false;
+    }
+
+    const assignmentDoc = snapshot.docs[0];
+    const assignmentData = assignmentDoc.data();
+    const submissions = assignmentData.submissions || [];
+
+    // 해당 writingId 제거
+    const filteredSubmissions = submissions.filter(s => s.writingId !== writingId);
+
+    await updateDoc(doc(db, 'assignments', assignmentDoc.id), {
+      submissions: filteredSubmissions
+    });
+
+    // 🚀 캐시 무효화
+    invalidateAssignmentsCache(classCode);
+
+    return true;
+  } catch (error) {
+    console.error('assignment submission 제거 에러:', error);
+    return false;
+  }
+}
+
+// 🚀 주제 전체 글 삭제 시 submissions 전체 제거
+export async function clearAssignmentSubmissions(classCode, topic) {
+  try {
+    const q = query(
+      collection(db, 'assignments'),
+      where('classCode', '==', classCode),
+      where('title', '==', topic),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return false;
+    }
+
+    const assignmentDoc = snapshot.docs[0];
+    await updateDoc(doc(db, 'assignments', assignmentDoc.id), {
+      submissions: []
+    });
+
+    // 🚀 캐시 무효화
+    invalidateAssignmentsCache(classCode);
+
+    return true;
+  } catch (error) {
+    console.error('assignment submissions 전체 삭제 에러:', error);
+    return false;
   }
 }

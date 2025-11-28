@@ -9,7 +9,7 @@ import {
   getStudentDetails,
   resetStudentPassword
 } from "../services/classService";
-import { getClassWritings, deleteWriting, getClassRanking, getStudentGrowthData } from "../services/writingService";
+import { deleteWriting, getClassRanking, getStudentGrowthData, invalidateClassWritingsCache, getWritingById } from "../services/writingService";
 import { createAssignment, getAssignmentsByClass, deleteAssignment } from "../services/assignmentService";
 import { generateTopics } from "../utils/geminiAPI";
 import { getSchedulerSettings, saveSchedulerSettings, disableScheduler, generateAutoAssignment, checkAndRunScheduler } from "../services/schedulerService";
@@ -78,7 +78,8 @@ export default function TeacherDashboard({ user, userData }) {
   const [writingsSubTab, setWritingsSubTab] = useState("pending"); // "pending" 또는 "completed"
   const [deletingWritingId, setDeletingWritingId] = useState(null);
   const [completedTopics, setCompletedTopics] = useState([]); // 완료 처리된 주제들
-  const [writingsLoading, setWritingsLoading] = useState(false); // 제출글 로딩 상태
+  const [topicStudents, setTopicStudents] = useState([]); // 🚀 선택한 주제의 학생 목록 (assignment.submissions에서 가져옴)
+  const [selectedWritingLoading, setSelectedWritingLoading] = useState(false); // 🚀 개별 글 로딩 상태
 
   // 랭킹 관련 state
   const [rankingData, setRankingData] = useState([]);
@@ -141,6 +142,53 @@ export default function TeacherDashboard({ user, userData }) {
     }
   }, []);
 
+  // 🔧 모바일 뒤로가기 처리 - 로그인 풀림 방지
+  useEffect(() => {
+    const pushState = () => {
+      window.history.pushState({ teacherDashboard: true }, '');
+    };
+
+    const handlePopState = (event) => {
+      // 글 상세보기에서 뒤로가기 -> 글 닫기
+      if (selectedWriting) {
+        event.preventDefault();
+        setSelectedWriting(null);
+        pushState();
+        return;
+      }
+
+      // 주제 확장 중 뒤로가기 -> 주제 닫기
+      if (expandedTopic) {
+        event.preventDefault();
+        setExpandedTopic(null);
+        pushState();
+        return;
+      }
+
+      // 모달이 열려있으면 모달 닫기
+      if (showAssignmentModal || showSchedulerModal || showCreateModal || showClassModal) {
+        event.preventDefault();
+        setShowAssignmentModal(false);
+        setShowSchedulerModal(false);
+        setShowCreateModal(false);
+        setShowClassModal(false);
+        pushState();
+        return;
+      }
+
+      // 그 외의 경우 기본 뒤로가기 동작 허용 (하지만 history 상태 유지)
+      pushState();
+    };
+
+    // 초기 상태 추가
+    pushState();
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [selectedWriting, expandedTopic, showAssignmentModal, showSchedulerModal, showCreateModal, showClassModal]);
+
   useEffect(() => {
     const currentClassCode = selectedClass?.classCode;
 
@@ -148,13 +196,18 @@ export default function TeacherDashboard({ user, userData }) {
     if (currentClassCode && currentClassCode !== prevClassCodeRef.current) {
       prevClassCodeRef.current = currentClassCode;
 
-      loadClassWritings(currentClassCode);
+      // 🚀 제출글은 DB 읽기 0회! (assignments에서 주제 목록 사용, 완료 목록은 로컬스토리지)
+      loadCompletedTopics(currentClassCode);
       loadAssignments(currentClassCode);
       loadSchedulerSettings(currentClassCode);
       // 자동 출제 스케줄러 체크 (페이지 로드 시) - 문자열로 전달
       runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
       // 🚀 클래스 변경 시 랭킹 캐시 무효화
       setRankingLastLoaded(null);
+      // 🚀 주제/글 선택 초기화
+      setExpandedTopic(null);
+      setTopicStudents([]);
+      setSelectedWriting(null);
     }
   }, [selectedClass?.classCode]);
 
@@ -402,43 +455,63 @@ export default function TeacherDashboard({ user, userData }) {
     }
   };
 
-  const loadClassWritings = async (classCode) => {
-    setWritingsLoading(true);
-    try {
-      const writings = await getClassWritings(classCode);
-      setClassWritings(writings);
+  // 🚀 제출글 탭 진입 시: DB 읽기 0회! (assignments에서 주제 목록 사용)
+  // 완료된 주제 목록만 로컬 스토리지에서 로드
+  const loadCompletedTopics = (classCode) => {
+    const savedCompletedTopics = localStorage.getItem(`completedTopics_${classCode}`);
+    if (savedCompletedTopics) {
+      setCompletedTopics(JSON.parse(savedCompletedTopics));
+    } else {
+      setCompletedTopics([]);
+    }
+  };
 
-      // 완료된 주제 목록 로드 (로컬 스토리지에서)
-      const savedCompletedTopics = localStorage.getItem(`completedTopics_${classCode}`);
-      if (savedCompletedTopics) {
-        setCompletedTopics(JSON.parse(savedCompletedTopics));
-      } else {
-        setCompletedTopics([]);
-      }
+  // 🚀 주제 클릭 시: assignment.submissions에서 학생 목록 가져오기 (DB 읽기 0회!)
+  const loadTopicStudents = (assignment) => {
+    // assignment.submissions 배열에서 학생 목록 가져오기 (이미 로드된 데이터 사용)
+    const submissions = assignment?.submissions || [];
+    setTopicStudents(submissions);
+  };
+
+  // 🚀 학생 클릭 시: 해당 글 1개만 로드 (Firestore 1회 읽기!)
+  const loadSingleWriting = async (writingId) => {
+    setSelectedWritingLoading(true);
+    try {
+      const writing = await getWritingById(writingId);
+      setSelectedWriting(writing);
     } catch (error) {
-      console.error("클래스 글 로드 에러:", error);
+      console.error("글 로드 에러:", error);
+      setSelectedWriting(null);
     } finally {
-      setWritingsLoading(false);
+      setSelectedWritingLoading(false);
     }
   };
 
   // 주제의 모든 글 삭제 (병렬 처리로 최적화)
-  // 🚀 최적화: Optimistic update - 전체 재로드 대신 로컬 상태만 업데이트
+  // 🚀 topicStudents에서 writingId 목록 가져와서 삭제
   const handleDeleteTopic = async (topic) => {
-    const topicWritings = classWritings.filter(w => (w.topic || '기타') === topic);
-    if (!confirm(`"${topic}" 주제의 모든 글(${topicWritings.length}개)을 삭제하시겠습니까?\n삭제된 글은 복구할 수 없습니다.`)) return;
+    const writingIds = topicStudents.map(s => s.writingId);
+
+    if (writingIds.length === 0) {
+      alert("삭제할 글이 없습니다.");
+      return;
+    }
+
+    if (!confirm(`"${topic}" 주제의 모든 글(${writingIds.length}개)을 삭제하시겠습니까?\n삭제된 글은 복구할 수 없습니다.`)) return;
 
     try {
       // 🚀 병렬 삭제 (최적화)
-      await Promise.all(topicWritings.map(writing => deleteWriting(writing.writingId)));
-      alert(`"${topic}" 주제의 글 ${topicWritings.length}개가 삭제되었습니다.`);
+      await Promise.all(writingIds.map(id => deleteWriting(id)));
+      alert(`"${topic}" 주제의 글 ${writingIds.length}개가 삭제되었습니다.`);
 
-      // 🚀 Optimistic update: 전체 재로드 대신 로컬 상태만 업데이트
-      const deletedIds = new Set(topicWritings.map(w => w.writingId));
-      setClassWritings(prev => prev.filter(w => !deletedIds.has(w.writingId)));
+      // 🚀 캐시 무효화
+      if (selectedClass?.classCode) {
+        invalidateClassWritingsCache(selectedClass.classCode);
+      }
 
       setExpandedTopic(null);
       setSelectedWriting(null);
+      setTopicStudents([]);
     } catch (error) {
       console.error("주제 삭제 에러:", error);
       alert("주제 삭제에 실패했습니다.");
@@ -474,6 +547,11 @@ export default function TeacherDashboard({ user, userData }) {
 
       // 🚀 Optimistic update: 전체 재로드 대신 로컬 상태만 업데이트
       setClassWritings(prev => prev.filter(w => w.writingId !== writingId));
+
+      // 🚀 캐시 무효화
+      if (selectedClass?.classCode) {
+        invalidateClassWritingsCache(selectedClass.classCode);
+      }
 
       // 선택된 글이 삭제된 글이면 선택 해제
       if (selectedWriting?.writingId === writingId) {
@@ -537,16 +615,16 @@ export default function TeacherDashboard({ user, userData }) {
   // 주제별 전체 학생 확인완료 처리
   // 🚀 최적화: Optimistic update 적용
   const handleMarkAllAsReviewedByTopic = async (topic) => {
-    const writingsToMark = classWritings.filter(w =>
-      (w.topic || '기타') === topic && !w.reviewed
-    );
+    // 🚀 topicStudents에서 미확인 글만 필터링
+    const unreviewed = topicStudents.filter(s => !s.reviewed);
+    const writingIds = unreviewed.map(s => s.writingId);
 
-    if (writingsToMark.length === 0) {
+    if (writingIds.length === 0) {
       alert("확인할 글이 없습니다.");
       return;
     }
 
-    if (!window.confirm(`"${topic}" 주제의 ${writingsToMark.length}개 글을 모두 확인완료 처리하시겠습니까?`)) {
+    if (!window.confirm(`"${topic}" 주제의 ${writingIds.length}개 글을 모두 확인완료 처리하시겠습니까?`)) {
       return;
     }
 
@@ -555,8 +633,8 @@ export default function TeacherDashboard({ user, userData }) {
       const { db } = await import('../config/firebase');
       const reviewedAt = new Date().toISOString();
 
-      const updatePromises = writingsToMark.map(writing =>
-        updateDoc(doc(db, 'writings', writing.writingId), {
+      const updatePromises = writingIds.map(writingId =>
+        updateDoc(doc(db, 'writings', writingId), {
           reviewed: true,
           reviewedAt
         })
@@ -564,13 +642,15 @@ export default function TeacherDashboard({ user, userData }) {
 
       await Promise.all(updatePromises);
 
-      // 🚀 Optimistic update: 로컬 상태만 업데이트
-      const markedIds = new Set(writingsToMark.map(w => w.writingId));
-      setClassWritings(prev => prev.map(w =>
-        markedIds.has(w.writingId) ? { ...w, reviewed: true, reviewedAt } : w
-      ));
+      // 🚀 Optimistic update
+      setTopicStudents(prev => prev.map(s => ({ ...s, reviewed: true })));
 
-      alert(`${writingsToMark.length}개 글이 확인완료 처리되었습니다.`);
+      // 🚀 캐시 무효화
+      if (selectedClass?.classCode) {
+        invalidateClassWritingsCache(selectedClass.classCode);
+      }
+
+      alert(`${writingIds.length}개 글이 확인완료 처리되었습니다.`);
     } catch (error) {
       console.error("전체 확인완료 처리 에러:", error);
       alert("처리에 실패했습니다.");
@@ -1417,10 +1497,7 @@ export default function TeacherDashboard({ user, userData }) {
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
-                    📋 미확인 ({(() => {
-                      const topics = [...new Set(classWritings.map(w => w.topic || '기타'))];
-                      return topics.filter(t => !completedTopics.includes(t)).length;
-                    })()}개 주제)
+                    📋 미확인 ({assignments.filter(a => !completedTopics.includes(a.title)).length}개 주제)
                   </button>
                   <button
                     onClick={() => { setWritingsSubTab("completed"); setExpandedTopic(null); setSelectedWriting(null); }}
@@ -1437,118 +1514,88 @@ export default function TeacherDashboard({ user, userData }) {
             </div>
 
             {selectedClass ? (
-              writingsLoading ? (
-                <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl p-8 text-center border border-blue-100">
-                  <div className="flex flex-col items-center gap-3">
-                    <svg className="animate-spin h-10 w-10 text-blue-500" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    <p className="text-gray-600">학생 제출글을 불러오는 중...</p>
-                  </div>
-                </div>
-              ) : classWritings.length === 0 ? (
+              assignments.length === 0 ? (
                 <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl p-8 text-center border border-blue-100">
                   <div className="text-4xl mb-3">📭</div>
-                  <p className="text-gray-600">아직 제출된 글이 없습니다.</p>
+                  <p className="text-gray-600">아직 출제된 과제가 없습니다.</p>
+                  <p className="text-gray-400 text-sm mt-2">과제 출제 탭에서 먼저 과제를 출제해 주세요.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* 주제 목록 (왼쪽) */}
+                  {/* 🚀 주제 목록: assignments에서 가져옴 (DB 읽기 0회!) */}
                   <div className="lg:col-span-1">
                     <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl border border-blue-100 overflow-hidden">
                       <div className={`px-5 py-4 ${writingsSubTab === "completed" ? "bg-gradient-to-r from-green-600 to-emerald-500" : "bg-gradient-to-r from-blue-600 to-cyan-500"}`}>
                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
                           <span>{writingsSubTab === "completed" ? "✅" : "📋"}</span>
-                          {writingsSubTab === "completed" ? "확인 완료 글" : "주제별 제출 현황"}
+                          {writingsSubTab === "completed" ? "확인 완료" : "출제된 과제"}
                         </h3>
                         <p className="text-blue-100 text-sm mt-1">
                           {(() => {
                             const isCompletedTab = writingsSubTab === "completed";
-                            const filteredWritings = classWritings.filter(w => {
-                              const topic = w.topic || '기타';
-                              return isCompletedTab ? completedTopics.includes(topic) : !completedTopics.includes(topic);
-                            });
-                            const topicCount = [...new Set(filteredWritings.map(w => w.topic || '기타'))].length;
-                            return `총 ${topicCount}개 주제 · ${filteredWritings.length}개 글`;
+                            const filteredAssignments = assignments.filter(a =>
+                              isCompletedTab ? completedTopics.includes(a.title) : !completedTopics.includes(a.title)
+                            );
+                            return `총 ${filteredAssignments.length}개 주제`;
                           })()}
                         </p>
                       </div>
                       <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
                         {(() => {
-                          // 완료된 주제 필터링
                           const isCompletedTab = writingsSubTab === "completed";
-                          const filteredWritings = classWritings.filter(w => {
-                            const topic = w.topic || '기타';
-                            const isTopicCompleted = completedTopics.includes(topic);
+                          const filteredAssignments = assignments.filter(a =>
+                            isCompletedTab ? completedTopics.includes(a.title) : !completedTopics.includes(a.title)
+                          );
 
-                            // 🎯 도달점수 필터링: 과제의 minScore 이상인 글만 표시
-                            const assignment = assignments.find(a => a.title === topic);
-                            const minScore = assignment?.minScore || 70; // 기본값 70점
-                            const meetsMinScore = (w.score || 0) >= minScore;
-
-                            return meetsMinScore && (isCompletedTab ? isTopicCompleted : !isTopicCompleted);
-                          });
-
-                          const groupedByTopic = filteredWritings.reduce((acc, writing) => {
-                            const topic = writing.topic || '기타';
-                            if (!acc[topic]) acc[topic] = [];
-                            acc[topic].push(writing);
-                            return acc;
-                          }, {});
-
-                          if (Object.keys(groupedByTopic).length === 0) {
+                          if (filteredAssignments.length === 0) {
                             return (
                               <div className="p-8 text-center text-gray-400">
                                 <div className="text-4xl mb-2">{isCompletedTab ? "📭" : "✨"}</div>
                                 <p className="text-sm">
                                   {isCompletedTab
                                     ? "아직 완료 처리된 주제가 없습니다"
-                                    : "모든 주제를 확인했습니다!"}
+                                    : assignments.length === 0 ? "출제된 과제가 없습니다" : "모든 주제를 확인했습니다!"}
                                 </p>
                               </div>
                             );
                           }
 
-                          return Object.entries(groupedByTopic)
-                            .sort((a, b) => b[1].length - a[1].length)
-                            .map(([topic, writings]) => {
-                              const avgScore = Math.round(writings.reduce((sum, w) => sum + (w.score || 0), 0) / writings.length);
-                              const isExpanded = expandedTopic === topic;
-                              return (
-                                <button
-                                  key={topic}
-                                  onClick={() => {
-                                    setExpandedTopic(isExpanded ? null : topic);
-                                    setSelectedWriting(null);
-                                  }}
-                                  className={`w-full text-left p-4 transition-all hover:bg-blue-50 ${
-                                    isExpanded ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="font-semibold text-gray-900 truncate">{topic}</h4>
-                                      <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-xs text-gray-500">{writings.length}명 제출</span>
-                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                          avgScore >= 80 ? 'bg-emerald-100 text-emerald-700' :
-                                          avgScore >= 60 ? 'bg-blue-100 text-blue-700' :
-                                          'bg-amber-100 text-amber-700'
-                                        }`}>
-                                          평균 {avgScore}점
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className={`ml-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                      </svg>
-                                    </div>
+                          return filteredAssignments.map((assignment) => {
+                            const topic = assignment.title;
+                            const isExpanded = expandedTopic === topic;
+                            return (
+                              <button
+                                key={assignment.id || topic}
+                                onClick={() => {
+                                  if (!isExpanded) {
+                                    // 🚀 주제 클릭 시: assignment.submissions에서 학생 목록 가져오기 (DB 0회!)
+                                    loadTopicStudents(assignment);
+                                  }
+                                  setExpandedTopic(isExpanded ? null : topic);
+                                  setSelectedWriting(null);
+                                  if (isExpanded) setTopicStudents([]);
+                                }}
+                                className={`w-full text-left p-4 transition-all hover:bg-blue-50 ${
+                                  isExpanded ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-gray-900 truncate">{topic}</h4>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      도달점수: {assignment.minScore || 70}점
+                                    </p>
                                   </div>
-                                </button>
-                              );
-                            });
+                                  <div className={`ml-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          });
                         })()}
                       </div>
                     </div>
@@ -1568,7 +1615,7 @@ export default function TeacherDashboard({ user, userData }) {
                             <div>
                               <h3 className="text-xl font-bold">{expandedTopic}</h3>
                               <p className="text-blue-100 mt-1">
-                                {classWritings.filter(w => (w.topic || '기타') === expandedTopic).length}명의 학생이 제출했습니다
+                                {`${topicStudents.length}명의 학생이 제출했습니다`}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1621,53 +1668,47 @@ export default function TeacherDashboard({ user, userData }) {
                           </div>
                         </div>
 
-                        {/* 학생 카드 그리드 */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {classWritings
-                            .filter(w => (w.topic || '기타') === expandedTopic)
-                            .sort((a, b) => (b.score || 0) - (a.score || 0))
-                            .map((writing) => (
+                        {/* 🚀 학생 카드 그리드 - assignment.submissions에서 즉시 표시 (DB 0회!) */}
+                        {topicStudents.length === 0 ? (
+                          <div className="text-center py-8 text-gray-400">
+                            <div className="text-4xl mb-2">📭</div>
+                            <p>아직 제출된 글이 없습니다</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {topicStudents.map((student) => (
                               <button
-                                key={writing.writingId}
-                                onClick={() => setSelectedWriting(writing)}
+                                key={student.writingId}
+                                onClick={() => loadSingleWriting(student.writingId)}
+                                disabled={selectedWritingLoading}
                                 className={`p-4 rounded-xl border-2 transition-all text-left relative ${
-                                  selectedWriting?.writingId === writing.writingId
+                                  selectedWriting?.writingId === student.writingId
                                     ? 'border-blue-500 bg-blue-50 shadow-lg'
                                     : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow'
-                                }`}
+                                } ${selectedWritingLoading ? 'opacity-50' : ''}`}
                               >
-                                {writing.reviewed && (
+                                {student.reviewed && (
                                   <div className="absolute top-2 right-2 text-green-500">✓</div>
                                 )}
                                 <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center text-white font-bold text-lg mx-auto mb-2">
-                                  {(writing.nickname || writing.studentName)?.charAt(0) || '?'}
+                                  {student.nickname?.charAt(0) || '?'}
                                 </div>
                                 <div className="text-center">
                                   <p className="font-medium text-gray-900 text-sm truncate">
-                                    {writing.nickname || writing.studentName}
+                                    {student.nickname}
                                   </p>
                                   <p className={`text-lg font-bold mt-1 ${
-                                    writing.score >= 80 ? 'text-emerald-600' :
-                                    writing.score >= 60 ? 'text-blue-600' :
+                                    student.score >= 80 ? 'text-emerald-600' :
+                                    student.score >= 60 ? 'text-blue-600' :
                                     'text-amber-600'
                                   }`}>
-                                    {writing.score}점
+                                    {student.score}점
                                   </p>
-                                  {writing.aiUsageCheck && (
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                      writing.aiUsageCheck.aiProbability > 70
-                                        ? 'bg-red-100 text-red-700'
-                                        : writing.aiUsageCheck.aiProbability > 40
-                                        ? 'bg-yellow-100 text-yellow-700'
-                                        : 'bg-green-100 text-green-700'
-                                    }`}>
-                                      AI {writing.aiUsageCheck.aiProbability}%
-                                    </span>
-                                  )}
                                 </div>
                               </button>
                             ))}
-                        </div>
+                          </div>
+                        )}
 
                         {/* 선택된 글 안내 메시지 */}
                         {selectedWriting && (
