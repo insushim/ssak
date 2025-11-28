@@ -233,6 +233,32 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
   };
 
+  // 🚀 classCode 마이그레이션 실행
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState(null);
+
+  const handleMigrateClassCode = async () => {
+    if (!confirm("기존 글에 classCode를 일괄 추가하시겠습니까?\n\n이 작업은 학급별 데이터 분리를 위해 필요합니다.")) {
+      return;
+    }
+
+    setMigrating(true);
+    setMigrateResult(null);
+
+    try {
+      const migrateFn = httpsCallable(functions, 'migrateWritingsClassCode');
+      const result = await migrateFn();
+      setMigrateResult(result.data);
+      alert(`마이그레이션 완료!\n\n${result.data.message}`);
+    } catch (error) {
+      console.error("마이그레이션 에러:", error);
+      alert("마이그레이션 실패: " + error.message);
+      setMigrateResult({ error: error.message });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-sky-50">
@@ -284,6 +310,16 @@ export default function SuperAdminDashboard({ user, userData }) {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               전체 사용자 ({totalUsersCount}{hasMoreUsers ? '+' : ''})
+            </button>
+            <button
+              onClick={() => setActiveTab("system")}
+              className={`${
+                activeTab === "system"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              시스템 관리
             </button>
           </nav>
         </div>
@@ -449,6 +485,71 @@ export default function SuperAdminDashboard({ user, userData }) {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* System Management Tab */}
+        {activeTab === "system" && (
+          <div className="space-y-6">
+            {/* classCode 마이그레이션 */}
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">데이터 마이그레이션</h2>
+                <p className="text-sm text-gray-500 mt-1">학급별 데이터 분리 및 최적화</p>
+              </div>
+              <div className="px-6 py-6">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-medium text-amber-800 mb-2">classCode 마이그레이션</h3>
+                  <p className="text-sm text-amber-700 mb-3">
+                    기존 글(writings)에 classCode 필드를 일괄 추가합니다.<br/>
+                    이 작업을 통해 학급별 데이터가 완전히 분리되고 Firestore 읽기 비용이 절감됩니다.
+                  </p>
+                  <ul className="text-xs text-amber-600 mb-4 list-disc list-inside space-y-1">
+                    <li>users 컬렉션에서 학생별 classCode 조회</li>
+                    <li>writings 컬렉션에서 classCode가 없는 글에 업데이트</li>
+                    <li>한 번만 실행하면 됩니다 (이미 완료된 경우 "업데이트할 글이 없습니다" 표시)</li>
+                  </ul>
+                  <button
+                    onClick={handleMigrateClassCode}
+                    disabled={migrating}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {migrating ? '마이그레이션 중...' : 'classCode 마이그레이션 실행'}
+                  </button>
+                  {migrateResult && (
+                    <div className={`mt-4 p-3 rounded-lg ${migrateResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {migrateResult.error ? (
+                        <p>오류: {migrateResult.error}</p>
+                      ) : (
+                        <p>
+                          {migrateResult.message}<br/>
+                          {migrateResult.totalStudents && `(총 ${migrateResult.totalStudents}명의 학생 데이터 확인)`}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 시스템 정보 */}
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">시스템 정보</h2>
+              </div>
+              <div className="px-6 py-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">앱 버전:</span>
+                    <span className="ml-2 font-medium">1.0.0</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Firebase 프로젝트:</span>
+                    <span className="ml-2 font-medium">isw-writing</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
