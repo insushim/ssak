@@ -6,17 +6,17 @@ import { signOut, updateUserData } from "../services/authService";
 import { getClassByCode } from "../services/classService";
 import {
   saveWriting,
-  getStudentWritings,
   submitWriting,
   getStudentStats,
-  getFriendWritings,
   saveDraftByTopic,
   getDraftByTopic,
   deleteDraft,
   getStudentRankingOptimized,
-  cleanupOldFailedWritings
+  getWritingSummaryFromUserData,
+  getWritingDetail,
+  migrateWritingSummary
 } from "../services/writingService";
-import { getAssignmentsByClass } from "../services/assignmentService";
+import { getAssignmentsFromClassInfo, migrateAssignmentSummary } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
 import { WORD_COUNT_STANDARDS, PASSING_SCORE, GRADE_LEVELS, getAdjustedWordCount } from "../config/auth";
 import { FaceSVG, AnimalFaceSVG, HairSVG, ClothesSVG, AccessorySVG, BackgroundSVG } from "../components/AvatarSVG";
@@ -301,6 +301,10 @@ export default function StudentDashboard({ user, userData }) {
   const [assignments, setAssignments] = useState([]);
   const [allAssignments, setAllAssignments] = useState([]); // 모든 과제 저장 (minScore 조회용)
 
+  // 🚀 제출기록 상세 보기 (클릭 시 로드)
+  const [selectedWritingDetail, setSelectedWritingDetail] = useState(null);
+  const [loadingWritingDetail, setLoadingWritingDetail] = useState(false);
+
   const [currentWriting, setCurrentWriting] = useState({
     topic: "",
     content: "",
@@ -409,12 +413,6 @@ export default function StudentDashboard({ user, userData }) {
   const [userAchievements, setUserAchievements] = useState([]);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null);
-
-  // 친구 글 읽기 관련 state
-  const [friendWritings, setFriendWritings] = useState([]);
-  const [showFriendWritings, setShowFriendWritings] = useState(false);
-  const [loadingFriendWritings, setLoadingFriendWritings] = useState(false);
-  const [selectedFriendWriting, setSelectedFriendWriting] = useState(null);
 
   // 임시 저장 관련 state
   const [hasDraft, setHasDraft] = useState(false);
@@ -679,26 +677,6 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  // 친구 글 불러오기
-  const loadFriendWritings = async (topic) => {
-    if (!userData.classCode && !classInfo?.classCode) {
-      alert('학급 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
-      return;
-    }
-    setLoadingFriendWritings(true);
-    try {
-      const code = userData.classCode || classInfo?.classCode;
-      const friends = await getFriendWritings(code, topic, user.uid);
-      setFriendWritings(friends);
-      setShowFriendWritings(true);
-    } catch (error) {
-      console.error('친구 글 불러오기 에러:', error);
-      alert('친구 글을 불러오는 데 실패했습니다.');
-    } finally {
-      setLoadingFriendWritings(false);
-    }
-  };
-
   // 임시 저장
   const handleSaveDraft = async () => {
     if (!currentWriting.topic || !currentWriting.content) {
@@ -755,24 +733,67 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  // 🚀 최적화: 병렬 데이터 로드 + 과제 우선 표시
-  // 🔧 에러 핸들링 강화 - 개별 에러가 전체 로드를 막지 않도록
+  // 🚀 제출기록에서 글 클릭 시 상세 정보 로드 (DB 읽기 1회)
+  const handleViewWritingDetail = async (writingId) => {
+    if (loadingWritingDetail) return;
+
+    // 이미 로드된 글이면 토글
+    if (selectedWritingDetail?.writingId === writingId) {
+      setSelectedWritingDetail(null);
+      return;
+    }
+
+    setLoadingWritingDetail(true);
+    try {
+      console.log(`[📊 DB읽기] 제출기록 상세 조회 - writingId: ${writingId}`);
+      const detail = await getWritingDetail(writingId);
+      setSelectedWritingDetail(detail);
+    } catch (error) {
+      console.error('글 상세 로드 에러:', error);
+    } finally {
+      setLoadingWritingDetail(false);
+    }
+  };
+
+  // 🚀 최적화: writings 컬렉션 쿼리 완전 제거! (DB 읽기 76회 → 0회)
+  // users 문서의 writingSummary에서 글 목록 가져오기
   const loadData = async () => {
     try {
-      // 🔧 개별 Promise로 처리하여 부분 실패 허용
       let studentWritings = [];
       let studentStats = null;
       let cls = null;
       let classAssignments = [];
 
-      // 1. 학생 글과 통계는 항상 로드 시도
-      try {
-        studentWritings = await getStudentWritings(user.uid);
-      } catch (err) {
-        console.error('학생 글 조회 에러:', err);
-        studentWritings = [];
+      // 1. 🚀 users 문서에서 글 요약 가져오기 (DB 읽기 0회 - 이미 로드됨!)
+      // writingSummary가 없으면 마이그레이션 (최초 1회만)
+      let currentUserData = userData;
+      if (!userData.writingSummary || userData.writingSummary.length === 0) {
+        const migrationKey = `writingSummary_migrated_v2_${user.uid}`;
+        if (!localStorage.getItem(migrationKey)) {
+          try {
+            const result = await migrateWritingSummary(user.uid);
+            if (result.migrated && result.count > 0) {
+              console.log(`[마이그레이션] writingSummary ${result.count}개 글 마이그레이션 완료`);
+              // 🚀 마이그레이션 후 새 데이터 가져오기 (1회 읽기)
+              const { doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../config/firebase');
+              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              if (userDoc.exists()) {
+                currentUserData = userDoc.data();
+              }
+            }
+            localStorage.setItem(migrationKey, 'true');
+          } catch (e) {
+            console.warn('writingSummary 마이그레이션 실패:', e);
+          }
+        }
       }
 
+      // 🚀 userData에서 글 요약 추출 (DB 읽기 0회!)
+      studentWritings = getWritingSummaryFromUserData(currentUserData);
+      console.log(`[📊 최적화] 글 ${studentWritings.length}개 - users 문서에서 로드 (DB 읽기 0회)`);
+
+      // 2. 통계는 studentStats 컬렉션에서 (1회 읽기)
       try {
         studentStats = await getStudentStats(user.uid);
       } catch (err) {
@@ -780,31 +801,11 @@ export default function StudentDashboard({ user, userData }) {
         studentStats = { totalSubmissions: 0, averageScore: 0, scores: [] };
       }
 
-      // 🚀 24시간 지난 미달성 글 자동 삭제
-      if (studentWritings.length > 0) {
-        try {
-          const cleanupResult = await cleanupOldFailedWritings(user.uid, studentWritings, PASSING_SCORE);
-          if (cleanupResult.deleted > 0) {
-            // 삭제된 글이 있으면 목록에서 제거
-            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            studentWritings = studentWritings.filter(w =>
-              w.isDraft ||
-              !w.submittedAt ||
-              new Date(w.submittedAt) >= oneDayAgo ||
-              (w.score >= (w.minScore !== undefined ? w.minScore : PASSING_SCORE))
-            );
-            console.log(`[대시보드] 24시간 지난 미달성 글 ${cleanupResult.deleted}개 정리됨`);
-          }
-        } catch (err) {
-          console.error('미달성 글 정리 에러:', err);
-        }
-      }
-
       // 즉시 UI 업데이트
       setWritings(studentWritings);
       setStats(studentStats);
 
-      // 2. 반 정보가 있으면 과제도 로드
+      // 3. 반 정보가 있으면 과제도 로드 (classes 문서에서 - DB 읽기 1회만!)
       if (userData.classCode) {
         try {
           cls = await getClassByCode(userData.classCode);
@@ -812,21 +813,34 @@ export default function StudentDashboard({ user, userData }) {
           console.error('학급 정보 조회 에러:', err);
           cls = null;
         }
-
-        try {
-          classAssignments = await getAssignmentsByClass(userData.classCode);
-        } catch (err) {
-          console.error('과제 조회 에러:', err);
-          classAssignments = [];
-        }
       }
 
       if (cls) {
         setClassInfo(cls);
 
-        // 목표에 도달한 과제 필터링 - 각 과제의 minScore 고려
+        // 🚀 classes 문서에 assignmentSummary가 없으면 마이그레이션 (v2: description 포함)
+        if (!cls.assignmentSummary || cls.assignmentSummary.length === 0) {
+          const migrationKey = `assignmentSummary_migrated_v2_${userData.classCode}`;
+          if (!localStorage.getItem(migrationKey)) {
+            try {
+              const result = await migrateAssignmentSummary(userData.classCode);
+              if (result.migrated) {
+                cls = await getClassByCode(userData.classCode);
+                setClassInfo(cls);
+              }
+              localStorage.setItem(migrationKey, 'true');
+            } catch (e) {
+              console.warn('assignmentSummary 마이그레이션 실패:', e);
+            }
+          }
+        }
+
+        // 🚀 classes 문서의 assignmentSummary에서 과제 목록 추출 (DB 읽기 0회!)
+        classAssignments = getAssignmentsFromClassInfo(cls);
+        console.log(`[📊 최적화] 과제 ${classAssignments.length}개 - classes 문서에서 로드 (DB 읽기 0회)`);
+
+        // 목표에 도달한 과제 필터링
         const pendingAssignments = classAssignments.filter(assignment => {
-          // 해당 과제(topic)에 대한 제출물 중 목표 점수 이상인 것이 있는지 확인
           const assignmentMinScore = assignment.minScore !== undefined ? assignment.minScore : PASSING_SCORE;
           const hasPassingSubmission = studentWritings.some(
             w => !w.isDraft &&
@@ -839,11 +853,8 @@ export default function StudentDashboard({ user, userData }) {
         const completedCount = classAssignments.length - pendingAssignments.length;
         setCompletedAssignmentsCount(completedCount);
 
-        // 🚀 과제 먼저 표시
         setAssignments(pendingAssignments);
-        setAllAssignments(classAssignments); // 모든 과제 저장 (히스토리 탭에서 minScore 조회용)
-
-        // 🚀 비용 최적화: 랭킹은 랭킹 탭 클릭 시에만 로드 (loadData에서 자동 로드 제거)
+        setAllAssignments(classAssignments);
       }
     } catch (error) {
       console.error("데이터 로드 에러:", error);
@@ -1746,6 +1757,12 @@ export default function StudentDashboard({ user, userData }) {
                   <>
                     <div className="mb-4">
                       <h3 className="text-xl font-semibold text-gray-900">{currentWriting.topic}</h3>
+                      {/* 🚀 과제 설명 표시 */}
+                      {selectedTopic.description && (
+                        <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                          <p className="text-sm text-blue-700">{selectedTopic.description}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mb-4">
@@ -2593,7 +2610,7 @@ export default function StudentDashboard({ user, userData }) {
                     {/* 버튼 */}
                     <div className="flex flex-wrap gap-3">
                       {isPassed ? (
-                        // 기준 점수 달성 시 - 다시 쓰기 + 새 글쓰기 + 친구 글 보기
+                        // 기준 점수 달성 시 - 다시 쓰기 + 새 글쓰기
                         <>
                           <button
                             onClick={() => {
@@ -2634,15 +2651,6 @@ export default function StudentDashboard({ user, userData }) {
                           >
                             새 글 쓰기
                           </button>
-                          {userData.classCode && (
-                            <button
-                              onClick={() => loadFriendWritings(submittedWriting?.topic)}
-                              disabled={loadingFriendWritings}
-                              className="flex-1 min-w-[140px] bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all shadow-lg shadow-cyan-200 disabled:opacity-50"
-                            >
-                              {loadingFriendWritings ? '불러오는 중...' : '👥 친구 글 보기'}
-                            </button>
-                          )}
                         </>
                       ) : (
                         // 기준 점수 미달 시 - 고쳐쓰기
@@ -2739,17 +2747,20 @@ export default function StudentDashboard({ user, userData }) {
                 return w.score >= requiredScore;
               });
 
-              // 글 카드 렌더링 함수
+              // 글 카드 렌더링 함수 - 🚀 클릭 시 상세 정보 로드 (DB 읽기 1회)
               const renderWritingCard = (writing) => {
                 const writingRequiredScore = writing.minScore !== undefined ? writing.minScore : (assignmentMap.get(writing.topic) ?? PASSING_SCORE);
                 const isPassed = writing.score >= writingRequiredScore;
+                const isSelected = selectedWritingDetail?.writingId === writing.writingId;
+                const detail = isSelected ? selectedWritingDetail : null;
 
                 return (
                   <div
                     key={writing.writingId}
-                    className={`bg-white shadow-lg rounded-2xl overflow-hidden border-l-4 ${
+                    className={`bg-white shadow-lg rounded-2xl overflow-hidden border-l-4 cursor-pointer transition-all ${
                       isPassed ? 'border-l-emerald-500' : 'border-l-orange-500'
-                    }`}
+                    } ${isSelected ? 'ring-2 ring-blue-400' : 'hover:shadow-xl'}`}
+                    onClick={() => handleViewWritingDetail(writing.writingId)}
                   >
                     <div className={`px-6 py-4 ${isPassed ? 'bg-gradient-to-r from-emerald-50 to-white' : 'bg-gradient-to-r from-orange-50 to-white'}`}>
                       <div className="flex justify-between items-start">
@@ -2759,6 +2770,9 @@ export default function StudentDashboard({ user, userData }) {
                               {isPassed ? '✅ 달성' : '🔄 미달성'}
                             </span>
                             <span className="text-xs text-gray-500">목표: {writingRequiredScore}점</span>
+                            {loadingWritingDetail && selectedWritingDetail?.writingId !== writing.writingId && (
+                              <span className="text-xs text-blue-500">로딩중...</span>
+                            )}
                           </div>
                           <h3 className="text-lg font-bold text-gray-900">{writing.topic}</h3>
                           <p className="text-sm text-gray-500 mt-1">
@@ -2770,52 +2784,59 @@ export default function StudentDashboard({ user, userData }) {
                             {writing.score}<span className="text-lg">점</span>
                           </div>
                           <div className="text-sm text-gray-500">{writing.wordCount}자</div>
+                          <div className="text-xs text-blue-500 mt-1">{isSelected ? '▲ 접기' : '▼ 상세보기'}</div>
                         </div>
                       </div>
                     </div>
-                    <div className="px-6 py-4">
-                      <div className="bg-gray-50 rounded-xl p-4 max-h-32 overflow-y-auto">
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{writing.content}</p>
-                      </div>
-                    </div>
-                    {writing.analysis && (
-                      <div className="px-6 pb-6 space-y-4">
-                        <div className="grid grid-cols-5 gap-2">
-                          {[
-                            { label: '내용', score: writing.analysis.contentScore, max: 30, color: 'blue' },
-                            { label: '구성', score: writing.analysis.structureScore, max: 25, color: 'purple' },
-                            { label: '어휘', score: writing.analysis.vocabularyScore, max: 20, color: 'pink' },
-                            { label: '문법', score: writing.analysis.grammarScore, max: 15, color: 'amber' },
-                            { label: '창의성', score: writing.analysis.creativityScore, max: 10, color: 'emerald' }
-                          ].map((item, idx) => (
-                            <div key={idx} className="text-center bg-gray-50 rounded-lg p-2">
-                              <div className="text-xs text-gray-500">{item.label}</div>
-                              <div className={`font-bold text-${item.color}-600`}>{item.score}/{item.max}</div>
+
+                    {/* 🚀 상세 정보 (클릭 시에만 표시 - DB 읽기 1회) */}
+                    {isSelected && detail && (
+                      <>
+                        <div className="px-6 py-4">
+                          <div className="bg-gray-50 rounded-xl p-4 max-h-32 overflow-y-auto">
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{detail.content}</p>
+                          </div>
+                        </div>
+                        {detail.analysis && (
+                          <div className="px-6 pb-6 space-y-4">
+                            <div className="grid grid-cols-5 gap-2">
+                              {[
+                                { label: '내용', score: detail.analysis.contentScore, max: 30, color: 'blue' },
+                                { label: '구성', score: detail.analysis.structureScore, max: 25, color: 'purple' },
+                                { label: '어휘', score: detail.analysis.vocabularyScore, max: 20, color: 'pink' },
+                                { label: '문법', score: detail.analysis.grammarScore, max: 15, color: 'amber' },
+                                { label: '창의성', score: detail.analysis.creativityScore, max: 10, color: 'emerald' }
+                              ].map((item, idx) => (
+                                <div key={idx} className="text-center bg-gray-50 rounded-lg p-2">
+                                  <div className="text-xs text-gray-500">{item.label}</div>
+                                  <div className={`font-bold text-${item.color}-600`}>{item.score}/{item.max}</div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                        {writing.aiUsageCheck && (
-                          <div className={`p-3 rounded-xl text-sm ${
-                            writing.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-50 border border-red-200' :
-                            writing.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-50 border border-amber-200' :
-                            'bg-emerald-50 border border-emerald-200'
-                          }`}>
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-xs">🤖 AI 활용 분석</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                                writing.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-200 text-red-800' :
-                                writing.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-200 text-amber-800' :
-                                'bg-emerald-200 text-emerald-800'
+                            {detail.aiUsageCheck && (
+                              <div className={`p-3 rounded-xl text-sm ${
+                                detail.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-50 border border-red-200' :
+                                detail.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-50 border border-amber-200' :
+                                'bg-emerald-50 border border-emerald-200'
                               }`}>
-                                {writing.aiUsageCheck.aiProbability}%
-                              </span>
-                            </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-xs">🤖 AI 활용 분석</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                    detail.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-200 text-red-800' :
+                                    detail.aiUsageCheck.verdict === 'MEDIUM' ? 'bg-amber-200 text-amber-800' :
+                                    'bg-emerald-200 text-emerald-800'
+                                  }`}>
+                                    {detail.aiUsageCheck.aiProbability}%
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                            <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-xl">
+                              💬 {detail.analysis.overallFeedback}
+                            </p>
                           </div>
                         )}
-                        <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-xl">
-                          💬 {writing.analysis.overallFeedback}
-                        </p>
-                      </div>
+                      </>
                     )}
                   </div>
                 );
@@ -3918,120 +3939,6 @@ export default function StudentDashboard({ user, userData }) {
           </div>
         )}
 
-        {/* 친구 글 읽기 모달 */}
-        {showFriendWritings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-cyan-50 to-blue-50">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                    <span className="text-2xl">👥</span> 친구들의 글
-                    <span className="text-sm font-normal text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                      {friendWritings.length}편
-                    </span>
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setShowFriendWritings(false);
-                      setSelectedFriendWriting(null);
-                    }}
-                    className="text-gray-500 hover:text-gray-700 text-2xl"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="text-sm text-blue-700 mt-2">같은 주제로 80점 이상 받은 친구들의 글을 읽어보세요!</p>
-              </div>
-
-              <div className="p-6 overflow-y-auto max-h-[65vh]">
-                {selectedFriendWriting ? (
-                  // 선택된 친구 글 상세보기
-                  <div className="space-y-4">
-                    <button
-                      onClick={() => setSelectedFriendWriting(null)}
-                      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      ← 목록으로 돌아가기
-                    </button>
-                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center text-white font-bold">
-                            {selectedFriendWriting.nickname?.[0] || '?'}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-800">{selectedFriendWriting.nickname}</h4>
-                            <p className="text-xs text-gray-500">
-                              {new Date(selectedFriendWriting.submittedAt).toLocaleDateString('ko-KR')}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="px-3 py-1 bg-white rounded-full border border-blue-200">
-                          <span className="text-blue-600 font-bold">{selectedFriendWriting.score}점</span>
-                        </div>
-                      </div>
-                      <h5 className="font-semibold text-lg text-gray-900 mb-3">{selectedFriendWriting.topic}</h5>
-                      <div className="bg-white rounded-lg p-4 border border-gray-200 whitespace-pre-wrap text-gray-700 leading-relaxed">
-                        {selectedFriendWriting.content}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-3 text-right">
-                        {selectedFriendWriting.wordCount || selectedFriendWriting.content?.replace(/\s/g, '').length}자
-                      </p>
-                    </div>
-                  </div>
-                ) : friendWritings.length > 0 ? (
-                  // 친구 글 목록
-                  <div className="grid gap-4">
-                    {friendWritings.map((writing, index) => (
-                      <button
-                        key={writing.writingId || index}
-                        onClick={() => setSelectedFriendWriting(writing)}
-                        className="text-left p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center text-white font-bold">
-                              {writing.nickname?.[0] || '?'}
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-gray-800">{writing.nickname}</h4>
-                              <p className="text-xs text-gray-500">
-                                {writing.wordCount || writing.content?.replace(/\s/g, '').length}자 •
-                                {new Date(writing.submittedAt).toLocaleDateString('ko-KR')}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                              writing.score >= 90 ? 'bg-emerald-100 text-emerald-700' :
-                              writing.score >= 80 ? 'bg-blue-100 text-blue-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {writing.score}점
-                            </span>
-                            <span className="text-gray-400">→</span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                          {writing.content?.substring(0, 100)}...
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  // 친구 글 없음
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-4xl">📝</span>
-                    </div>
-                    <p className="text-gray-600 font-medium">아직 같은 주제로 글을 쓴 친구가 없어요</p>
-                    <p className="text-gray-400 text-sm mt-2">친구들이 80점 이상 받으면 여기에 표시됩니다</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

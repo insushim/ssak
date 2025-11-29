@@ -55,10 +55,12 @@ export async function getSchedulerSettings(classCode, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = schedulerCache.get(classCode);
       if (cached && isCacheValid(cached.timestamp)) {
+        console.log(`[📊 DB읽기] getSchedulerSettings 캐시 히트`);
         return cached.data;
       }
     }
 
+    console.log(`[📊 DB읽기] getSchedulerSettings DB 조회 - classCode: ${classCode}`);
     const schedulerDoc = await getDoc(doc(db, 'schedulers', classCode));
     const result = schedulerDoc.exists() ? schedulerDoc.data() : null;
 
@@ -208,6 +210,7 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = autoAssignmentTodayCache.get(classCode);
       if (cached && cached.date === today) {
+        console.log(`[📊 DB읽기] hasAutoAssignmentToday 캐시 히트`);
         return cached.result;
       }
     }
@@ -216,6 +219,7 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
     const todayStart = `${today}T00:00:00.000Z`;
     const todayEnd = `${today}T23:59:59.999Z`;
 
+    console.log(`[📊 DB읽기] hasAutoAssignmentToday DB 조회 - classCode: ${classCode}`);
     // 🚀 Firestore에서 직접 필터링 (클라이언트 필터링 제거)
     const q = query(
       collection(db, 'autoAssignmentLogs'),

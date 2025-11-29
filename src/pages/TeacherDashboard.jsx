@@ -10,7 +10,7 @@ import {
   resetStudentPassword
 } from "../services/classService";
 import { deleteWriting, getClassRanking, getStudentGrowthData, invalidateClassWritingsCache, getWritingById } from "../services/writingService";
-import { createAssignment, getAssignmentsByClass, deleteAssignment } from "../services/assignmentService";
+import { createAssignment, getAssignmentsByClass, deleteAssignment, migrateAssignmentSubmissions } from "../services/assignmentService";
 import { generateTopics } from "../utils/geminiAPI";
 import { getSchedulerSettings, saveSchedulerSettings, disableScheduler, generateAutoAssignment, checkAndRunScheduler } from "../services/schedulerService";
 import { GRADE_LEVELS, MAX_STUDENTS_PER_CLASS } from "../config/auth";
@@ -195,12 +195,16 @@ export default function TeacherDashboard({ user, userData }) {
     // 🚀 Check if classCode actually changed to prevent duplicate calls
     if (currentClassCode && currentClassCode !== prevClassCodeRef.current) {
       prevClassCodeRef.current = currentClassCode;
+      console.log(`[📊 TeacherDashboard] 클래스 선택됨: ${currentClassCode}`);
 
       // 🚀 제출글은 DB 읽기 0회! (assignments에서 주제 목록 사용, 완료 목록은 로컬스토리지)
       loadCompletedTopics(currentClassCode);
+      console.log(`[📊 TeacherDashboard] loadAssignments 호출`);
       loadAssignments(currentClassCode);
+      console.log(`[📊 TeacherDashboard] loadSchedulerSettings 호출`);
       loadSchedulerSettings(currentClassCode);
       // 자동 출제 스케줄러 체크 (페이지 로드 시) - 문자열로 전달
+      console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출`);
       runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
       // 🚀 클래스 변경 시 랭킹 캐시 무효화
       setRankingLastLoaded(null);
@@ -232,8 +236,10 @@ export default function TeacherDashboard({ user, userData }) {
       // 60초 이내에 로드했으면 재로드하지 않음
       const now = Date.now();
       if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
+        console.log(`[📊 TeacherDashboard] 랭킹 캐시 사용 (60초 이내)`);
         return;
       }
+      console.log(`[📊 TeacherDashboard] loadRankingData 호출 - activeTab: ${activeTab}`);
       loadRankingData(currentClassCode, rankingPeriod);
     }
   }, [activeTab, selectedClass?.classCode, rankingPeriod]);
@@ -340,16 +346,26 @@ export default function TeacherDashboard({ user, userData }) {
 
   const loadAssignments = async (classCode) => {
     try {
-      const classAssignments = await getAssignmentsByClass(classCode);
+      let classAssignments = await getAssignmentsByClass(classCode);
 
-      // 1주일 지난 과제 자동 숨김 (7일 = 604800000ms)
-      const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-      const recentAssignments = classAssignments.filter(assignment => {
-        const createdAt = new Date(assignment.createdAt).getTime();
-        return createdAt > oneWeekAgo;
-      });
+      // 🚀 submissions 마이그레이션 필요 여부 확인
+      // v3: users 컬렉션에서 닉네임 조회하여 저장
+      const migrationKey = `submissions_migrated_v3_${classCode}`;
+      const alreadyMigrated = localStorage.getItem(migrationKey);
 
-      setAssignments(recentAssignments);
+      if (!alreadyMigrated && classAssignments.length > 0) {
+        console.log('[TeacherDashboard] submissions 마이그레이션 실행 중... (닉네임 조회)');
+        const result = await migrateAssignmentSubmissions(classCode);
+        if (result.success) {
+          localStorage.setItem(migrationKey, 'true');
+          // 마이그레이션 후 다시 로드
+          classAssignments = await getAssignmentsByClass(classCode, true); // forceRefresh
+          console.log('[TeacherDashboard] submissions 마이그레이션 완료');
+        }
+      }
+
+      // 모든 과제 표시 (1주일 필터 제거 - 제출글 탭에서 모든 주제 확인 가능)
+      setAssignments(classAssignments);
     } catch (error) {
       console.error("과제 로드 에러:", error);
     }
@@ -1507,7 +1523,7 @@ export default function TeacherDashboard({ user, userData }) {
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
-                    ✅ 완료 ({completedTopics.length}개 주제)
+                    ✅ 완료 ({assignments.filter(a => completedTopics.includes(a.title)).length}개 주제)
                   </button>
                 </div>
               )}
@@ -1561,7 +1577,18 @@ export default function TeacherDashboard({ user, userData }) {
                             );
                           }
 
-                          return filteredAssignments.map((assignment) => {
+                          // 🚀 최근 제출 순으로 정렬 (submissions의 최신 submittedAt 기준)
+                          const sortedAssignments = [...filteredAssignments].sort((a, b) => {
+                            // 각 주제의 가장 최근 제출 시간 찾기
+                            const getLatestSubmission = (assignment) => {
+                              const submissions = assignment.submissions || [];
+                              if (submissions.length === 0) return 0;
+                              return Math.max(...submissions.map(s => new Date(s.submittedAt).getTime()));
+                            };
+                            return getLatestSubmission(b) - getLatestSubmission(a);
+                          });
+
+                          return sortedAssignments.map((assignment) => {
                             const topic = assignment.title;
                             const isExpanded = expandedTopic === topic;
                             return (
@@ -1584,7 +1611,7 @@ export default function TeacherDashboard({ user, userData }) {
                                   <div className="flex-1 min-w-0">
                                     <h4 className="font-semibold text-gray-900 truncate">{topic}</h4>
                                     <p className="text-xs text-gray-500 mt-1">
-                                      도달점수: {assignment.minScore || 70}점
+                                      {(assignment.submissions?.length || 0)}명 제출 · 도달점수: {assignment.minScore || 70}점
                                     </p>
                                   </div>
                                   <div className={`ml-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>

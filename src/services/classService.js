@@ -102,10 +102,12 @@ export async function getClassByCode(classCode, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = classCache.get(classCode);
       if (cached && isCacheValid(cached.timestamp, CACHE_TTL.classData)) {
+        console.log(`[📊 DB읽기] getClassByCode 캐시 히트 - ${classCode}`);
         return cached.data;
       }
     }
 
+    console.log(`[📊 DB읽기] getClassByCode DB 조회 - classCode: ${classCode}`);
     const classDoc = await getDoc(doc(db, 'classes', classCode));
     const result = classDoc.exists() ? { ...classDoc.data(), classCode } : null;
 
@@ -129,16 +131,19 @@ export async function getTeacherClasses(teacherId, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = teacherClassesCache.get(teacherId);
       if (cached && isCacheValid(cached.timestamp, CACHE_TTL.teacherClasses)) {
+        console.log(`[📊 DB읽기] getTeacherClasses 캐시 히트`);
         return cached.data;
       }
     }
 
+    console.log(`[📊 DB읽기] getTeacherClasses DB 조회 - teacherId: ${teacherId}`);
     const q = query(collection(db, 'classes'), where('teacherId', '==', teacherId));
     const querySnapshot = await getDocs(q);
     const classes = [];
     querySnapshot.forEach((docSnap) => {
       classes.push({ ...docSnap.data(), classCode: docSnap.id });
     });
+    console.log(`[📊 DB읽기] getTeacherClasses 결과 - ${classes.length}개 클래스 로드됨`);
 
     // 캐시 저장
     teacherClassesCache.set(teacherId, { data: classes, timestamp: Date.now() });

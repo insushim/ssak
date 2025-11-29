@@ -962,31 +962,19 @@ exports.migrateWritingsClassCode = onCall(async (request) => {
   }
 });
 
-// 🚀 24시간 지난 미달성 글 일괄 삭제 (관리자/교사용)
-exports.cleanupOldFailedWritings = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
-  }
+// 🚀 24시간 지난 미달성 글 자동 삭제 (매일 새벽 3시 실행 - 비용 최적화)
+const {onSchedule} = require('firebase-functions/v2/scheduler');
 
-  // 권한 확인 (슈퍼 관리자 또는 교사)
-  const userRef = db.doc(`users/${request.auth.uid}`);
-  const userSnap = await userRef.get();
-
-  if (!userSnap.exists) {
-    throw new HttpsError('permission-denied', '사용자 정보를 찾을 수 없습니다.');
-  }
-
-  const userData = userSnap.data();
-  if (userData.role !== 'teacher' && userData.role !== 'super_admin') {
-    throw new HttpsError('permission-denied', '교사 또는 관리자만 실행할 수 있습니다.');
-  }
-
+exports.autoCleanupFailedWritings = onSchedule('0 3 * * *', async (event) => {
+  // 매일 새벽 3시 (UTC 기준, 한국 시간 낮 12시)
   try {
     const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24시간 전
     const PASSING_SCORE = 70;
 
-    // 24시간 지난 미달성 글 조회 (isDraft가 false이고 submittedAt이 24시간 이전)
+    console.log(`[자동 삭제] 시작 - ${now.toISOString()}`);
+
+    // 24시간 지난 미달성 글 조회
     const writingsRef = db.collection('writings');
     const snapshot = await writingsRef
       .where('isDraft', '==', false)
@@ -994,21 +982,33 @@ exports.cleanupOldFailedWritings = onCall(async (request) => {
       .get();
 
     if (snapshot.empty) {
-      return { deleted: 0, message: '삭제할 글이 없습니다.' };
+      console.log('[자동 삭제] 삭제할 글 없음');
+      return null;
     }
 
-    // 미달성 글만 필터링 (score < minScore 또는 score < PASSING_SCORE)
+    // 미달성 글만 필터링 + users의 writingSummary에서도 제거할 정보 수집
     const toDelete = [];
+    const userWritingsToRemove = new Map(); // studentId -> [writingId, ...]
+
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
       const minScore = data.minScore !== undefined ? data.minScore : PASSING_SCORE;
       if (data.score < minScore) {
-        toDelete.push(docSnap.ref);
+        toDelete.push({ ref: docSnap.ref, data });
+
+        // users의 writingSummary에서도 제거할 정보 수집
+        if (data.studentId) {
+          if (!userWritingsToRemove.has(data.studentId)) {
+            userWritingsToRemove.set(data.studentId, []);
+          }
+          userWritingsToRemove.get(data.studentId).push(data.writingId || docSnap.id);
+        }
       }
     });
 
     if (toDelete.length === 0) {
-      return { deleted: 0, message: '삭제할 미달성 글이 없습니다.' };
+      console.log('[자동 삭제] 미달성 글 없음');
+      return null;
     }
 
     // 배치 삭제 (500개씩)
@@ -1018,17 +1018,33 @@ exports.cleanupOldFailedWritings = onCall(async (request) => {
     for (let i = 0; i < toDelete.length; i += batchSize) {
       const batch = db.batch();
       const batchDocs = toDelete.slice(i, i + batchSize);
-      batchDocs.forEach((ref) => batch.delete(ref));
+      batchDocs.forEach(({ ref }) => batch.delete(ref));
       await batch.commit();
       deletedCount += batchDocs.length;
     }
 
-    return {
-      deleted: deletedCount,
-      message: `${deletedCount}개의 24시간 지난 미달성 글이 삭제되었습니다.`
-    };
+    // 🚀 users의 writingSummary에서도 삭제된 글 제거
+    for (const [studentId, writingIds] of userWritingsToRemove) {
+      try {
+        const userRef = db.doc(`users/${studentId}`);
+        const userDoc = await userRef.get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const summary = userData.writingSummary || [];
+          const filtered = summary.filter(s => !writingIds.includes(s.writingId));
+          if (filtered.length !== summary.length) {
+            await userRef.update({ writingSummary: filtered });
+          }
+        }
+      } catch (e) {
+        console.warn(`[자동 삭제] writingSummary 업데이트 실패 - ${studentId}:`, e);
+      }
+    }
+
+    console.log(`[자동 삭제] 완료 - ${deletedCount}개 삭제됨`);
+    return { deleted: deletedCount };
   } catch (error) {
-    console.error('미달성 글 삭제 에러:', error);
-    throw new HttpsError('internal', `삭제 실패: ${error.message}`);
+    console.error('[자동 삭제] 에러:', error);
+    return null;
   }
 });
