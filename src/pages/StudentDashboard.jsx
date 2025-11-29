@@ -764,34 +764,33 @@ export default function StudentDashboard({ user, userData }) {
       let cls = null;
       let classAssignments = [];
 
-      // 1. 🚀 users 문서에서 글 요약 가져오기 (DB 읽기 0회 - 이미 로드됨!)
-      // writingSummary가 없으면 마이그레이션 (최초 1회만)
+      // 1. 🚀 users 문서에서 글 요약 가져오기
+      // writingSummary가 없거나 비어있으면 항상 마이그레이션 시도
       let currentUserData = userData;
       if (!userData.writingSummary || userData.writingSummary.length === 0) {
-        const migrationKey = `writingSummary_migrated_v2_${user.uid}`;
-        if (!localStorage.getItem(migrationKey)) {
-          try {
-            const result = await migrateWritingSummary(user.uid);
-            if (result.migrated && result.count > 0) {
-              console.log(`[마이그레이션] writingSummary ${result.count}개 글 마이그레이션 완료`);
-              // 🚀 마이그레이션 후 새 데이터 가져오기 (1회 읽기)
-              const { doc, getDoc } = await import('firebase/firestore');
-              const { db } = await import('../config/firebase');
-              const userDoc = await getDoc(doc(db, 'users', user.uid));
-              if (userDoc.exists()) {
-                currentUserData = userDoc.data();
-              }
+        try {
+          console.log('[마이그레이션] writingSummary 없음 - 마이그레이션 시도');
+          const result = await migrateWritingSummary(user.uid);
+          if (result.migrated && result.count > 0) {
+            console.log(`[마이그레이션] writingSummary ${result.count}개 글 마이그레이션 완료`);
+            // 🚀 마이그레이션 후 새 데이터 가져오기 (1회 읽기)
+            const { doc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('../config/firebase');
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              currentUserData = userDoc.data();
             }
-            localStorage.setItem(migrationKey, 'true');
-          } catch (e) {
-            console.warn('writingSummary 마이그레이션 실패:', e);
+          } else {
+            console.log('[마이그레이션] 마이그레이션할 글 없음');
           }
+        } catch (e) {
+          console.warn('writingSummary 마이그레이션 실패:', e);
         }
       }
 
       // 🚀 userData에서 글 요약 추출 (DB 읽기 0회!)
       studentWritings = getWritingSummaryFromUserData(currentUserData);
-      console.log(`[📊 최적화] 글 ${studentWritings.length}개 - users 문서에서 로드 (DB 읽기 0회)`);
+      console.log(`[📊 최적화] 글 ${studentWritings.length}개 - users 문서에서 로드`);
 
       // 2. 통계는 studentStats 컬렉션에서 (1회 읽기)
       try {
