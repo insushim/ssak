@@ -765,14 +765,19 @@ export default function StudentDashboard({ user, userData }) {
       let classAssignments = [];
 
       // 1. 🚀 users 문서에서 글 요약 가져오기
-      // writingSummary가 없거나 비어있으면 항상 마이그레이션 시도
+      // v4: 미달성글 삭제 + 달성글만 저장 마이그레이션
       let currentUserData = userData;
-      if (!userData.writingSummary || userData.writingSummary.length === 0) {
+      const migrationKey = `writingSummary_v4_${user.uid}`;
+      const needsMigration = !userData.writingSummary ||
+        userData.writingSummary.length === 0 ||
+        !localStorage.getItem(migrationKey);
+
+      if (needsMigration) {
         try {
-          console.log('[마이그레이션] writingSummary 없음 - 마이그레이션 시도');
+          console.log('[마이그레이션 v4] 미달성글 삭제 + 달성글만 저장');
           const result = await migrateWritingSummary(user.uid);
-          if (result.migrated && result.count > 0) {
-            console.log(`[마이그레이션] writingSummary ${result.count}개 글 마이그레이션 완료`);
+          if (result.migrated && result.count >= 0) {
+            console.log(`[마이그레이션 v4] 달성글 ${result.count}개만 저장 완료`);
             // 🚀 마이그레이션 후 새 데이터 가져오기 (1회 읽기)
             const { doc, getDoc } = await import('firebase/firestore');
             const { db } = await import('../config/firebase');
@@ -780,8 +785,10 @@ export default function StudentDashboard({ user, userData }) {
             if (userDoc.exists()) {
               currentUserData = userDoc.data();
             }
+            localStorage.setItem(migrationKey, 'true');
           } else {
-            console.log('[마이그레이션] 마이그레이션할 글 없음');
+            console.log('[마이그레이션 v4] 글 없음 - 스킵');
+            localStorage.setItem(migrationKey, 'true');
           }
         } catch (e) {
           console.warn('writingSummary 마이그레이션 실패:', e);

@@ -148,9 +148,13 @@ export async function migrateAssignmentSummary(classCode) {
 
     const classData = classDoc.data();
 
-    // 이미 마이그레이션 됐으면 스킵
-    if (classData.assignmentSummary && classData.assignmentSummary.length > 0) {
-      console.log(`[마이그레이션] assignmentSummary 이미 존재 - ${classData.assignmentSummary.length}개`);
+    // 🚀 description 필드가 없으면 강제 마이그레이션 (v3 업그레이드)
+    const hasDescription = classData.assignmentSummary &&
+      classData.assignmentSummary.length > 0 &&
+      classData.assignmentSummary[0].description !== undefined;
+
+    if (hasDescription) {
+      console.log(`[마이그레이션] assignmentSummary 최신 버전 - ${classData.assignmentSummary.length}개`);
       return { success: true, migrated: false };
     }
 
