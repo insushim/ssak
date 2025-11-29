@@ -824,23 +824,24 @@ export default function StudentDashboard({ user, userData }) {
       if (cls) {
         setClassInfo(cls);
 
-        // 🚀 classes 문서에 assignmentSummary가 없거나 description이 없으면 마이그레이션
-        const needsMigration = !cls.assignmentSummary ||
-          cls.assignmentSummary.length === 0 ||
-          (cls.assignmentSummary.length > 0 && !cls.assignmentSummary[0].description);
-        if (needsMigration) {
-          const migrationKey = `assignmentSummary_migrated_v3_${userData.classCode}`;
-          if (!localStorage.getItem(migrationKey)) {
-            try {
-              const result = await migrateAssignmentSummary(userData.classCode);
-              if (result.migrated) {
-                cls = await getClassByCode(userData.classCode);
-                setClassInfo(cls);
-              }
-              localStorage.setItem(migrationKey, 'true');
-            } catch (e) {
-              console.warn('assignmentSummary 마이그레이션 실패:', e);
+        // 🚀 v4: description 필드 추가 마이그레이션 (강제 실행)
+        const migrationKey = `assignmentSummary_v4_${userData.classCode}`;
+        const hasDescription = cls.assignmentSummary &&
+          cls.assignmentSummary.length > 0 &&
+          cls.assignmentSummary[0].description !== undefined;
+
+        if (!hasDescription || !localStorage.getItem(migrationKey)) {
+          try {
+            console.log('[마이그레이션 v4] assignmentSummary description 추가');
+            const result = await migrateAssignmentSummary(userData.classCode);
+            if (result.migrated) {
+              cls = await getClassByCode(userData.classCode);
+              setClassInfo(cls);
+              console.log('[마이그레이션 v4] assignmentSummary 업데이트 완료');
             }
+            localStorage.setItem(migrationKey, 'true');
+          } catch (e) {
+            console.warn('assignmentSummary 마이그레이션 실패:', e);
           }
         }
 
