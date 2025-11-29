@@ -1275,16 +1275,21 @@ export async function migrateWritingSummary(studentId) {
     const writings = await getStudentWritings(studentId);
     if (writings.length === 0) return { success: true, migrated: false };
 
-    const summary = writings.map(w => ({
-      writingId: w.writingId,
-      topic: w.topic,
-      score: w.score || 0,
-      wordCount: w.wordCount || 0,
-      isDraft: w.isDraft || false,
-      submittedAt: w.submittedAt,
-      createdAt: w.createdAt,
-      minScore: w.minScore
-    }));
+    // 🚀 undefined 값 제거 (Firestore는 undefined 허용 안함)
+    const summary = writings.map(w => {
+      const item = {
+        writingId: w.writingId || '',
+        topic: w.topic || '',
+        score: w.score || 0,
+        wordCount: w.wordCount || 0,
+        isDraft: w.isDraft || false
+      };
+      // undefined가 아닌 경우에만 추가
+      if (w.submittedAt) item.submittedAt = w.submittedAt;
+      if (w.createdAt) item.createdAt = w.createdAt;
+      if (w.minScore !== undefined) item.minScore = w.minScore;
+      return item;
+    });
 
     await updateDoc(doc(db, 'users', studentId), { writingSummary: summary });
     console.log(`[마이그레이션] writingSummary 생성 완료 - ${summary.length}개 글`);
