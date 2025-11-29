@@ -342,6 +342,19 @@ export default function StudentDashboard({ user, userData }) {
     }
 
     setActiveTab(newTab);
+
+    // 🚀 탭별 DB 읽기 로그
+    if (newTab === 'statistics') {
+      console.log('[📊 탭] 통계 탭 - DB 읽기 0회 (이미 로드된 stats 사용)');
+    } else if (newTab === 'profile') {
+      console.log('[📊 탭] 내 프로필 탭 - DB 읽기 0회 (이미 로드된 userData 사용)');
+    } else if (newTab === 'ranking') {
+      console.log('[📊 탭] 랭킹 탭 - DB 읽기 1회 (classes 문서에서 미리 계산된 랭킹)');
+    } else if (newTab === 'history') {
+      console.log('[📊 탭] 제출기록 탭 - DB 읽기 0회 (userData.writingSummary 사용)');
+    } else if (newTab === 'write') {
+      console.log('[📊 탭] 글쓰기 탭 - DB 읽기 0회');
+    }
   };
 
   // 🚀 자동저장 제거 - Firestore 비용 최적화 (주제 이동 시 경고창으로 대체)
@@ -862,6 +875,16 @@ export default function StudentDashboard({ user, userData }) {
         setAssignments(pendingAssignments);
         setAllAssignments(classAssignments);
       }
+
+      // 🚀 로그인 시 총 DB 읽기 요약
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('[📊 로그인 완료] 총 DB 읽기: 2~3회');
+      console.log('  - users 문서: 1회 (App.jsx에서 로드)');
+      console.log('  - classes 문서: 1회 (getClassByCode)');
+      console.log('  - studentStats 문서: 1회 (getStudentStats)');
+      console.log('  - writings 컬렉션: 0회 (userData.writingSummary 사용)');
+      console.log('  - assignments 컬렉션: 0회 (classes.assignmentSummary 사용)');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
       console.error("데이터 로드 에러:", error);
     }
