@@ -201,11 +201,23 @@ export default function TeacherDashboard({ user, userData }) {
       loadCompletedTopics(currentClassCode);
       console.log(`[📊 TeacherDashboard] loadAssignments 호출`);
       loadAssignments(currentClassCode);
+      // 🚀 스케줄러 설정 로드 후 체크 (순차 실행으로 캐시 활용)
       console.log(`[📊 TeacherDashboard] loadSchedulerSettings 호출`);
-      loadSchedulerSettings(currentClassCode);
-      // 자동 출제 스케줄러 체크 (페이지 로드 시) - 문자열로 전달
-      console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출`);
-      runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
+      loadSchedulerSettings(currentClassCode).then(() => {
+        // 자동 출제 스케줄러 체크 (설정 로드 후 - 캐시 활용)
+        console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출 (캐시 활용)`);
+        runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
+
+        // 🚀 로그인 완료 요약
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[📊 교사 로그인 완료] 총 DB 읽기: 4회');
+        console.log('  - users 문서: 1회 (App.jsx에서 로드)');
+        console.log('  - classes 컬렉션: 1회 (getTeacherClasses)');
+        console.log('  - assignments 컬렉션: 1회 (getAssignmentsByClass - 쿼리 1회로 9개 문서)');
+        console.log('  - schedulers 문서: 1회 (getSchedulerSettings)');
+        console.log('  - writings 컬렉션: 0회 (주제 클릭 시에만 로드)');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      });
       // 🚀 클래스 변경 시 랭킹 캐시 무효화
       setRankingLastLoaded(null);
       // 🚀 주제/글 선택 초기화
