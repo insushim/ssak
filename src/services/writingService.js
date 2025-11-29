@@ -1269,22 +1269,42 @@ export async function getWritingDetail(writingId) {
   }
 }
 
-// 🚀 기존 writings에서 writingSummary 마이그레이션
+// 🚀 기존 writings에서 writingSummary 마이그레이션 (달성글만!)
 export async function migrateWritingSummary(studentId) {
   try {
     const writings = await getStudentWritings(studentId);
     if (writings.length === 0) return { success: true, migrated: false };
 
-    // 🚀 undefined 값 제거 (Firestore는 undefined 허용 안함)
-    const summary = writings.map(w => {
+    // 🚀 달성글만 필터링 (미달성글은 요약에서 제외)
+    const passedWritings = writings.filter(w => {
+      if (w.isDraft) return false; // 임시저장 제외
+      const minScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
+      return w.score >= minScore;
+    });
+
+    // 🚀 미달성글 + 임시저장 삭제 (데이터 비용 절약)
+    const toDelete = writings.filter(w => {
+      if (w.isDraft) return true; // 임시저장 삭제
+      const minScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
+      return w.score < minScore; // 미달성 삭제
+    });
+
+    if (toDelete.length > 0) {
+      await Promise.all(
+        toDelete.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
+      );
+      console.log(`[마이그레이션] 미달성/임시저장 ${toDelete.length}개 삭제`);
+    }
+
+    // 🚀 달성글만 요약 저장
+    const summary = passedWritings.map(w => {
       const item = {
         writingId: w.writingId || '',
         topic: w.topic || '',
         score: w.score || 0,
         wordCount: w.wordCount || 0,
-        isDraft: w.isDraft || false
+        isDraft: false
       };
-      // undefined가 아닌 경우에만 추가
       if (w.submittedAt) item.submittedAt = w.submittedAt;
       if (w.createdAt) item.createdAt = w.createdAt;
       if (w.minScore !== undefined) item.minScore = w.minScore;
@@ -1292,7 +1312,7 @@ export async function migrateWritingSummary(studentId) {
     });
 
     await updateDoc(doc(db, 'users', studentId), { writingSummary: summary });
-    console.log(`[마이그레이션] writingSummary 생성 완료 - ${summary.length}개 글`);
+    console.log(`[마이그레이션] writingSummary - 달성글 ${summary.length}개만 저장 (총 ${writings.length}개 중)`);
     return { success: true, migrated: true, count: summary.length };
   } catch (error) {
     console.error('writingSummary 마이그레이션 에러:', error);
