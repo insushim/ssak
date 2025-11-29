@@ -817,9 +817,12 @@ export default function StudentDashboard({ user, userData }) {
       if (cls) {
         setClassInfo(cls);
 
-        // 🚀 classes 문서에 assignmentSummary가 없으면 마이그레이션 (v2: description 포함)
-        if (!cls.assignmentSummary || cls.assignmentSummary.length === 0) {
-          const migrationKey = `assignmentSummary_migrated_v2_${userData.classCode}`;
+        // 🚀 classes 문서에 assignmentSummary가 없거나 description이 없으면 마이그레이션
+        const needsMigration = !cls.assignmentSummary ||
+          cls.assignmentSummary.length === 0 ||
+          (cls.assignmentSummary.length > 0 && !cls.assignmentSummary[0].description);
+        if (needsMigration) {
+          const migrationKey = `assignmentSummary_migrated_v3_${userData.classCode}`;
           if (!localStorage.getItem(migrationKey)) {
             try {
               const result = await migrateAssignmentSummary(userData.classCode);
