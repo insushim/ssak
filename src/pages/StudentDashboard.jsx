@@ -11,7 +11,7 @@ import {
   saveDraftByTopic,
   getDraftByTopic,
   deleteDraft,
-  getStudentRankingOptimized,
+  getClassRanking,
   getWritingSummaryFromUserData,
   getWritingDetail,
   migrateWritingSummary
@@ -565,18 +565,14 @@ export default function StudentDashboard({ user, userData }) {
     }
     setLoadingRanking(true);
     try {
-      // 🚀 최적화: 1,2,3등 + 내 순위만 가져오기
-      const { top3, myRank: myRankData } = await getStudentRankingOptimized(classCode, user.uid, period, { forceRefresh });
+      // 🚀 전체 랭킹 가져오기 (classes 문서에 저장됨 - DB 읽기 1회)
+      const fullRanking = await getClassRanking(classCode, period, { forceRefresh });
 
-      // rankingData에는 top3 + 내 랭킹(4등 이하인 경우)만 저장
-      let displayData = [...top3];
-      if (myRankData && myRankData.rank > 3) {
-        displayData.push(myRankData);
-      }
-      setRankingData(displayData);
+      setRankingData(fullRanking);
       setRankingLastLoaded(Date.now());
 
       // 내 순위 설정
+      const myRankData = fullRanking.find(r => r.studentId === user.uid);
       if (myRankData) {
         setMyRank(myRankData.rank);
       } else {
@@ -3020,11 +3016,7 @@ export default function StudentDashboard({ user, userData }) {
                 </div>
               ) : (
                 (() => {
-                  // 🚀 최적화: 1~3등 + 내 순위만 표시 (DB 읽기 최소화)
-                  const myRanking = rankingData.find(s => s.studentId === user.uid);
-                  const top3 = rankingData.filter(s => s.rank <= 3);
-                  const showMyRankSeparately = myRank && myRank > 3;
-
+                  // 🚀 전체 랭킹 표시 (classes 문서에서 1회 읽기 - 동일 비용)
                   const renderRankingCard = (student) => {
                     const isMe = student.studentId === user.uid;
                     const rank = student.rank;
@@ -3070,25 +3062,13 @@ export default function StudentDashboard({ user, userData }) {
 
                   return (
                     <div className="space-y-3">
-                      {/* Top 3 */}
-                      {top3.map((student) => renderRankingCard(student))}
+                      {/* 전체 학생 랭킹 */}
+                      {rankingData.map((student) => renderRankingCard(student))}
 
-                      {/* 내 순위가 4등 이하면 별도 표시 */}
-                      {showMyRankSeparately && myRanking && (
-                        <>
-                          <div className="flex items-center gap-2 py-2">
-                            <div className="flex-1 border-t border-dashed border-gray-300"></div>
-                            <span className="text-xs text-gray-400 px-2">⋯</span>
-                            <div className="flex-1 border-t border-dashed border-gray-300"></div>
-                          </div>
-                          {renderRankingCard(myRanking)}
-                        </>
-                      )}
-
-                      {/* 내 순위 표시 */}
+                      {/* 총 인원 표시 */}
                       <div className="text-center pt-2">
                         <p className="text-xs text-gray-400">
-                          {myRank ? `나의 순위: ${myRank}위` : '-'}
+                          총 {rankingData.length}명 중 {myRank ? `${myRank}위` : '-'}
                         </p>
                       </div>
                     </div>
