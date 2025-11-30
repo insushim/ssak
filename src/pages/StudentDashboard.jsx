@@ -1936,6 +1936,10 @@ export default function StudentDashboard({ user, userData }) {
                     <textarea
                       value={currentWriting.content}
                       onChange={handleContentChange}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        alert('붙여넣기가 차단되었습니다.\n\n직접 글을 작성해 주세요! ✍️\n\nAI 힌트는 참고만 하고, 자신의 말로 다시 써보세요.');
+                      }}
                       placeholder={isListening ? "말씀하세요... 음성이 텍스트로 변환됩니다." : "주제에 맞춰 글을 작성해 보세요..."}
                       className={`w-full h-64 px-4 py-3 border rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
                         rewriteMode ? 'border-orange-300 bg-orange-50/30' : isListening ? 'border-red-300 bg-red-50/30' : 'border-gray-300'
