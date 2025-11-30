@@ -917,23 +917,22 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
     const savedRanking = classData[rankingField];
 
     // 저장된 랭킹이 현재 기간과 일치하면 바로 반환 (DB 읽기 추가 0회!)
+    // 🚀 미리 계산된 랭킹이 현재 기간과 일치하면 사용
     if (savedRanking && savedRanking.periodKey === periodKey && savedRanking.data) {
       console.log(`[📊 DB읽기] getClassRanking - 미리 계산된 랭킹 사용 (periodKey: ${periodKey})`);
-
       const result = savedRanking.data;
       rankingCache.set(cacheKey, { data: result, timestamp: Date.now() });
       rankingCache.delete(`${cacheKey}_loading`);
       return result;
     }
 
-    // 🔧 미리 계산된 데이터가 없거나 기간이 다르면 새로 계산 (마이그레이션 또는 새 기간)
-    console.log(`[📊 DB읽기] getClassRanking - 랭킹 재계산 필요 (마이그레이션)`);
-    const result = await recalculateClassRanking(classCode, period, classData);
-
-    rankingCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    // 🚀 새 기간이면 빈 배열 반환 (재계산 없음! = 읽기 0회)
+    // 글 제출 시 updateStudentRankingOnSubmit에서 증분 업데이트됨
+    console.log(`[📊 DB읽기] getClassRanking - 새 기간, 빈 랭킹 반환 (${periodKey})`);
+    rankingCache.set(cacheKey, { data: [], timestamp: Date.now() });
     rankingCache.delete(`${cacheKey}_loading`);
 
-    return result;
+    return [];
   } catch (error) {
     console.error('학급 랭킹 조회 에러:', error);
     rankingCache.delete(`${classCode}_${period}_loading`);
@@ -1065,14 +1064,15 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
       const rankingField = period === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
       const savedRanking = classData[rankingField];
 
-      // 기간이 다르면 새로 계산 (새 주/월 시작)
-      if (!savedRanking || savedRanking.periodKey !== periodKey) {
-        await recalculateClassRanking(classCode, period, classData);
-        continue;
+      // 🚀 새 기간이면 빈 랭킹으로 시작 (재계산 없음! = 읽기 0회)
+      let rankingData = [];
+      if (savedRanking && savedRanking.periodKey === periodKey) {
+        rankingData = savedRanking.data || [];
+      } else {
+        console.log(`[랭킹] 새 기간 시작 (${periodKey}) - 빈 랭킹으로 초기화`);
       }
 
       // 기존 랭킹에서 해당 학생 찾기
-      let rankingData = savedRanking.data || [];
       const studentIndex = rankingData.findIndex(r => r.studentId === studentId);
 
       if (studentIndex >= 0) {

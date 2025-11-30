@@ -330,6 +330,68 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
   };
 
+  // 🚀 중복 미제출글 정리
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState(null);
+
+  const handleCleanupDuplicates = async () => {
+    if (!confirm("동일 주제의 중복 미제출글을 정리하시겠습니까?\n\n같은 주제에 여러 미제출글이 있는 경우, 가장 점수가 높은 글만 남기고 나머지는 삭제됩니다.")) {
+      return;
+    }
+
+    setCleaningDuplicates(true);
+    setCleanupResult(null);
+
+    try {
+      const cleanupFn = httpsCallable(functions, 'cleanupDuplicateFailedWritings');
+      const result = await cleanupFn();
+      setCleanupResult(result.data);
+      alert(`정리 완료!
+
+${result.data.message}`);
+    } catch (error) {
+      console.error("중복 정리 에러:", error);
+      alert("정리 실패: " + error.message);
+      setCleanupResult({ error: error.message });
+    } finally {
+      setCleaningDuplicates(false);
+    }
+  };
+
+  // 🚀 학급 삭제 (학생 포함, 선생님 제외)
+  const [deletingClass, setDeletingClass] = useState(null);
+
+  const handleDeleteClass = async (classCode, className, studentCount) => {
+    const confirmMessage = `정말 학급 "${className}" (${classCode})을 삭제하시겠습니까?\n\n⚠️ 경고: 이 작업은 취소할 수 없습니다!\n- 학생 ${studentCount}명의 계정이 완전히 삭제됩니다\n- 해당 학생들의 모든 글이 삭제됩니다\n- 학급의 모든 과제가 삭제됩니다\n- 선생님 계정은 유지됩니다\n\n삭제하려면 학급 코드 "${classCode}"를 입력하세요:`;
+
+    const inputCode = prompt(confirmMessage);
+    if (inputCode !== classCode) {
+      if (inputCode !== null) {
+        alert("학급 코드가 일치하지 않습니다. 삭제가 취소되었습니다.");
+      }
+      return;
+    }
+
+    setDeletingClass(classCode);
+
+    try {
+      const deleteClassFn = httpsCallable(functions, 'deleteClassWithStudents');
+      const result = await deleteClassFn({ classCode });
+
+      alert(`삭제 완료!\n\n${result.data.message}`);
+
+      // 목록 새로고침
+      setSelectedClass(null);
+      setClassStudents([]);
+      loadData();
+    } catch (error) {
+      console.error("학급 삭제 에러:", error);
+      alert("학급 삭제 실패: " + error.message);
+    } finally {
+      setDeletingClass(null);
+    }
+  };
+
   // 총 학생 수 계산
   const totalStudents = classSummaries.reduce((sum, c) => sum + c.studentCount, 0);
 
@@ -510,6 +572,16 @@ export default function SuperAdminDashboard({ user, userData }) {
                             <p className="text-2xl font-bold text-indigo-600">{cls.studentCount}명</p>
                             <p className="text-xs text-gray-500">학생</p>
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClass(cls.classCode, cls.className, cls.studentCount);
+                            }}
+                            disabled={deletingClass === cls.classCode}
+                            className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deletingClass === cls.classCode ? '삭제 중...' : '학급 삭제'}
+                          </button>
                           <span className={`text-gray-400 transition-transform ${selectedClass === cls.classCode ? 'rotate-180' : ''}`}>
                             ▼
                           </span>
@@ -690,6 +762,41 @@ export default function SuperAdminDashboard({ user, userData }) {
                           {migrateResult.message}<br/>
                           {migrateResult.totalStudents && `(총 ${migrateResult.totalStudents}명의 학생 데이터 확인)`}
                         </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 중복 미제출글 정리 */}
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                  <h3 className="font-medium text-rose-800 mb-2">중복 미제출글 정리</h3>
+                  <p className="text-sm text-rose-700 mb-3">
+                    같은 주제에 여러 미제출글이 있는 경우, 점수가 가장 높은 글만 남기고 나머지를 삭제합니다.<br/>
+                    24시간 이내 글도 포함됩니다.
+                  </p>
+                  <ul className="text-xs text-rose-600 mb-4 list-disc list-inside space-y-1">
+                    <li>학생별 + 주제별로 미제출글 그룹화</li>
+                    <li>같은 주제에서 최고 점수 글만 유지</li>
+                    <li>users.writingSummary에서도 동기화 삭제</li>
+                  </ul>
+                  <button
+                    onClick={handleCleanupDuplicates}
+                    disabled={cleaningDuplicates}
+                    className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {cleaningDuplicates ? '정리 중...' : '중복 미제출글 정리 실행'}
+                  </button>
+                  {cleanupResult && (
+                    <div className={`mt-4 p-3 rounded-lg ${cleanupResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {cleanupResult.error ? (
+                        <p>오류: {cleanupResult.error}</p>
+                      ) : (
+                        <div>
+                          <p className="font-medium">{cleanupResult.message}</p>
+                          {cleanupResult.summaryUpdated > 0 && (
+                            <p className="text-sm mt-1">{cleanupResult.summaryUpdated}명의 writingSummary 업데이트됨</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

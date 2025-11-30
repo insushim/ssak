@@ -1048,3 +1048,297 @@ exports.autoCleanupFailedWritings = onSchedule('0 3 * * *', async (event) => {
     return null;
   }
 });
+
+// 🚀 동일 주제 미제출글 정리 - 같은 주제의 미제출글 중 점수가 가장 높은 것만 남김
+// 24시간 이내 글도 포함, 관리자용 즉시 실행
+exports.cleanupDuplicateFailedWritings = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼 관리자만 실행 가능
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 실행할 수 있습니다.');
+  }
+
+  try {
+    const PASSING_SCORE = 70;
+    console.log('[중복 미제출글 정리] 시작');
+
+    // 모든 미제출글 조회 (제출됨 but 미달성)
+    const writingsRef = db.collection('writings');
+    const snapshot = await writingsRef
+      .where('isDraft', '==', false)
+      .get();
+
+    if (snapshot.empty) {
+      return { deleted: 0, message: '글이 없습니다.' };
+    }
+
+    // 학생별 + 주제별로 그룹화
+    const studentTopicMap = new Map(); // studentId -> { topic -> [writings] }
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const minScore = data.minScore !== undefined ? data.minScore : PASSING_SCORE;
+
+      // 미달성 글만 처리
+      if (data.score >= minScore) return;
+
+      const studentId = data.studentId;
+      const topic = data.topic;
+
+      if (!studentId || !topic) return;
+
+      if (!studentTopicMap.has(studentId)) {
+        studentTopicMap.set(studentId, new Map());
+      }
+
+      const topicMap = studentTopicMap.get(studentId);
+      if (!topicMap.has(topic)) {
+        topicMap.set(topic, []);
+      }
+
+      topicMap.get(topic).push({
+        ref: docSnap.ref,
+        writingId: data.writingId || docSnap.id,
+        score: data.score || 0,
+        submittedAt: data.submittedAt || data.createdAt
+      });
+    });
+
+    // 삭제할 글 목록 생성 (같은 주제에서 최고점 제외)
+    const toDelete = [];
+    const userWritingsToRemove = new Map(); // studentId -> [writingId, ...]
+
+    for (const [studentId, topicMap] of studentTopicMap) {
+      for (const [topic, writings] of topicMap) {
+        if (writings.length <= 1) continue; // 1개 이하면 스킵
+
+        // 점수 내림차순 정렬 (점수 같으면 최신순)
+        writings.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return new Date(b.submittedAt) - new Date(a.submittedAt);
+        });
+
+        // 첫 번째(최고점) 제외하고 나머지 삭제 대상
+        for (let i = 1; i < writings.length; i++) {
+          toDelete.push({
+            ref: writings[i].ref,
+            studentId,
+            writingId: writings[i].writingId,
+            topic,
+            score: writings[i].score
+          });
+
+          // users의 writingSummary에서도 제거할 정보 수집
+          if (!userWritingsToRemove.has(studentId)) {
+            userWritingsToRemove.set(studentId, []);
+          }
+          userWritingsToRemove.get(studentId).push(writings[i].writingId);
+        }
+      }
+    }
+
+    if (toDelete.length === 0) {
+      console.log('[중복 미제출글 정리] 삭제할 글 없음');
+      return { deleted: 0, message: '정리할 중복 미제출글이 없습니다.' };
+    }
+
+    console.log(`[중복 미제출글 정리] ${toDelete.length}개 삭제 예정`);
+
+    // 배치 삭제 (500개씩)
+    const batchSize = 500;
+    let deletedCount = 0;
+
+    for (let i = 0; i < toDelete.length; i += batchSize) {
+      const batch = db.batch();
+      const batchDocs = toDelete.slice(i, i + batchSize);
+      batchDocs.forEach(({ ref }) => batch.delete(ref));
+      await batch.commit();
+      deletedCount += batchDocs.length;
+    }
+
+    // 🚀 users의 writingSummary에서도 삭제된 글 제거
+    let summaryUpdated = 0;
+    for (const [studentId, writingIds] of userWritingsToRemove) {
+      try {
+        const userDocRef = db.doc(`users/${studentId}`);
+        const userDoc = await userDocRef.get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const summary = userData.writingSummary || [];
+          const filtered = summary.filter(s => !writingIds.includes(s.writingId));
+          if (filtered.length !== summary.length) {
+            await userDocRef.update({ writingSummary: filtered });
+            summaryUpdated++;
+          }
+        }
+      } catch (e) {
+        console.warn(`[중복 미제출글 정리] writingSummary 업데이트 실패 - ${studentId}:`, e);
+      }
+    }
+
+    console.log(`[중복 미제출글 정리] 완료 - ${deletedCount}개 삭제, ${summaryUpdated}명 writingSummary 업데이트`);
+
+    return {
+      deleted: deletedCount,
+      summaryUpdated,
+      details: toDelete.slice(0, 20).map(d => ({
+        studentId: d.studentId.substring(0, 8) + '...',
+        topic: d.topic.substring(0, 20),
+        score: d.score
+      })),
+      message: `${deletedCount}개의 중복 미제출글이 삭제되었습니다.`
+    };
+  } catch (error) {
+    console.error('[중복 미제출글 정리] 에러:', error);
+    throw new HttpsError('internal', `정리 실패: ${error.message}`);
+  }
+});
+
+// 🚀 학급 삭제 - 학급 내 모든 학생 삭제 (선생님은 제외)
+exports.deleteClassWithStudents = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const { classCode } = request.data || {};
+
+  if (!classCode) {
+    throw new HttpsError('invalid-argument', 'classCode가 필요합니다.');
+  }
+
+  // 슈퍼 관리자만 실행 가능
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 학급을 삭제할 수 있습니다.');
+  }
+
+  try {
+    console.log(`[학급 삭제] 시작 - classCode: ${classCode}`);
+
+    // 1. 학급 정보 조회
+    const classRef = db.doc(`classes/${classCode}`);
+    const classDoc = await classRef.get();
+
+    if (!classDoc.exists) {
+      throw new HttpsError('not-found', '학급을 찾을 수 없습니다.');
+    }
+
+    const classData = classDoc.data();
+    const students = classData.students || [];
+    const teacherId = classData.teacherId;
+
+    console.log(`[학급 삭제] 학생 ${students.length}명, 선생님 ID: ${teacherId}`);
+
+    let deletedStudents = 0;
+    let deletedWritings = 0;
+    const errors = [];
+
+    // 2. 학생 계정 삭제 (Auth + Firestore)
+    for (const student of students) {
+      try {
+        const studentId = student.studentId;
+
+        // Firebase Auth에서 삭제
+        try {
+          await auth.deleteUser(studentId);
+        } catch (authError) {
+          if (authError.code !== 'auth/user-not-found') {
+            console.warn(`[학급 삭제] Auth 삭제 실패 - ${studentId}:`, authError.message);
+          }
+        }
+
+        // Firestore users 문서 삭제
+        await db.doc(`users/${studentId}`).delete();
+
+        // 해당 학생의 글 삭제
+        const writingsQuery = db.collection('writings').where('studentId', '==', studentId);
+        const writingsSnapshot = await writingsQuery.get();
+        
+        const batch = db.batch();
+        writingsSnapshot.forEach((docSnap) => {
+          batch.delete(docSnap.ref);
+          deletedWritings++;
+        });
+        if (!writingsSnapshot.empty) {
+          await batch.commit();
+        }
+
+        // studentStats 삭제
+        try {
+          await db.doc(`studentStats/${studentId}`).delete();
+        } catch (e) {
+          // 무시
+        }
+
+        // drafts 삭제
+        const draftsQuery = db.collection('drafts').where('studentId', '==', studentId);
+        const draftsSnapshot = await draftsQuery.get();
+        if (!draftsSnapshot.empty) {
+          const draftBatch = db.batch();
+          draftsSnapshot.forEach((docSnap) => draftBatch.delete(docSnap.ref));
+          await draftBatch.commit();
+        }
+
+        deletedStudents++;
+      } catch (studentError) {
+        console.error(`[학급 삭제] 학생 삭제 실패 - ${student.studentId}:`, studentError);
+        errors.push({ studentId: student.studentId, error: studentError.message });
+      }
+    }
+
+    // 3. 학급 과제 삭제
+    let deletedAssignments = 0;
+    const assignmentsQuery = db.collection('assignments').where('classCode', '==', classCode);
+    const assignmentsSnapshot = await assignmentsQuery.get();
+    if (!assignmentsSnapshot.empty) {
+      const assignmentBatch = db.batch();
+      assignmentsSnapshot.forEach((docSnap) => {
+        assignmentBatch.delete(docSnap.ref);
+        deletedAssignments++;
+      });
+      await assignmentBatch.commit();
+    }
+
+    // 4. 선생님의 classCode 제거 (선생님은 삭제하지 않음)
+    if (teacherId) {
+      try {
+        const teacherRef = db.doc(`users/${teacherId}`);
+        const teacherDoc = await teacherRef.get();
+        if (teacherDoc.exists) {
+          const teacherData = teacherDoc.data();
+          // 선생님이 이 학급만 담당하는 경우 classCode 제거
+          if (teacherData.classCode === classCode) {
+            await teacherRef.update({ classCode: admin.firestore.FieldValue.delete() });
+          }
+        }
+      } catch (e) {
+        console.warn(`[학급 삭제] 선생님 classCode 업데이트 실패:`, e);
+      }
+    }
+
+    // 5. 학급 문서 삭제
+    await classRef.delete();
+
+    console.log(`[학급 삭제] 완료 - 학생 ${deletedStudents}명, 글 ${deletedWritings}개, 과제 ${deletedAssignments}개 삭제`);
+
+    return {
+      success: true,
+      deletedStudents,
+      deletedWritings,
+      deletedAssignments,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `학급 "${classCode}" 삭제 완료: 학생 ${deletedStudents}명, 글 ${deletedWritings}개 삭제됨`
+    };
+  } catch (error) {
+    console.error('[학급 삭제] 에러:', error);
+    throw new HttpsError('internal', `학급 삭제 실패: ${error.message}`);
+  }
+});
