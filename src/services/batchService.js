@@ -2,6 +2,33 @@ import { httpsCallable } from 'firebase/functions';
 import { functions, auth } from '../config/firebase';
 
 /**
+ * Delete class with all students using Cloud Function
+ *
+ * This deletes the class and all associated student accounts.
+ * Teachers can only delete their own classes.
+ */
+export async function deleteClassWithStudents(classCode) {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('로그인이 필요합니다. 다시 로그인해주세요.');
+    }
+
+    if (!classCode) {
+      throw new Error('classCode가 필요합니다.');
+    }
+
+    const deleteClassFn = httpsCallable(functions, 'deleteClassWithStudents');
+    const result = await deleteClassFn({ classCode });
+
+    return result.data;
+  } catch (error) {
+    console.error('Error in deleteClassWithStudents:', error);
+    throw new Error(error.message || '학급 삭제에 실패했습니다.');
+  }
+}
+
+/**
  * Batch create student accounts using Cloud Function
  *
  * This uses Firebase Cloud Functions with Admin SDK to create users

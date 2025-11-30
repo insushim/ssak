@@ -400,6 +400,245 @@ export const AnimalFaceSVG = ({ type = 'fox', size = 120 }) => {
         <circle cx="77" cy="48" r="3" fill="white" />
         <ellipse cx="60" cy="75" rx="10" ry="8" fill="#1a1a1a" />
       </svg>
+    ),
+    shark: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="sharkGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#6B8E9F" />
+            <stop offset="100%" stopColor="#4A6572" />
+          </linearGradient>
+        </defs>
+        {/* 상어 머리 */}
+        <ellipse cx="60" cy="60" rx="40" ry="45" fill="url(#sharkGradient)" />
+        {/* 배 부분 */}
+        <ellipse cx="60" cy="75" rx="30" ry="25" fill="#E8E8E8" />
+        {/* 등 지느러미 */}
+        <polygon points="60,5 45,30 75,30" fill="#4A6572" />
+        {/* 눈 - 사나운 표정 */}
+        <ellipse cx="40" cy="45" rx="10" ry="8" fill="white" />
+        <ellipse cx="80" cy="45" rx="10" ry="8" fill="white" />
+        <circle cx="43" cy="45" r="5" fill="#1a1a1a" />
+        <circle cx="83" cy="45" r="5" fill="#1a1a1a" />
+        <circle cx="45" cy="43" r="2" fill="white" />
+        <circle cx="85" cy="43" r="2" fill="white" />
+        {/* 눈썹 - 사나운 표정 */}
+        <path d="M 28 38 L 48 42" stroke="#4A6572" strokeWidth="3" strokeLinecap="round" />
+        <path d="M 92 38 L 72 42" stroke="#4A6572" strokeWidth="3" strokeLinecap="round" />
+        {/* 코 */}
+        <ellipse cx="60" cy="60" rx="4" ry="3" fill="#3A5662" />
+        {/* 입과 이빨 */}
+        <path d="M 35 80 Q 60 95 85 80" stroke="#3A5662" strokeWidth="2" fill="none" />
+        <polygon points="40,78 43,88 46,78" fill="white" />
+        <polygon points="52,80 55,90 58,80" fill="white" />
+        <polygon points="64,80 67,90 70,80" fill="white" />
+        <polygon points="76,78 79,88 82,78" fill="white" />
+        {/* 아가미 */}
+        <line x1="25" y1="55" x2="25" y2="65" stroke="#3A5662" strokeWidth="2" />
+        <line x1="20" y1="55" x2="20" y2="65" stroke="#3A5662" strokeWidth="2" />
+        <line x1="95" y1="55" x2="95" y2="65" stroke="#3A5662" strokeWidth="2" />
+        <line x1="100" y1="55" x2="100" y2="65" stroke="#3A5662" strokeWidth="2" />
+      </svg>
+    ),
+    octopus: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="octopusGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#E87A90" />
+            <stop offset="100%" stopColor="#C44D6E" />
+          </linearGradient>
+        </defs>
+        {/* 머리 */}
+        <ellipse cx="60" cy="45" rx="38" ry="40" fill="url(#octopusGradient)" />
+        {/* 다리들 (8개) */}
+        <path d="M 25 70 Q 15 90 25 105 Q 28 95 30 85" fill="#C44D6E" />
+        <path d="M 35 75 Q 28 95 38 108 Q 40 98 42 88" fill="#C44D6E" />
+        <path d="M 48 78 Q 45 100 52 110 Q 53 100 55 90" fill="#C44D6E" />
+        <path d="M 60 80 Q 60 102 60 112 Q 62 102 62 92" fill="#C44D6E" />
+        <path d="M 72 78 Q 75 100 68 110 Q 67 100 65 90" fill="#C44D6E" />
+        <path d="M 85 75 Q 92 95 82 108 Q 80 98 78 88" fill="#C44D6E" />
+        <path d="M 95 70 Q 105 90 95 105 Q 92 95 90 85" fill="#C44D6E" />
+        {/* 빨판 */}
+        <circle cx="22" cy="95" r="3" fill="#FFB5C5" />
+        <circle cx="35" cy="98" r="3" fill="#FFB5C5" />
+        <circle cx="50" cy="100" r="3" fill="#FFB5C5" />
+        <circle cx="60" cy="102" r="3" fill="#FFB5C5" />
+        <circle cx="70" cy="100" r="3" fill="#FFB5C5" />
+        <circle cx="85" cy="98" r="3" fill="#FFB5C5" />
+        <circle cx="98" cy="95" r="3" fill="#FFB5C5" />
+        {/* 눈 */}
+        <ellipse cx="45" cy="40" rx="10" ry="12" fill="white" />
+        <ellipse cx="75" cy="40" rx="10" ry="12" fill="white" />
+        <circle cx="47" cy="42" r="6" fill="#1a1a1a" />
+        <circle cx="77" cy="42" r="6" fill="#1a1a1a" />
+        <circle cx="49" cy="40" r="2" fill="white" />
+        <circle cx="79" cy="40" r="2" fill="white" />
+        {/* 입 - 귀여운 표정 */}
+        <path d="M 50 60 Q 60 68 70 60" stroke="#8B2252" strokeWidth="2" fill="none" />
+        {/* 볼 터치 */}
+        <ellipse cx="30" cy="50" rx="6" ry="4" fill="#FFB5C5" opacity="0.6" />
+        <ellipse cx="90" cy="50" rx="6" ry="4" fill="#FFB5C5" opacity="0.6" />
+      </svg>
+    ),
+    pumpkin: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="pumpkinGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FF8C00" />
+            <stop offset="100%" stopColor="#CC5500" />
+          </linearGradient>
+        </defs>
+        {/* 줄기 */}
+        <rect x="55" y="5" width="10" height="15" rx="2" fill="#228B22" />
+        <ellipse cx="60" cy="8" rx="3" ry="2" fill="#32CD32" />
+        {/* 호박 몸통 - 여러 조각 */}
+        <ellipse cx="60" cy="65" rx="45" ry="42" fill="url(#pumpkinGradient)" />
+        <ellipse cx="35" cy="65" rx="20" ry="40" fill="#FF7F00" />
+        <ellipse cx="85" cy="65" rx="20" ry="40" fill="#FF7F00" />
+        <ellipse cx="60" cy="65" rx="15" ry="42" fill="#FFA500" />
+        {/* 호박 선 */}
+        <path d="M 40 25 Q 35 65 40 105" stroke="#CC5500" strokeWidth="1" fill="none" opacity="0.5" />
+        <path d="M 60 23 Q 60 65 60 107" stroke="#CC5500" strokeWidth="1" fill="none" opacity="0.5" />
+        <path d="M 80 25 Q 85 65 80 105" stroke="#CC5500" strokeWidth="1" fill="none" opacity="0.5" />
+        {/* 눈 - 삼각형 (잭오랜턴 스타일) */}
+        <polygon points="35,50 45,35 55,50" fill="#1a1a1a" />
+        <polygon points="65,50 75,35 85,50" fill="#1a1a1a" />
+        {/* 눈 안의 빛 */}
+        <polygon points="40,48 45,40 50,48" fill="#FFD700" opacity="0.7" />
+        <polygon points="70,48 75,40 80,48" fill="#FFD700" opacity="0.7" />
+        {/* 코 - 삼각형 */}
+        <polygon points="60,55 55,70 65,70" fill="#1a1a1a" />
+        {/* 입 - 톱니 모양 */}
+        <path d="M 30 80 L 40 75 L 50 85 L 60 75 L 70 85 L 80 75 L 90 80 Q 60 100 30 80" fill="#1a1a1a" />
+        {/* 입 안의 빛 */}
+        <path d="M 35 82 L 45 78 L 55 86 L 60 80 L 65 86 L 75 78 L 85 82 Q 60 95 35 82" fill="#FFD700" opacity="0.5" />
+      </svg>
+    ),
+    butterfly: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="butterflyWingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#FF69B4" />
+            <stop offset="50%" stopColor="#9370DB" />
+            <stop offset="100%" stopColor="#00CED1" />
+          </linearGradient>
+        </defs>
+        {/* 왼쪽 날개 */}
+        <ellipse cx="30" cy="45" rx="25" ry="30" fill="url(#butterflyWingGradient)" opacity="0.9" />
+        <ellipse cx="25" cy="80" rx="18" ry="22" fill="url(#butterflyWingGradient)" opacity="0.9" />
+        {/* 오른쪽 날개 */}
+        <ellipse cx="90" cy="45" rx="25" ry="30" fill="url(#butterflyWingGradient)" opacity="0.9" />
+        <ellipse cx="95" cy="80" rx="18" ry="22" fill="url(#butterflyWingGradient)" opacity="0.9" />
+        {/* 날개 무늬 */}
+        <circle cx="30" cy="40" r="8" fill="white" opacity="0.5" />
+        <circle cx="90" cy="40" r="8" fill="white" opacity="0.5" />
+        <circle cx="25" cy="75" r="5" fill="white" opacity="0.5" />
+        <circle cx="95" cy="75" r="5" fill="white" opacity="0.5" />
+        {/* 몸통 */}
+        <ellipse cx="60" cy="60" rx="8" ry="35" fill="#4a3728" />
+        {/* 머리 */}
+        <circle cx="60" cy="25" r="12" fill="#4a3728" />
+        {/* 더듬이 */}
+        <path d="M 55 15 Q 45 5 40 10" stroke="#4a3728" strokeWidth="2" fill="none" />
+        <path d="M 65 15 Q 75 5 80 10" stroke="#4a3728" strokeWidth="2" fill="none" />
+        <circle cx="40" cy="10" r="3" fill="#FF69B4" />
+        <circle cx="80" cy="10" r="3" fill="#FF69B4" />
+        {/* 눈 */}
+        <circle cx="55" cy="23" r="4" fill="white" />
+        <circle cx="65" cy="23" r="4" fill="white" />
+        <circle cx="56" cy="24" r="2" fill="#1a1a1a" />
+        <circle cx="66" cy="24" r="2" fill="#1a1a1a" />
+        {/* 입 */}
+        <path d="M 56 30 Q 60 34 64 30" stroke="#1a1a1a" strokeWidth="1.5" fill="none" />
+      </svg>
+    ),
+    frog: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="frogGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#7CCD7C" />
+            <stop offset="100%" stopColor="#228B22" />
+          </linearGradient>
+        </defs>
+        {/* 머리 */}
+        <ellipse cx="60" cy="60" rx="45" ry="40" fill="url(#frogGradient)" />
+        {/* 배 부분 */}
+        <ellipse cx="60" cy="75" rx="30" ry="22" fill="#98FB98" />
+        {/* 눈 돌출 부분 */}
+        <circle cx="35" cy="30" r="18" fill="url(#frogGradient)" />
+        <circle cx="85" cy="30" r="18" fill="url(#frogGradient)" />
+        {/* 눈 흰자 */}
+        <circle cx="35" cy="28" r="12" fill="white" />
+        <circle cx="85" cy="28" r="12" fill="white" />
+        {/* 눈동자 */}
+        <circle cx="38" cy="28" r="6" fill="#1a1a1a" />
+        <circle cx="88" cy="28" r="6" fill="#1a1a1a" />
+        <circle cx="40" cy="26" r="2" fill="white" />
+        <circle cx="90" cy="26" r="2" fill="white" />
+        {/* 콧구멍 */}
+        <circle cx="50" cy="55" r="3" fill="#006400" />
+        <circle cx="70" cy="55" r="3" fill="#006400" />
+        {/* 입 - 웃는 표정 */}
+        <path d="M 30 75 Q 60 95 90 75" stroke="#006400" strokeWidth="3" fill="none" />
+        {/* 볼 터치 */}
+        <ellipse cx="25" cy="60" rx="8" ry="5" fill="#FF6B6B" opacity="0.4" />
+        <ellipse cx="95" cy="60" rx="8" ry="5" fill="#FF6B6B" opacity="0.4" />
+      </svg>
+    ),
+    swan: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <path d="M 60 100 Q 30 80 35 50 Q 40 30 55 25" stroke="white" strokeWidth="20" fill="none" strokeLinecap="round" />
+        <path d="M 60 100 Q 30 80 35 50 Q 40 30 55 25" stroke="#F5F5F5" strokeWidth="16" fill="none" strokeLinecap="round" />
+        {/* 머리 */}
+        <ellipse cx="60" cy="30" rx="22" ry="20" fill="white" />
+        {/* 부리 */}
+        <path d="M 75 25 L 100 28 L 95 35 L 75 32 Z" fill="#FF8C00" />
+        <path d="M 75 28 L 85 30" stroke="#CC5500" strokeWidth="1" />
+        {/* 부리 위 검은 부분 */}
+        <path d="M 72 22 Q 78 20 82 22 L 80 28 Q 76 26 72 28 Z" fill="#1a1a1a" />
+        {/* 눈 */}
+        <circle cx="65" cy="25" r="5" fill="#1a1a1a" />
+        <circle cx="67" cy="23" r="2" fill="white" />
+        {/* 몸통 (물 위) */}
+        <ellipse cx="60" cy="100" rx="35" ry="18" fill="white" />
+        <ellipse cx="60" cy="100" rx="30" ry="14" fill="#F8F8F8" />
+        {/* 날개 암시 */}
+        <path d="M 30 95 Q 25 85 35 90" fill="white" stroke="#E8E8E8" strokeWidth="1" />
+        <path d="M 90 95 Q 95 85 85 90" fill="white" stroke="#E8E8E8" strokeWidth="1" />
+      </svg>
+    ),
+    tropicalfish: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="fishGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#00CED1" />
+            <stop offset="50%" stopColor="#FF6347" />
+            <stop offset="100%" stopColor="#FFD700" />
+          </linearGradient>
+        </defs>
+        {/* 꼬리 지느러미 */}
+        <polygon points="10,60 30,40 30,80" fill="#FF6347" />
+        <polygon points="10,60 25,50 25,70" fill="#FFD700" />
+        {/* 몸통 */}
+        <ellipse cx="65" cy="60" rx="40" ry="30" fill="url(#fishGradient)" />
+        {/* 줄무늬 */}
+        <path d="M 45 35 Q 50 60 45 85" stroke="white" strokeWidth="4" fill="none" opacity="0.7" />
+        <path d="M 65 32 Q 70 60 65 88" stroke="white" strokeWidth="4" fill="none" opacity="0.7" />
+        <path d="M 85 40 Q 88 60 85 80" stroke="white" strokeWidth="3" fill="none" opacity="0.7" />
+        {/* 등 지느러미 */}
+        <path d="M 50 30 L 60 15 L 70 20 L 80 30" fill="#FF6347" stroke="#FFD700" strokeWidth="1" />
+        {/* 배 지느러미 */}
+        <path d="M 55 90 L 60 105 L 70 90" fill="#00CED1" />
+        {/* 옆 지느러미 */}
+        <ellipse cx="45" cy="65" rx="10" ry="6" fill="#FFD700" opacity="0.8" />
+        {/* 눈 */}
+        <circle cx="85" cy="55" r="10" fill="white" />
+        <circle cx="87" cy="55" r="6" fill="#1a1a1a" />
+        <circle cx="89" cy="53" r="2" fill="white" />
+        {/* 입 */}
+        <ellipse cx="102" cy="60" rx="4" ry="3" fill="#FF6347" />
+      </svg>
     )
   };
 
@@ -409,8 +648,23 @@ export const AnimalFaceSVG = ({ type = 'fox', size = 120 }) => {
 // 머리카락 SVG - 얼굴(눈 위치 y=45) 위에 자연스럽게 배치
 // 앞머리는 y=35 정도까지만 내려와서 눈을 가리지 않음
 export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gender = 'male' }) => {
+  // 그라데이션 색상인지 확인하고 파싱
+  const isGradient = color && color.includes('linear-gradient');
+  let gradientColors = [];
+  let baseColor = color;
+
+  if (isGradient) {
+    // linear-gradient(90deg, #ff6b6b, #4ecdc4) 형태에서 색상 추출
+    const colorMatch = color.match(/#[a-fA-F0-9]{6}|#[a-fA-F0-9]{3}/g);
+    if (colorMatch && colorMatch.length >= 2) {
+      gradientColors = colorMatch;
+      baseColor = gradientColors[0]; // 첫 번째 색상을 기본으로 사용
+    }
+  }
+
   // 밝은 하이라이트 색상 계산
   const getLighterColor = (c) => {
+    if (!c || c.includes('linear-gradient')) return '#888888';
     if (c === '#1a1a1a') return '#4a4a4a';
     if (c === '#4a3728') return '#7a5a48'; // 갈색
     if (c === '#8B4513') return '#B8763F'; // 밤색
@@ -420,43 +674,59 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     if (c === '#4169E1') return '#7B9AEA'; // 파랑
     return c;
   };
-  const lighterColor = getLighterColor(color);
+  const lighterColor = getLighterColor(baseColor);
   // 어두운 그림자 색상
   const getDarkerColor = (c) => {
+    if (!c || c.includes('linear-gradient')) return '#333333';
     if (c === '#1a1a1a') return '#000000';
     if (c === '#4a3728') return '#2a1a10';
     if (c === '#8B4513') return '#5C2E0D';
     if (c === '#FFD700') return '#CC9900';
     return '#1a1a1a';
   };
-  const darkerColor = getDarkerColor(color);
+  const darkerColor = getDarkerColor(baseColor);
+
+  // 그라데이션용 fill 값
+  const fillColor = isGradient ? 'url(#hairGradientCustom)' : baseColor;
+
+  // 그라데이션 defs 생성
+  const gradientDefs = isGradient ? (
+    <defs>
+      <linearGradient id="hairGradientCustom" x1="0%" y1="0%" x2="100%" y2="0%">
+        {gradientColors.map((c, i) => (
+          <stop key={i} offset={`${(i / (gradientColors.length - 1)) * 100}%`} stopColor={c} />
+        ))}
+      </linearGradient>
+    </defs>
+  ) : null;
 
   const hairStyles = {
     // 기본 - 자연스러운 짧은 머리 (남성형)
     default: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {gradientDefs}
         <defs>
           <linearGradient id="hairGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="40%" stopColor={color} />
+            <stop offset="40%" stopColor={isGradient ? gradientColors[0] : baseColor} />
             <stop offset="100%" stopColor={darkerColor} />
           </linearGradient>
         </defs>
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="18" rx="46" ry="16" fill="url(#hairGrad1)" />
+        <ellipse cx="60" cy="18" rx="46" ry="16" fill={isGradient ? fillColor : "url(#hairGrad1)"} />
         {/* 뒤통수 */}
-        <path d="M 14 25 Q 14 8 60 5 Q 106 8 106 25 L 106 35 Q 100 38 60 38 Q 20 38 14 35 Z" fill={color} />
+        <path d="M 14 25 Q 14 8 60 5 Q 106 8 106 25 L 106 35 Q 100 38 60 38 Q 20 38 14 35 Z" fill={fillColor} />
         {/* 옆머리 (귀 위) */}
-        <path d="M 14 30 Q 8 40 10 55 L 18 52 Q 16 42 18 32 Z" fill={color} />
-        <path d="M 106 30 Q 112 40 110 55 L 102 52 Q 104 42 102 32 Z" fill={color} />
+        <path d="M 14 30 Q 8 40 10 55 L 18 52 Q 16 42 18 32 Z" fill={fillColor} />
+        <path d="M 106 30 Q 112 40 110 55 L 102 52 Q 104 42 102 32 Z" fill={fillColor} />
         {/* 앞머리 - 이마만 살짝 덮음 */}
-        <path d="M 25 30 Q 40 24 60 26 Q 80 24 95 30 Q 85 38 60 36 Q 35 38 25 30 Z" fill={color} />
+        <path d="M 25 30 Q 40 24 60 26 Q 80 24 95 30 Q 85 38 60 36 Q 35 38 25 30 Z" fill={fillColor} />
         {/* 하이라이트 - 빛 반사 */}
-        <ellipse cx="40" cy="12" rx="15" ry="7" fill={lighterColor} opacity="0.35" />
-        <ellipse cx="75" cy="14" rx="10" ry="5" fill={lighterColor} opacity="0.25" />
+        {!isGradient && <ellipse cx="40" cy="12" rx="15" ry="7" fill={lighterColor} opacity="0.35" />}
+        {!isGradient && <ellipse cx="75" cy="14" rx="10" ry="5" fill={lighterColor} opacity="0.25" />}
         {/* 머리카락 결 */}
-        <path d="M 30 20 Q 45 15 60 18" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />
-        <path d="M 60 18 Q 75 15 90 20" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />
+        {!isGradient && <path d="M 30 20 Q 45 15 60 18" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />}
+        {!isGradient && <path d="M 60 18 Q 75 15 90 20" stroke={lighterColor} strokeWidth="1" opacity="0.2" fill="none" />}
       </svg>
     ),
     // 단발 - 볼 정도 길이 (여성형 단발)
@@ -472,12 +742,12 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         {/* 머리 윗부분 볼륨 */}
         <ellipse cx="60" cy="16" rx="48" ry="14" fill="url(#shortHairGrad)" />
         {/* 뒤통수 */}
-        <path d="M 12 22 Q 12 6 60 3 Q 108 6 108 22" fill={color} />
+        <path d="M 12 22 Q 12 6 60 3 Q 108 6 108 22" fill={fillColor} />
         {/* 옆머리 - 볼까지 내려옴 */}
-        <path d="M 12 22 L 8 70 Q 10 78 20 78 L 22 40 Q 18 30 12 25 Z" fill={color} />
-        <path d="M 108 22 L 112 70 Q 110 78 100 78 L 98 40 Q 102 30 108 25 Z" fill={color} />
+        <path d="M 12 22 L 8 70 Q 10 78 20 78 L 22 40 Q 18 30 12 25 Z" fill={fillColor} />
+        <path d="M 108 22 L 112 70 Q 110 78 100 78 L 98 40 Q 102 30 108 25 Z" fill={fillColor} />
         {/* 앞머리 뱅 - 눈썹 위까지만 */}
-        <path d="M 20 28 Q 40 22 60 24 Q 80 22 100 28 Q 90 36 60 34 Q 30 36 20 28 Z" fill={color} />
+        <path d="M 20 28 Q 40 22 60 24 Q 80 22 100 28 Q 90 36 60 34 Q 30 36 20 28 Z" fill={fillColor} />
         {/* 하이라이트 - 3D 효과 */}
         <ellipse cx="45" cy="12" rx="18" ry="7" fill={lighterColor} opacity="0.4" />
         <ellipse cx="80" cy="14" rx="12" ry="5" fill={lighterColor} opacity="0.3" />
@@ -504,13 +774,13 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         {/* 머리 윗부분 */}
         <ellipse cx="60" cy="15" rx="48" ry="13" fill="url(#longHairGrad)" />
         {/* 뒤통수 */}
-        <path d="M 12 20 Q 10 5 60 2 Q 110 5 108 20" fill={color} />
+        <path d="M 12 20 Q 10 5 60 2 Q 110 5 108 20" fill={fillColor} />
         {/* 왼쪽 긴 머리 */}
         <path d="M 12 20 Q 2 45 5 80 Q 8 115 25 118 Q 35 115 32 90 L 28 55 Q 22 35 12 25 Z" fill="url(#longHairSide)" />
         {/* 오른쪽 긴 머리 */}
         <path d="M 108 20 Q 118 45 115 80 Q 112 115 95 118 Q 85 115 88 90 L 92 55 Q 98 35 108 25 Z" fill="url(#longHairSide)" />
         {/* 앞머리 - 눈썹 위까지 */}
-        <path d="M 22 28 Q 40 20 60 22 Q 80 20 98 28 Q 88 36 60 34 Q 32 36 22 28 Z" fill={color} />
+        <path d="M 22 28 Q 40 20 60 22 Q 80 20 98 28 Q 88 36 60 34 Q 32 36 22 28 Z" fill={fillColor} />
         {/* 머리카락 결 - 윤기 표현 */}
         <path d="M 8 35 Q 5 60 10 85 Q 12 100 18 112" stroke={lighterColor} strokeWidth="4" opacity="0.3" fill="none" />
         <path d="M 15 30 Q 12 55 15 80" stroke={lighterColor} strokeWidth="2" opacity="0.2" fill="none" />
@@ -520,80 +790,135 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <ellipse cx="50" cy="10" rx="20" ry="7" fill={lighterColor} opacity="0.35" />
       </svg>
     ),
-    // 곱슬머리
+    // 곱슬머리 (짧은 곱슬)
     curly: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 곱슬 볼륨 베이스 */}
-        <ellipse cx="60" cy="22" rx="48" ry="18" fill={color} />
+        <ellipse cx="60" cy="18" rx="45" ry="14" fill={fillColor} />
         {/* 위쪽 곱슬 */}
-        <circle cx="28" cy="12" r="12" fill={color} />
-        <circle cx="50" cy="6" r="11" fill={color} />
-        <circle cx="72" cy="6" r="11" fill={color} />
-        <circle cx="94" cy="12" r="12" fill={color} />
-        {/* 옆 곱슬 */}
-        <circle cx="8" cy="35" r="12" fill={color} />
-        <circle cx="5" cy="55" r="10" fill={color} />
-        <circle cx="8" cy="73" r="9" fill={color} />
-        <circle cx="112" cy="35" r="12" fill={color} />
-        <circle cx="115" cy="55" r="10" fill={color} />
-        <circle cx="112" cy="73" r="9" fill={color} />
-        {/* 앞머리 곱슬 - 눈 위에 */}
-        <circle cx="35" cy="30" r="8" fill={color} />
-        <circle cx="55" cy="28" r="9" fill={color} />
-        <circle cx="75" cy="28" r="9" fill={color} />
-        <circle cx="90" cy="30" r="8" fill={color} />
+        <circle cx="28" cy="10" r="10" fill={fillColor} />
+        <circle cx="50" cy="5" r="9" fill={fillColor} />
+        <circle cx="72" cy="5" r="9" fill={fillColor} />
+        <circle cx="94" cy="10" r="10" fill={fillColor} />
+        {/* 옆 곱슬 (짧게) */}
+        <circle cx="12" cy="28" r="10" fill={fillColor} />
+        <circle cx="10" cy="45" r="8" fill={fillColor} />
+        <circle cx="108" cy="28" r="10" fill={fillColor} />
+        <circle cx="110" cy="45" r="8" fill={fillColor} />
+        {/* 앞머리 곱슬 - 이마에만 */}
+        <circle cx="40" cy="25" r="7" fill={fillColor} />
+        <circle cx="60" cy="23" r="8" fill={fillColor} />
+        <circle cx="80" cy="25" r="7" fill={fillColor} />
         {/* 하이라이트 */}
-        <circle cx="45" cy="10" r="4" fill={lighterColor} opacity="0.25" />
-        <circle cx="75" cy="10" r="4" fill={lighterColor} opacity="0.25" />
+        <circle cx="45" cy="8" r="3" fill={lighterColor} opacity="0.25" />
+        <circle cx="75" cy="8" r="3" fill={lighterColor} opacity="0.25" />
       </svg>
     ),
-    // 뾰족 스파이크 (남성형)
+    // 웨이브 (긴 웨이브 머리)
+    wave: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 머리 윗부분 */}
+        <ellipse cx="60" cy="15" rx="46" ry="12" fill={fillColor} />
+        <path d="M 14 18 Q 12 6 60 2 Q 108 6 106 18" fill={fillColor} />
+        {/* 왼쪽 웨이브 (부드러운 S자 곡선) */}
+        <path d="M 14 20 Q 5 35 12 55 Q 5 75 10 95 L 22 92 Q 18 75 22 55 Q 18 38 22 25 Z" fill={fillColor} />
+        {/* 오른쪽 웨이브 */}
+        <path d="M 106 20 Q 115 35 108 55 Q 115 75 110 95 L 98 92 Q 102 75 98 55 Q 102 38 98 25 Z" fill={fillColor} />
+        {/* 앞머리 - 부드럽게 옆으로 */}
+        <path d="M 22 22 Q 40 18 60 20 Q 80 18 98 22 Q 85 32 60 30 Q 35 32 22 22 Z" fill={fillColor} />
+        {/* 웨이브 하이라이트 */}
+        <path d="M 16 30 Q 8 50 14 70 Q 8 85 12 92" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
+        <path d="M 104 30 Q 112 50 106 70 Q 112 85 108 92" stroke={lighterColor} strokeWidth="3" opacity="0.2" fill="none" />
+      </svg>
+    ),
+    // 뾰족 스파이크 (남성형 기본)
     spiky: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 베이스 */}
-        <ellipse cx="60" cy="28" rx="44" ry="16" fill={color} />
+        <ellipse cx="60" cy="28" rx="44" ry="16" fill={fillColor} />
         {/* 스파이크들 */}
-        <polygon points="18,28 8,0 32,22" fill={color} />
-        <polygon points="32,22 28,-8 48,18" fill={color} />
-        <polygon points="48,18 55,-12 65,18" fill={color} />
-        <polygon points="72,18 75,-8 92,22" fill={color} />
-        <polygon points="88,22 102,0 105,28" fill={color} />
+        <polygon points="18,28 8,0 32,22" fill={fillColor} />
+        <polygon points="32,22 28,-8 48,18" fill={fillColor} />
+        <polygon points="48,18 55,-12 65,18" fill={fillColor} />
+        <polygon points="72,18 75,-8 92,22" fill={fillColor} />
+        <polygon points="88,22 102,0 105,28" fill={fillColor} />
         {/* 옆머리 */}
-        <path d="M 16 30 Q 8 42 10 55 L 20 52 Q 18 42 20 32 Z" fill={color} />
-        <path d="M 104 30 Q 112 42 110 55 L 100 52 Q 102 42 100 32 Z" fill={color} />
+        <path d="M 16 30 Q 8 42 10 55 L 20 52 Q 18 42 20 32 Z" fill={fillColor} />
+        <path d="M 104 30 Q 112 42 110 55 L 100 52 Q 102 42 100 32 Z" fill={fillColor} />
         {/* 하이라이트 */}
         <polygon points="55,18 58,0 62,18" fill={lighterColor} opacity="0.3" />
+      </svg>
+    ),
+    // 히어로컷 (슈퍼히어로 스타일 - 뒤로 넘긴 머리)
+    herocut: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 뒤로 넘긴 볼륨감 있는 베이스 */}
+        <ellipse cx="60" cy="18" rx="48" ry="15" fill={fillColor} />
+        <path d="M 12 22 Q 8 5 60 0 Q 112 5 108 22" fill={fillColor} />
+        {/* 뒤로 빗은 웨이브 */}
+        <path d="M 20 25 Q 40 15 60 18 Q 80 15 100 25" fill={fillColor} />
+        <path d="M 25 22 Q 45 12 60 15 Q 75 12 95 22" fill={lighterColor} opacity="0.15" />
+        {/* 옆머리 - 깔끔하게 */}
+        <path d="M 12 25 Q 6 40 10 55 L 20 52 Q 16 40 18 28 Z" fill={fillColor} />
+        <path d="M 108 25 Q 114 40 110 55 L 100 52 Q 104 40 102 28 Z" fill={fillColor} />
+        {/* 이마 위 살짝 떠있는 앞머리 */}
+        <path d="M 35 28 Q 50 22 65 28 L 62 32 Q 50 28 38 32 Z" fill={fillColor} />
+        {/* 광택 */}
+        <ellipse cx="55" cy="12" rx="15" ry="5" fill={lighterColor} opacity="0.2" />
+      </svg>
+    ),
+    // 락스타 (펑크 모히칸 스타일)
+    rockstar: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 옆면 짧은 머리 */}
+        <path d="M 15 30 Q 10 45 15 60 L 25 58 Q 22 45 25 32 Z" fill={fillColor} opacity="0.7" />
+        <path d="M 105 30 Q 110 45 105 60 L 95 58 Q 98 45 95 32 Z" fill={fillColor} opacity="0.7" />
+        {/* 중앙 모히칸 베이스 */}
+        <ellipse cx="60" cy="25" rx="25" ry="12" fill={fillColor} />
+        {/* 높이 솟은 모히칸 스파이크 */}
+        <polygon points="40,25 35,-5 50,20" fill={fillColor} />
+        <polygon points="50,20 48,-15 60,15" fill={fillColor} />
+        <polygon points="60,15 60,-20 72,15" fill={fillColor} />
+        <polygon points="70,20 72,-15 80,20" fill={fillColor} />
+        <polygon points="80,25 85,-5 90,25" fill={fillColor} />
+        {/* 모히칸 하이라이트 */}
+        <polygon points="58,15 60,-10 62,15" fill={lighterColor} opacity="0.3" />
+        {/* 옆면 면도 라인 */}
+        <path d="M 18 35 L 28 35" stroke={darkerColor} strokeWidth="1.5" opacity="0.3" />
+        <path d="M 17 42 L 27 42" stroke={darkerColor} strokeWidth="1.5" opacity="0.3" />
+        <path d="M 102 35 L 92 35" stroke={darkerColor} strokeWidth="1.5" opacity="0.3" />
+        <path d="M 103 42 L 93 42" stroke={darkerColor} strokeWidth="1.5" opacity="0.3" />
       </svg>
     ),
     // 묶음머리 (번/상투)
     bun: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="22" rx="46" ry="14" fill={color} />
-        <path d="M 14 25 Q 14 10 60 5 Q 106 10 106 25" fill={color} />
+        <ellipse cx="60" cy="22" rx="46" ry="14" fill={fillColor} />
+        <path d="M 14 25 Q 14 10 60 5 Q 106 10 106 25" fill={fillColor} />
         {/* 번 (상투) - 위에 */}
-        <circle cx="60" cy="-2" r="18" fill={color} />
+        <circle cx="60" cy="-2" r="18" fill={fillColor} />
         <ellipse cx="60" cy="-4" rx="10" ry="8" fill={lighterColor} opacity="0.15" />
         {/* 앞머리 */}
-        <path d="M 25 28 Q 42 22 60 24 Q 78 22 95 28 Q 85 36 60 34 Q 35 36 25 28 Z" fill={color} />
+        <path d="M 25 28 Q 42 22 60 24 Q 78 22 95 28 Q 85 36 60 34 Q 35 36 25 28 Z" fill={fillColor} />
         {/* 옆머리 */}
-        <path d="M 14 28 Q 8 40 10 55 L 18 52 Q 16 42 18 30 Z" fill={color} />
-        <path d="M 106 28 Q 112 40 110 55 L 102 52 Q 104 42 102 30 Z" fill={color} />
+        <path d="M 14 28 Q 8 40 10 55 L 18 52 Q 16 42 18 30 Z" fill={fillColor} />
+        <path d="M 106 28 Q 112 40 110 55 L 102 52 Q 104 42 102 30 Z" fill={fillColor} />
       </svg>
     ),
     // 공주머리 (웨이브 긴머리)
     princess: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="14" rx="48" ry="12" fill={color} />
-        <path d="M 12 18 Q 10 4 60 1 Q 110 4 108 18" fill={color} />
+        <ellipse cx="60" cy="14" rx="48" ry="12" fill={fillColor} />
+        <path d="M 12 18 Q 10 4 60 1 Q 110 4 108 18" fill={fillColor} />
         {/* 왼쪽 웨이브 */}
-        <path d="M 12 18 Q 0 40 8 60 Q 0 80 8 100 Q 15 118 28 116 Q 38 110 35 90 Q 40 70 35 52 L 28 38 Q 22 28 12 22 Z" fill={color} />
+        <path d="M 12 18 Q 0 40 8 60 Q 0 80 8 100 Q 15 118 28 116 Q 38 110 35 90 Q 40 70 35 52 L 28 38 Q 22 28 12 22 Z" fill={fillColor} />
         {/* 오른쪽 웨이브 */}
-        <path d="M 108 18 Q 120 40 112 60 Q 120 80 112 100 Q 105 118 92 116 Q 82 110 85 90 Q 80 70 85 52 L 92 38 Q 98 28 108 22 Z" fill={color} />
+        <path d="M 108 18 Q 120 40 112 60 Q 120 80 112 100 Q 105 118 92 116 Q 82 110 85 90 Q 80 70 85 52 L 92 38 Q 98 28 108 22 Z" fill={fillColor} />
         {/* 앞머리 - 양갈래로 나뉨 */}
-        <path d="M 22 25 Q 38 18 55 22 L 50 34 Q 35 32 22 28 Z" fill={color} />
-        <path d="M 98 25 Q 82 18 65 22 L 70 34 Q 85 32 98 28 Z" fill={color} />
+        <path d="M 22 25 Q 38 18 55 22 L 50 34 Q 35 32 22 28 Z" fill={fillColor} />
+        <path d="M 98 25 Q 82 18 65 22 L 70 34 Q 85 32 98 28 Z" fill={fillColor} />
         {/* 가르마 */}
         <path d="M 60 8 L 60 32" stroke={lighterColor} strokeWidth="2" opacity="0.3" />
         {/* 하이라이트 웨이브 */}
@@ -611,13 +936,13 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
           </linearGradient>
         </defs>
         {/* 아주 짧은 머리 베이스 */}
-        <ellipse cx="60" cy="22" rx="44" ry="18" fill={color} />
-        <path d="M 16 25 Q 16 10 60 6 Q 104 10 104 25 L 104 32 Q 100 35 60 35 Q 20 35 16 32 Z" fill={color} />
+        <ellipse cx="60" cy="22" rx="44" ry="18" fill={fillColor} />
+        <path d="M 16 25 Q 16 10 60 6 Q 104 10 104 25 L 104 32 Q 100 35 60 35 Q 20 35 16 32 Z" fill={fillColor} />
         {/* 옆머리 - 아주 짧게 */}
-        <path d="M 16 28 Q 12 35 14 45 L 20 44 Q 18 36 20 30 Z" fill={color} />
-        <path d="M 104 28 Q 108 35 106 45 L 100 44 Q 102 36 100 30 Z" fill={color} />
+        <path d="M 16 28 Q 12 35 14 45 L 20 44 Q 18 36 20 30 Z" fill={fillColor} />
+        <path d="M 104 28 Q 108 35 106 45 L 100 44 Q 102 36 100 30 Z" fill={fillColor} />
         {/* 짧은 앞머리 - 이마에 살짝만 */}
-        <path d="M 30 28 Q 45 24 60 25 Q 75 24 90 28 Q 82 32 60 31 Q 38 32 30 28 Z" fill={color} />
+        <path d="M 30 28 Q 45 24 60 25 Q 75 24 90 28 Q 82 32 60 31 Q 38 32 30 28 Z" fill={fillColor} />
         {/* 민머리 느낌의 하이라이트 */}
         <ellipse cx="50" cy="14" rx="20" ry="8" fill={lighterColor} opacity="0.25" />
         {/* 두피 느낌 텍스처 */}
@@ -638,18 +963,18 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
           </linearGradient>
         </defs>
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="15" rx="46" ry="13" fill={color} />
-        <path d="M 14 20 Q 12 6 60 3 Q 108 6 106 20" fill={color} />
+        <ellipse cx="60" cy="15" rx="46" ry="13" fill={fillColor} />
+        <path d="M 14 20 Q 12 6 60 3 Q 108 6 106 20" fill={fillColor} />
         {/* 왼쪽 긴 머리 - 뾰족하게 */}
         <path d="M 14 20 Q 5 40 8 70 Q 5 100 2 118 Q 15 115 20 90 L 24 50 Q 20 35 14 25 Z" fill="url(#elfHairGrad)" />
         {/* 오른쪽 긴 머리 - 뾰족하게 */}
         <path d="M 106 20 Q 115 40 112 70 Q 115 100 118 118 Q 105 115 100 90 L 96 50 Q 100 35 106 25 Z" fill="url(#elfHairGrad)" />
         {/* 앞머리 - 갈라진 스타일 */}
-        <path d="M 24 26 Q 42 20 55 24 L 48 36 Q 35 34 24 30 Z" fill={color} />
-        <path d="M 96 26 Q 78 20 65 24 L 72 36 Q 85 34 96 30 Z" fill={color} />
+        <path d="M 24 26 Q 42 20 55 24 L 48 36 Q 35 34 24 30 Z" fill={fillColor} />
+        <path d="M 96 26 Q 78 20 65 24 L 72 36 Q 85 34 96 30 Z" fill={fillColor} />
         {/* 뾰족한 귀 느낌 장식 (머리카락) */}
-        <path d="M 8 45 Q 0 40 2 30 Q 8 38 12 45" fill={color} />
-        <path d="M 112 45 Q 120 40 118 30 Q 112 38 108 45" fill={color} />
+        <path d="M 8 45 Q 0 40 2 30 Q 8 38 12 45" fill={fillColor} />
+        <path d="M 112 45 Q 120 40 118 30 Q 112 38 108 45" fill={fillColor} />
         {/* 하이라이트 */}
         <path d="M 10 35 Q 6 55 8 80 Q 6 100 5 115" stroke={lighterColor} strokeWidth="3" opacity="0.25" fill="none" />
         <path d="M 110 35 Q 114 55 112 80 Q 114 100 115 115" stroke={lighterColor} strokeWidth="3" opacity="0.25" fill="none" />
@@ -687,27 +1012,21 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <circle cx="15" cy="90" r="1.5" fill="white" opacity="0.4" />
       </svg>
     ),
-    // 산타머리 - 산타 모자 + 머리
+    // 산타머리 - 산타 모자만 (머리카락 없음, 얼굴 안 가림)
     santa: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 머리카락 베이스 */}
-        <ellipse cx="60" cy="35" rx="44" ry="12" fill={color} />
-        <path d="M 16 38 Q 12 50 14 60 L 22 58 Q 20 48 22 40 Z" fill={color} />
-        <path d="M 104 38 Q 108 50 106 60 L 98 58 Q 100 48 98 40 Z" fill={color} />
-        {/* 산타 모자 */}
-        <path d="M 20 38 Q 60 -10 100 38 Q 70 45 20 38" fill="#DC143C" />
-        <path d="M 95 30 Q 110 15 115 35 Q 118 50 110 55" fill="#DC143C" />
-        {/* 모자 흰 테두리 */}
-        <ellipse cx="60" cy="40" rx="45" ry="8" fill="white" />
+        {/* 산타 모자 - 훨씬 위로 올림 */}
+        <path d="M 20 18 Q 60 -30 100 18 Q 70 22 20 18" fill="#DC143C" />
+        <path d="M 92 10 Q 110 -5 118 15 Q 120 28 112 32" fill="#DC143C" />
+        {/* 모자 흰 테두리 - 머리 맨 위에 */}
+        <ellipse cx="60" cy="20" rx="44" ry="7" fill="white" />
         {/* 모자 끝 폼폼 */}
-        <circle cx="112" cy="45" r="10" fill="white" />
+        <circle cx="115" cy="22" r="10" fill="white" />
         {/* 모자 하이라이트 */}
-        <path d="M 30 25 Q 50 5 70 20" stroke="#FF6B6B" strokeWidth="4" opacity="0.4" fill="none" />
-        {/* 머리카락 하이라이트 */}
-        <ellipse cx="45" cy="50" rx="8" ry="4" fill={lighterColor} opacity="0.3" />
+        <path d="M 35 8 Q 55 -12 75 3" stroke="#FF6B6B" strokeWidth="4" opacity="0.4" fill="none" />
       </svg>
     ),
-    // 우주비행사 - 헬멧 (얼굴이 보이도록 투명 바이저)
+    // 우주비행사 - 헬멧 (머리 맨 위에만, 얼굴 안 가림)
     astronaut: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         <defs>
@@ -717,22 +1036,20 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
             <stop offset="100%" stopColor="#C0C0C0" />
           </linearGradient>
         </defs>
-        {/* 헬멧 외부 프레임 - 위쪽만 */}
-        <path d="M 8 55 Q 8 10 60 5 Q 112 10 112 55" fill="url(#helmetGrad)" />
-        {/* 헬멧 테두리 - 유리창 프레임 */}
-        <ellipse cx="60" cy="55" rx="48" ry="35" fill="none" stroke="#808080" strokeWidth="4" />
-        {/* 투명 유리창 - 얼굴이 보임 */}
-        <ellipse cx="60" cy="55" rx="44" ry="32" fill="rgba(200,230,255,0.15)" />
-        {/* 바이저 반사광 (작게) */}
-        <ellipse cx="35" cy="45" rx="10" ry="6" fill="white" opacity="0.25" />
-        {/* 귀 부분 */}
-        <circle cx="12" cy="55" r="8" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
-        <circle cx="108" cy="55" r="8" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
-        {/* 마이크 */}
-        <rect x="6" y="62" width="4" height="12" rx="2" fill="#404040" />
+        {/* 헬멧 외부 프레임 - 맨 위 반구만 */}
+        <path d="M 12 35 Q 12 -5 60 -8 Q 108 -5 108 35" fill="url(#helmetGrad)" />
+        {/* 헬멧 아래 테두리 */}
+        <path d="M 12 35 Q 60 42 108 35" stroke="#808080" strokeWidth="3" fill="none" />
+        {/* 바이저 반사광 */}
+        <ellipse cx="40" cy="18" rx="15" ry="8" fill="white" opacity="0.3" />
+        {/* 귀 부분 - 위쪽에 */}
+        <circle cx="10" cy="30" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <circle cx="110" cy="30" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
         {/* 안테나 */}
-        <rect x="57" y="0" width="4" height="8" fill="#808080" />
-        <circle cx="59" cy="0" r="3" fill="#FF0000" />
+        <rect x="57" y="-15" width="4" height="12" fill="#808080" />
+        <circle cx="59" cy="-15" r="4" fill="#FF0000" />
+        {/* 헬멧 라인 디테일 */}
+        <path d="M 25 32 Q 60 38 95 32" stroke="#A0A0A0" strokeWidth="1.5" fill="none" opacity="0.5" />
       </svg>
     )
   };
@@ -751,10 +1068,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="18" cy="50" rx="12" ry="18" fill={skinColor} /> {/* 왼팔 */}
         <ellipse cx="102" cy="50" rx="12" ry="18" fill={skinColor} /> {/* 오른팔 */}
         {/* 몸통 */}
-        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 35 L 90 15 L 75 20 Q 60 28 45 20 Z" fill={color} />
+        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 35 L 90 15 L 75 20 Q 60 28 45 20 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 45 Z" fill={color} opacity="0.85" />
-        <path d="M 90 15 L 112 35 L 112 70 L 95 70 L 95 45 Z" fill={color} opacity="0.85" />
+        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 45 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 15 L 112 35 L 112 70 L 95 70 L 95 45 Z" fill={fillColor} opacity="0.85" />
         {/* 목 라인 */}
         <path d="M 45 20 Q 60 28 75 20" stroke="white" strokeWidth="2" fill="none" opacity="0.3" />
       </svg>
@@ -767,10 +1084,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="18" cy="50" rx="12" ry="18" fill={skinColor} />
         <ellipse cx="102" cy="50" rx="12" ry="18" fill={skinColor} />
         {/* 몸통 */}
-        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 35 L 90 15 L 75 20 Q 60 28 45 20 Z" fill={color} />
+        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 35 L 90 15 L 75 20 Q 60 28 45 20 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 45 Z" fill={color} opacity="0.85" />
-        <path d="M 90 15 L 112 35 L 112 70 L 95 70 L 95 45 Z" fill={color} opacity="0.85" />
+        <path d="M 30 15 L 8 35 L 8 70 L 25 70 L 25 45 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 15 L 112 35 L 112 70 L 95 70 L 95 45 Z" fill={fillColor} opacity="0.85" />
         {/* 셔츠 버튼 라인 */}
         <rect x="57" y="25" width="6" height="95" fill="white" opacity="0.3" />
         <circle cx="60" cy="35" r="3" fill="white" opacity="0.5" />
@@ -779,8 +1096,8 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <circle cx="60" cy="95" r="3" fill="white" opacity="0.5" />
         {/* 칼라 */}
         <path d="M 45 20 L 50 12 L 60 18 L 70 12 L 75 20" fill="white" opacity="0.9" />
-        <path d="M 43 15 L 50 20 L 55 10" fill={color} opacity="0.95" />
-        <path d="M 77 15 L 70 20 L 65 10" fill={color} opacity="0.95" />
+        <path d="M 43 15 L 50 20 L 55 10" fill={fillColor} opacity="0.95" />
+        <path d="M 77 15 L 70 20 L 65 10" fill={fillColor} opacity="0.95" />
       </svg>
     ),
     dress: (
@@ -791,10 +1108,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="20" cy="35" rx="10" ry="15" fill={skinColor} />
         <ellipse cx="100" cy="35" rx="10" ry="15" fill={skinColor} />
         {/* 드레스 */}
-        <path d="M 40 15 Q 60 22 80 15 L 100 120 L 20 120 Z" fill={color} />
+        <path d="M 40 15 Q 60 22 80 15 L 100 120 L 20 120 Z" fill={fillColor} />
         {/* 어깨끈 */}
-        <path d="M 40 15 L 30 25 L 35 28 L 35 50" fill={color} opacity="0.85" />
-        <path d="M 80 15 L 90 25 L 85 28 L 85 50" fill={color} opacity="0.85" />
+        <path d="M 40 15 L 30 25 L 35 28 L 35 50" fill={fillColor} opacity="0.85" />
+        <path d="M 80 15 L 90 25 L 85 28 L 85 50" fill={fillColor} opacity="0.85" />
         {/* 리본 장식 */}
         <ellipse cx="60" cy="30" rx="20" ry="4" fill="white" opacity="0.2" />
         <circle cx="60" cy="30" r="5" fill="rgba(255,255,255,0.4)" />
@@ -807,12 +1124,12 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
         <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 후디 */}
-        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill={color} />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={color} opacity="0.85" />
-        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={color} opacity="0.85" />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={fillColor} opacity="0.85" />
         {/* 후드 */}
-        <path d="M 30 15 Q 60 25 90 15 Q 80 40 60 48 Q 40 40 30 15" fill={color} stroke={color} strokeWidth="2" />
+        <path d="M 30 15 Q 60 25 90 15 Q 80 40 60 48 Q 40 40 30 15" fill={fillColor} stroke={color} strokeWidth="2" />
         <ellipse cx="60" cy="38" rx="15" ry="10" fill="rgba(0,0,0,0.15)" />
         {/* 앞주머니 */}
         <rect x="40" y="70" width="40" height="30" rx="3" fill="rgba(0,0,0,0.1)" />
@@ -892,10 +1209,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
         <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 자켓 */}
-        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={color} />
+        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={color} opacity="0.85" />
-        <path d="M 90 18 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={color} opacity="0.85" />
+        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 18 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={fillColor} opacity="0.85" />
         {/* 앞판 */}
         <path d="M 45 22 L 50 120 L 57 120 L 57 28" fill="rgba(0,0,0,0.15)" />
         <path d="M 75 22 L 70 120 L 63 120 L 63 28" fill="rgba(0,0,0,0.15)" />
@@ -905,8 +1222,8 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <rect x="25" y="75" width="18" height="12" rx="2" fill="rgba(0,0,0,0.12)" />
         <rect x="77" y="75" width="18" height="12" rx="2" fill="rgba(0,0,0,0.12)" />
         {/* 칼라 */}
-        <path d="M 45 22 Q 38 15 30 18 L 42 25" fill={color} opacity="0.95" />
-        <path d="M 75 22 Q 82 15 90 18 L 78 25" fill={color} opacity="0.95" />
+        <path d="M 45 22 Q 38 15 30 18 L 42 25" fill={fillColor} opacity="0.95" />
+        <path d="M 75 22 Q 82 15 90 18 L 78 25" fill={fillColor} opacity="0.95" />
       </svg>
     ),
     sweater: (
@@ -917,12 +1234,12 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
         <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 스웨터 */}
-        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill={color} />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={color} opacity="0.85" />
-        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={color} opacity="0.85" />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={fillColor} opacity="0.85" />
         {/* 터틀넥 */}
-        <path d="M 42 15 Q 60 8 78 15 Q 78 25 60 28 Q 42 25 42 15" fill={color} stroke={color} strokeWidth="3" />
+        <path d="M 42 15 Q 60 8 78 15 Q 78 25 60 28 Q 42 25 42 15" fill={fillColor} stroke={color} strokeWidth="3" />
         {/* 편물 패턴 */}
         <path d="M 25 40 Q 30 45 35 40 Q 40 45 45 40 Q 50 45 55 40 Q 60 45 65 40 Q 70 45 75 40 Q 80 45 85 40 Q 90 45 95 40"
               stroke="rgba(255,255,255,0.2)" strokeWidth="2" fill="none" />
@@ -940,18 +1257,18 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="8" cy="55" rx="10" ry="16" fill={skinColor} />
         <ellipse cx="112" cy="55" rx="10" ry="16" fill={skinColor} />
         {/* 코트 */}
-        <path d="M 28 15 L 0 45 L 0 75 L 18 75 L 18 120 L 102 120 L 102 75 L 120 75 L 120 45 L 92 15 L 78 20 Q 60 26 42 20 Z" fill={color} />
+        <path d="M 28 15 L 0 45 L 0 75 L 18 75 L 18 120 L 102 120 L 102 75 L 120 75 L 120 45 L 92 15 L 78 20 Q 60 26 42 20 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 28 15 L 0 45 L 0 75 L 18 75 L 18 50 Z" fill={color} opacity="0.85" />
-        <path d="M 92 15 L 120 45 L 120 75 L 102 75 L 102 50 Z" fill={color} opacity="0.85" />
+        <path d="M 28 15 L 0 45 L 0 75 L 18 75 L 18 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 92 15 L 120 45 L 120 75 L 102 75 L 102 50 Z" fill={fillColor} opacity="0.85" />
         {/* 단추들 */}
         <circle cx="60" cy="35" r="4" fill="#DAA520" stroke="#8B6914" strokeWidth="1" />
         <circle cx="60" cy="55" r="4" fill="#DAA520" stroke="#8B6914" strokeWidth="1" />
         <circle cx="60" cy="75" r="4" fill="#DAA520" stroke="#8B6914" strokeWidth="1" />
         <circle cx="60" cy="95" r="4" fill="#DAA520" stroke="#8B6914" strokeWidth="1" />
         {/* 칼라 */}
-        <path d="M 42 20 L 28 15 L 38 25 L 45 30" fill={color} opacity="0.95" />
-        <path d="M 78 20 L 92 15 L 82 25 L 75 30" fill={color} opacity="0.95" />
+        <path d="M 42 20 L 28 15 L 38 25 L 45 30" fill={fillColor} opacity="0.95" />
+        <path d="M 78 20 L 92 15 L 82 25 L 75 30" fill={fillColor} opacity="0.95" />
         {/* 주머니 */}
         <path d="M 22 85 Q 22 98 32 98 L 32 85" fill="rgba(0,0,0,0.15)" />
         <path d="M 98 85 Q 98 98 88 98 L 88 85" fill="rgba(0,0,0,0.15)" />
@@ -965,10 +1282,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="5" cy="55" rx="8" ry="12" fill={skinColor} />
         <ellipse cx="115" cy="55" rx="8" ry="12" fill={skinColor} />
         {/* 기모노 */}
-        <path d="M 35 12 L 0 50 L 0 75 L 15 75 L 15 120 L 105 120 L 105 75 L 120 75 L 120 50 L 85 12 Z" fill={color} />
+        <path d="M 35 12 L 0 50 L 0 75 L 15 75 L 15 120 L 105 120 L 105 75 L 120 75 L 120 50 L 85 12 Z" fill={fillColor} />
         {/* 넓은 소매 */}
-        <path d="M 35 12 L 0 50 L 0 75 L 15 75 L 20 55 Z" fill={color} opacity="0.9" />
-        <path d="M 85 12 L 120 50 L 120 75 L 105 75 L 100 55 Z" fill={color} opacity="0.9" />
+        <path d="M 35 12 L 0 50 L 0 75 L 15 75 L 20 55 Z" fill={fillColor} opacity="0.9" />
+        <path d="M 85 12 L 120 50 L 120 75 L 105 75 L 100 55 Z" fill={fillColor} opacity="0.9" />
         {/* 깃 (V자형) */}
         <path d="M 45 12 L 52 50 L 60 20 L 68 50 L 75 12" fill="white" opacity="0.9" />
         {/* 오비 (허리띠) */}
@@ -986,15 +1303,15 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 로브 (후드 달린 의상이라 목/얼굴이 후드 안에) */}
         {/* 로브 몸통 */}
-        <path d="M 30 15 Q 60 22 90 15 L 110 120 L 10 120 Z" fill={color} />
+        <path d="M 30 15 Q 60 22 90 15 L 110 120 L 10 120 Z" fill={fillColor} />
         {/* 넓은 소매 */}
-        <path d="M 30 15 L 0 50 L 0 75 L 15 75 L 20 45 Z" fill={color} opacity="0.9" />
-        <path d="M 90 15 L 120 50 L 120 75 L 105 75 L 100 45 Z" fill={color} opacity="0.9" />
+        <path d="M 30 15 L 0 50 L 0 75 L 15 75 L 20 45 Z" fill={fillColor} opacity="0.9" />
+        <path d="M 90 15 L 120 50 L 120 75 L 105 75 L 100 45 Z" fill={fillColor} opacity="0.9" />
         {/* 팔 - 소매 끝 */}
         <ellipse cx="5" cy="65" rx="8" ry="12" fill={skinColor} />
         <ellipse cx="115" cy="65" rx="8" ry="12" fill={skinColor} />
         {/* 후드 */}
-        <path d="M 30 15 Q 60 -5 90 15 Q 82 30 60 35 Q 38 30 30 15" fill={color} stroke={color} strokeWidth="2" />
+        <path d="M 30 15 Q 60 -5 90 15 Q 82 30 60 35 Q 38 30 30 15" fill={fillColor} stroke={color} strokeWidth="2" />
         <ellipse cx="60" cy="25" rx="18" ry="8" fill="rgba(0,0,0,0.25)" />
         {/* 별 무늬 */}
         <polygon points="40,55 42,61 48,61 43,65 45,71 40,67 35,71 37,65 32,61 38,61" fill="#FFD700" opacity="0.7" />
@@ -1029,19 +1346,19 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         {/* 목 */}
         <rect x="50" y="0" width="20" height="18" fill={skinColor} />
         {/* 팔 */}
-        <ellipse cx="12" cy="50" rx="12" ry="16" fill={color} /> {/* 히어로 슈트 팔 */}
-        <ellipse cx="108" cy="50" rx="12" ry="16" fill={color} />
+        <ellipse cx="12" cy="50" rx="12" ry="16" fill={fillColor} /> {/* 히어로 슈트 팔 */}
+        <ellipse cx="108" cy="50" rx="12" ry="16" fill={fillColor} />
         {/* 슈퍼히어로 복장 */}
-        <path d="M 30 18 L 8 40 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={color} />
+        <path d="M 30 18 L 8 40 L 8 70 L 25 70 L 25 120 L 95 120 L 95 70 L 112 70 L 112 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 18 L 8 40 L 8 70 L 25 70 L 25 48 Z" fill={color} opacity="0.9" />
-        <path d="M 90 18 L 112 40 L 112 70 L 95 70 L 95 48 Z" fill={color} opacity="0.9" />
+        <path d="M 30 18 L 8 40 L 8 70 L 25 70 L 25 48 Z" fill={fillColor} opacity="0.9" />
+        <path d="M 90 18 L 112 40 L 112 70 L 95 70 L 95 48 Z" fill={fillColor} opacity="0.9" />
         {/* 망토 */}
         <path d="M 8 45 Q -2 70 5 95 Q 10 115 15 120 L 25 70" fill="#C41E3A" opacity="0.8" />
         <path d="M 112 45 Q 122 70 115 95 Q 110 115 105 120 L 95 70" fill="#C41E3A" opacity="0.8" />
         {/* 가슴 엠블럼 */}
         <circle cx="60" cy="55" r="15" fill="#FFD700" />
-        <polygon points="60,45 65,55 60,65 55,55" fill={color} />
+        <polygon points="60,45 65,55 60,65 55,55" fill={fillColor} />
         {/* 벨트 */}
         <rect x="25" y="80" width="70" height="8" fill="#FFD700" />
         <rect x="55" y="78" width="10" height="12" rx="2" fill="#DAA520" />
@@ -1075,10 +1392,10 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
         <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 운동복 */}
-        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={color} />
+        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 18 L 75 22 Q 60 28 45 22 Z" fill={fillColor} />
         {/* 소매 */}
-        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={color} opacity="0.85" />
-        <path d="M 90 18 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={color} opacity="0.85" />
+        <path d="M 30 18 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 18 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={fillColor} opacity="0.85" />
         {/* 줄무늬 */}
         <rect x="18" y="45" width="6" height="75" fill="white" opacity="0.6" />
         <rect x="96" y="45" width="6" height="75" fill="white" opacity="0.6" />
@@ -1104,8 +1421,8 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         </defs>
         <path d="M 40 12 Q 60 18 80 12 L 110 120 L 10 120 Z" fill="url(#princessGradient)" />
         {/* 어깨 장식 (퍼프 슬리브) */}
-        <ellipse cx="28" cy="18" rx="14" ry="10" fill={color} opacity="0.8" />
-        <ellipse cx="92" cy="18" rx="14" ry="10" fill={color} opacity="0.8" />
+        <ellipse cx="28" cy="18" rx="14" ry="10" fill={fillColor} opacity="0.8" />
+        <ellipse cx="92" cy="18" rx="14" ry="10" fill={fillColor} opacity="0.8" />
         {/* 프릴 */}
         <path d="M 20 45 Q 25 50 30 45 Q 35 50 40 45 Q 45 50 50 45 Q 55 50 60 45 Q 65 50 70 45 Q 75 50 80 45 Q 85 50 90 45 Q 95 50 100 45"
               stroke="white" strokeWidth="3" fill="none" opacity="0.5" />
@@ -1135,7 +1452,7 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <circle cx="75" cy="65" r="4" fill="#1a1a1a" />
         <circle cx="75" cy="85" r="4" fill="#1a1a1a" />
         {/* 앞치마 */}
-        <rect x="35" y="55" width="50" height="65" rx="3" fill={color} opacity="0.3" />
+        <rect x="35" y="55" width="50" height="65" rx="3" fill={fillColor} opacity="0.3" />
       </svg>
     ),
     doctor: (
@@ -1157,13 +1474,13 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
         <path d="M 75 60 Q 85 65 85 75" stroke="#1a1a1a" strokeWidth="3" fill="none" />
         <circle cx="85" cy="78" r="5" fill="#1a1a1a" />
         {/* 주머니 */}
-        <rect x="22" y="75" width="22" height="18" rx="2" fill={color} opacity="0.2" />
+        <rect x="22" y="75" width="22" height="18" rx="2" fill={fillColor} opacity="0.2" />
       </svg>
     ),
     pirate: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 해적 복장 */}
-        <path d="M 30 0 L 10 25 L 25 35 L 25 120 L 95 120 L 95 35 L 110 25 L 90 0 Z" fill={color} />
+        <path d="M 30 0 L 10 25 L 25 35 L 25 120 L 95 120 L 95 35 L 110 25 L 90 0 Z" fill={fillColor} />
         {/* 조끼 */}
         <path d="M 40 30 L 35 35 L 35 90 L 45 100 L 60 35" fill="#654321" />
         <path d="M 80 30 L 85 35 L 85 90 L 75 100 L 60 35" fill="#654321" />
@@ -1179,12 +1496,12 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
     wizard: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 마법사 로브 */}
-        <path d="M 30 0 Q 60 15 90 0 L 110 120 L 10 120 Z" fill={color} />
+        <path d="M 30 0 Q 60 15 90 0 L 110 120 L 10 120 Z" fill={fillColor} />
         {/* 별과 달 무늬 */}
         <polygon points="30,40 32,46 38,46 33,50 35,56 30,52 25,56 27,50 22,46 28,46" fill="#FFD700" />
         <polygon points="75,60 77,66 83,66 78,70 80,76 75,72 70,76 72,70 67,66 73,66" fill="#FFD700" />
         <circle cx="50" cy="80" r="8" fill="white" opacity="0.6" />
-        <circle cx="54" cy="80" r="6" fill={color} opacity="0.3" />
+        <circle cx="54" cy="80" r="6" fill={fillColor} opacity="0.3" />
         {/* 신비로운 룬 문자 */}
         <path d="M 40 95 L 45 105 L 50 95" stroke="#FFD700" strokeWidth="2" fill="none" />
         <circle cx="60" cy="100" r="4" stroke="#FFD700" strokeWidth="2" fill="none" />

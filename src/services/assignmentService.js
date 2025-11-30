@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 // ============================================
@@ -57,17 +57,44 @@ export async function createAssignment(teacherId, classCode, title, description,
 
     const docRef = await addDoc(collection(db, 'assignments'), assignment);
 
+    const newAssignmentSummary = {
+      id: docRef.id,
+      title,
+      description,
+      minScore,
+      createdAt
+    };
+
     // 🚀 classes 문서에 과제 요약 추가 (학생용 - DB 읽기 0회)
     try {
       await updateDoc(doc(db, 'classes', classCode), {
-        assignmentSummary: arrayUnion({
-          id: docRef.id,
-          title,
-          description,  // 🚀 설명 추가
-          minScore,
-          createdAt
-        })
+        assignmentSummary: arrayUnion(newAssignmentSummary)
       });
+
+      // 🚀 해당 학급의 모든 학생 classInfo.assignmentSummary도 업데이트
+      try {
+        const studentsQuery = query(
+          collection(db, 'users'),
+          where('classCode', '==', classCode),
+          where('role', '==', 'student')
+        );
+        const studentsSnapshot = await getDocs(studentsQuery);
+
+        const batch = writeBatch(db);
+        studentsSnapshot.forEach((studentDoc) => {
+          const studentData = studentDoc.data();
+          if (studentData.classInfo) {
+            const currentSummary = studentData.classInfo.assignmentSummary || [];
+            batch.update(studentDoc.ref, {
+              'classInfo.assignmentSummary': [...currentSummary, newAssignmentSummary]
+            });
+          }
+        });
+        await batch.commit();
+        console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+      } catch (syncError) {
+        console.warn('학생 classInfo 동기화 실패:', syncError);
+      }
     } catch (e) {
       console.warn('과제 요약 추가 실패 (classes 문서):', e);
     }
@@ -212,6 +239,30 @@ export async function deleteAssignment(assignmentId, classCode = null, assignmen
             await updateDoc(doc(db, 'classes', classCode), {
               assignmentSummary: filtered
             });
+
+            // 🚀 해당 학급의 모든 학생 classInfo.assignmentSummary도 업데이트
+            try {
+              const studentsQuery = query(
+                collection(db, 'users'),
+                where('classCode', '==', classCode),
+                where('role', '==', 'student')
+              );
+              const studentsSnapshot = await getDocs(studentsQuery);
+
+              const batch = writeBatch(db);
+              studentsSnapshot.forEach((studentDoc) => {
+                const studentData = studentDoc.data();
+                if (studentData.classInfo) {
+                  batch.update(studentDoc.ref, {
+                    'classInfo.assignmentSummary': filtered
+                  });
+                }
+              });
+              await batch.commit();
+              console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+            } catch (syncError) {
+              console.warn('학생 classInfo 동기화 실패:', syncError);
+            }
           }
         }
       } catch (e) {

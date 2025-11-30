@@ -20,9 +20,8 @@ export default function SuperAdminDashboard({ user, userData }) {
   const [classStudents, setClassStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
-  // 🚀 선생님 목록 (승인된 선생님만)
-  const [teachers, setTeachers] = useState([]);
-  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  // 🚀 선생님 수 (classes에서 계산 - 추가 DB 읽기 없음)
+  const [teacherCount, setTeacherCount] = useState(0);
 
   // 🚀 선택된 사용자 상세 정보
   const [selectedUserDetail, setSelectedUserDetail] = useState(null);
@@ -33,13 +32,67 @@ export default function SuperAdminDashboard({ user, userData }) {
     loadData();
   }, []);
 
-  // 🚀 최적화: 학급 요약만 먼저 로드 (users 개별 읽기 제거!)
+  // 🚀 최적화: userData.classesSummary 사용 (DB 읽기 0회!)
   const loadData = async () => {
     setLoading(true);
     try {
       console.log('[📊 SuperAdmin] 데이터 로드 시작');
 
-      // 1. 승인 대기 선생님 (보통 적음 - 1회 쿼리)
+      // 1. 🚀 학급 요약은 userData에서 가져옴 (DB 읽기 0회!)
+      if (userData.classesSummary && userData.classesSummary.length > 0) {
+        console.log('[📊 캐시] userData.classesSummary 사용 (DB 읽기 0회!)');
+        const classes = userData.classesSummary;
+        setClassSummaries(classes);
+
+        // 고유 선생님 수 계산
+        const uniqueTeacherIds = new Set();
+        classes.forEach(cls => {
+          if (cls.teacherId) {
+            uniqueTeacherIds.add(cls.teacherId);
+          }
+        });
+        setTeacherCount(uniqueTeacherIds.size);
+        console.log(`[📊 캐시] 학급 ${classes.length}개, 선생님 ${uniqueTeacherIds.size}명 (캐시에서 로드)`);
+      } else {
+        // classesSummary가 없는 경우 (최초 1회만) - DB에서 로드 후 동기화 트리거
+        console.log('[📊 DB읽기] classesSummary 없음 - 동기화 실행');
+        try {
+          const syncFn = httpsCallable(functions, 'syncClassesSummary');
+          await syncFn();
+          console.log('[📊 동기화] classesSummary 동기화 완료 - 새로고침 필요');
+
+          // 동기화 후 classes에서 직접 로드 (1회성)
+          const classesQuery = query(collection(db, "classes"));
+          const classesSnapshot = await getDocs(classesQuery);
+          const classes = [];
+          const uniqueTeacherIds = new Set();
+
+          classesSnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            classes.push({
+              classCode: docSnap.id,
+              className: data.className || docSnap.id,
+              teacherId: data.teacherId,
+              teacherName: data.teacherName || '알 수 없음',
+              studentCount: data.students?.length || 0,
+              gradeLevel: data.gradeLevel,
+              createdAt: data.createdAt
+            });
+            if (data.teacherId) {
+              uniqueTeacherIds.add(data.teacherId);
+            }
+          });
+
+          setClassSummaries(classes);
+          setTeacherCount(uniqueTeacherIds.size);
+        } catch (syncError) {
+          console.warn('[📊 동기화] 실패:', syncError);
+          setClassSummaries([]);
+          setTeacherCount(0);
+        }
+      }
+
+      // 2. 승인 대기 선생님 (보통 적음 - 1회 쿼리)
       console.log('[📊 DB읽기] 승인 대기 선생님 조회');
       const pendingQuery = query(
         collection(db, "users"),
@@ -54,31 +107,11 @@ export default function SuperAdminDashboard({ user, userData }) {
       setPendingTeachers(pending);
       console.log(`[📊 DB읽기] 승인 대기 선생님 ${pending.length}명 로드`);
 
-      // 2. 🚀 학급 요약 로드 (classes 컬렉션 - 학급 수만큼 읽기)
-      console.log('[📊 DB읽기] 학급 목록 조회');
-      const classesQuery = query(collection(db, "classes"));
-      const classesSnapshot = await getDocs(classesQuery);
-      const classes = [];
-      classesSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        classes.push({
-          classCode: docSnap.id,
-          className: data.className || docSnap.id,
-          teacherId: data.teacherId,
-          teacherName: data.teacherName || '알 수 없음',
-          studentCount: data.students?.length || 0,
-          gradeLevel: data.gradeLevel,
-          createdAt: data.createdAt
-        });
-      });
-      setClassSummaries(classes);
-      console.log(`[📊 DB읽기] 학급 ${classes.length}개 로드 (학생 상세는 클릭 시 로드)`);
-
       // 🚀 로그인 완료 요약
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 2회');
+      console.log('[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 1회');
       console.log('  - users (승인대기): 1회 쿼리');
-      console.log('  - classes: 1회 쿼리');
+      console.log('  - classes: 0회 (userData.classesSummary 캐시 사용)');
       console.log('  - 학생 상세: 0회 (학급 클릭 시 로드)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
@@ -121,31 +154,21 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
   };
 
-  // 🚀 선생님 목록 로드 (탭 클릭 시)
-  const loadTeachers = async () => {
-    if (teachers.length > 0) return; // 이미 로드됨
-
-    setLoadingTeachers(true);
-    try {
-      console.log('[📊 DB읽기] 승인된 선생님 목록 조회');
-      const teachersQuery = query(
-        collection(db, "users"),
-        where("role", "==", ROLES.TEACHER),
-        where("approved", "==", true)
-      );
-      const snapshot = await getDocs(teachersQuery);
-      const teacherList = [];
-      snapshot.forEach((docSnap) => {
-        teacherList.push({ ...docSnap.data(), id: docSnap.id });
-      });
-      setTeachers(teacherList);
-      console.log(`[📊 DB읽기] 선생님 ${teacherList.length}명 로드`);
-    } catch (error) {
-      console.error("선생님 로드 에러:", error);
-    } finally {
-      setLoadingTeachers(false);
-    }
-  };
+  // 🚀 선생님 목록 생성 (classes에서 추출 - DB 읽기 0회!)
+  // classSummaries가 변경될 때마다 선생님 목록 자동 생성
+  const teachersFromClasses = (() => {
+    const teacherMap = new Map();
+    classSummaries.forEach(cls => {
+      if (cls.teacherId && !teacherMap.has(cls.teacherId)) {
+        teacherMap.set(cls.teacherId, {
+          id: cls.teacherId,
+          name: cls.teacherName || '알 수 없음',
+          role: 'teacher'
+        });
+      }
+    });
+    return Array.from(teacherMap.values());
+  })();
 
   // 🚀 사용자 상세 정보 로드 (클릭 시)
   const loadUserDetail = async (userId) => {
@@ -298,10 +321,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     console.log(`[📊 탭] ${tab} 탭 선택`);
-
-    if (tab === 'teachers' && teachers.length === 0) {
-      loadTeachers();
-    }
+    // 🚀 선생님 목록은 classes에서 자동 생성되므로 별도 로드 불필요 (DB 읽기 0회)
   };
 
   // 🚀 classCode 마이그레이션 실행
@@ -327,6 +347,25 @@ export default function SuperAdminDashboard({ user, userData }) {
       setMigrateResult({ error: error.message });
     } finally {
       setMigrating(false);
+    }
+  };
+
+  // 🚀 학급 정보 동기화 (선생님 이름 포함)
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncClassesSummary = async () => {
+    setSyncing(true);
+    try {
+      console.log('[📊 동기화] 학급 정보 동기화 시작');
+      const syncFn = httpsCallable(functions, 'syncClassesSummary');
+      await syncFn();
+      alert('동기화 완료! 페이지를 새로고침합니다.');
+      window.location.reload();
+    } catch (error) {
+      console.error("동기화 에러:", error);
+      alert("동기화 실패: " + error.message);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -440,7 +479,7 @@ ${result.data.message}`);
           </div>
           <div className="bg-white rounded-xl shadow p-4">
             <p className="text-sm text-gray-500">승인된 선생님</p>
-            <p className="text-2xl font-bold text-purple-600">{teachers.length || '-'}명</p>
+            <p className="text-2xl font-bold text-purple-600">{teacherCount}명</p>
           </div>
         </div>
 
@@ -660,45 +699,37 @@ ${result.data.message}`);
           </div>
         )}
 
-        {/* Teachers Tab */}
+        {/* Teachers Tab - 🚀 classes에서 추출한 데이터 사용 (DB 읽기 0회) */}
         {activeTab === "teachers" && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">승인된 선생님</h2>
+              <p className="text-sm text-gray-500">학급을 담당하는 선생님 목록 (DB 읽기 0회)</p>
             </div>
-            {loadingTeachers ? (
-              <div className="px-6 py-8 text-center text-gray-500">선생님 목록 로딩 중...</div>
-            ) : teachers.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">승인된 선생님이 없습니다.</div>
+            {teachersFromClasses.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">학급을 담당하는 선생님이 없습니다.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">담당 학급</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">가입일</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">총 학생 수</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">관리</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {teachers.map((teacher) => {
+                    {teachersFromClasses.map((teacher) => {
                       const teacherClasses = classSummaries.filter(c => c.teacherId === teacher.id);
+                      const totalStudents = teacherClasses.reduce((sum, c) => sum + c.studentCount, 0);
                       return (
                         <tr key={teacher.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{teacher.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{teacher.email}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {teacherClasses.length > 0 ? (
-                              teacherClasses.map(c => c.className).join(', ')
-                            ) : (
-                              <span className="text-gray-400">학급 없음</span>
-                            )}
+                            {teacherClasses.map(c => c.className).join(', ')}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : "-"}
-                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{totalStudents}명</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
@@ -800,6 +831,27 @@ ${result.data.message}`);
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* 학급/선생님 정보 동기화 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                  <h3 className="font-medium text-blue-800 mb-2">학급 정보 동기화</h3>
+                  <p className="text-sm text-blue-700 mb-3">
+                    학급 정보와 담당 선생님 이름을 동기화합니다.<br/>
+                    선생님 이름이 "알 수 없음"으로 표시될 때 실행하세요.
+                  </p>
+                  <ul className="text-xs text-blue-600 mb-4 list-disc list-inside space-y-1">
+                    <li>모든 학급의 담당 선생님 이름 조회</li>
+                    <li>classes 문서에 teacherName 저장</li>
+                    <li>슈퍼관리자 userData에 캐시 저장 (DB 읽기 최적화)</li>
+                  </ul>
+                  <button
+                    onClick={handleSyncClassesSummary}
+                    disabled={syncing}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {syncing ? '동기화 중...' : '학급 정보 동기화 실행'}
+                  </button>
                 </div>
               </div>
             </div>

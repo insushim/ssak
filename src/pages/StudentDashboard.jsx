@@ -48,19 +48,19 @@ const AVATAR_ITEMS = {
     { id: 'face16', emoji: '🐼', name: '판다', price: 150, svgType: 'animal', animalType: 'panda' },
     { id: 'face17', emoji: '🐯', name: '호랑이', price: 180, svgType: 'animal', animalType: 'tiger' },
     // 이모지 캐릭터 (헤어/의상 적용 안됨)
-    { id: 'face20', emoji: '🦋', name: '나비', price: 200, svgType: 'emoji' },
-    { id: 'face21', emoji: '🐸', name: '개구리', price: 120, svgType: 'emoji' },
-    { id: 'face22', emoji: '🦢', name: '백조', price: 220, svgType: 'emoji' },
-    { id: 'face23', emoji: '🐠', name: '열대어', price: 180, svgType: 'emoji' },
-    { id: 'face24', emoji: '🦈', name: '상어', price: 320, svgType: 'emoji' },
-    { id: 'face25', emoji: '🐙', name: '문어', price: 250, svgType: 'emoji' },
+    { id: 'face20', emoji: '🦋', name: '나비', price: 200, svgType: 'animal', animalType: 'butterfly' },
+    { id: 'face21', emoji: '🐸', name: '개구리', price: 120, svgType: 'animal', animalType: 'frog' },
+    { id: 'face22', emoji: '🦢', name: '백조', price: 220, svgType: 'animal', animalType: 'swan' },
+    { id: 'face23', emoji: '🐠', name: '열대어', price: 180, svgType: 'animal', animalType: 'tropicalfish' },
+    { id: 'face24', emoji: '🦈', name: '상어', price: 320, svgType: 'animal', animalType: 'shark' },
+    { id: 'face25', emoji: '🐙', name: '문어', price: 250, svgType: 'animal', animalType: 'octopus' },
     // 스페셜 캐릭터
     { id: 'face30', emoji: '🐲', name: '용', price: 300, svgType: 'animal', animalType: 'dragon', special: true },
     { id: 'face31', emoji: '🦄', name: '유니콘', price: 500, svgType: 'animal', animalType: 'unicorn', special: true },
-    { id: 'face32', emoji: '👻', name: '유령', price: 400, svgType: 'emoji', special: true },
-    { id: 'face33', emoji: '👽', name: '외계인', price: 600, svgType: 'emoji', special: true },
-    { id: 'face34', emoji: '🤖', name: '로봇', price: 800, svgType: 'emoji', special: true },
-    { id: 'face35', emoji: '🎃', name: '호박', price: 450, svgType: 'emoji', special: true }
+    { id: 'face32', emoji: '👻', name: '유령', price: 400, svgType: 'animal', animalType: 'ghost', special: true },
+    { id: 'face33', emoji: '👽', name: '외계인', price: 600, svgType: 'animal', animalType: 'alien', special: true },
+    { id: 'face34', emoji: '🤖', name: '로봇', price: 800, svgType: 'animal', animalType: 'robot', special: true },
+    { id: 'face35', emoji: '🎃', name: '호박', price: 450, svgType: 'animal', animalType: 'pumpkin', special: true }
   ],
   // 머리 스타일 (확장) - svgStyle 추가
   hair: [
@@ -68,13 +68,13 @@ const AVATAR_ITEMS = {
     { id: 'hair2', emoji: '💇', name: '단발', price: 30, svgStyle: 'short' },
     { id: 'hair3', emoji: '💇‍♀️', name: '긴머리', price: 30, svgStyle: 'long' },
     { id: 'hair4', emoji: '👨‍🦱', name: '곱슬머리', price: 50, svgStyle: 'curly' },
-    { id: 'hair5', emoji: '👩‍🦰', name: '웨이브', price: 50, svgStyle: 'curly' },
+    { id: 'hair5', emoji: '👩‍🦰', name: '웨이브', price: 50, svgStyle: 'wave' },
     { id: 'hair6', emoji: '👨‍🦲', name: '스포츠컷', price: 40, svgStyle: 'sportscut' },
     { id: 'hair7', emoji: '🧑‍🦳', name: '은발', price: 100, svgStyle: 'default', defaultColor: '#C0C0C0' },
     { id: 'hair8', emoji: '👸', name: '공주머리', price: 150, svgStyle: 'princess' },
-    { id: 'hair9', emoji: '🦸', name: '히어로컷', price: 200, svgStyle: 'spiky' },
+    { id: 'hair9', emoji: '🦸', name: '히어로컷', price: 200, svgStyle: 'herocut' },
     { id: 'hair10', emoji: '🧝', name: '엘프머리', price: 300, svgStyle: 'elf' },
-    { id: 'hair11', emoji: '👩‍🎤', name: '락스타', price: 180, svgStyle: 'spiky' },
+    { id: 'hair11', emoji: '👩‍🎤', name: '락스타', price: 180, svgStyle: 'rockstar' },
     { id: 'hair12', emoji: '🧑‍🎄', name: '산타머리', price: 250, special: true, svgStyle: 'santa' },
     { id: 'hair13', emoji: '🧜', name: '인어머리', price: 350, special: true, svgStyle: 'mermaid' },
     { id: 'hair14', emoji: '🎎', name: '전통머리', price: 200, svgStyle: 'bun' },
@@ -349,7 +349,7 @@ export default function StudentDashboard({ user, userData }) {
     } else if (newTab === 'profile') {
       console.log('[📊 탭] 내 프로필 탭 - DB 읽기 0회 (이미 로드된 userData 사용)');
     } else if (newTab === 'ranking') {
-      console.log('[📊 탭] 랭킹 탭 - DB 읽기 1회 (classes 문서에서 미리 계산된 랭킹)');
+      console.log('[📊 탭] 랭킹 탭 - DB 읽기 0회 (classInfo 캐시 사용)');
     } else if (newTab === 'history') {
       console.log('[📊 탭] 제출기록 탭 - DB 읽기 0회 (userData.writingSummary 사용)');
     } else if (newTab === 'write') {
@@ -547,7 +547,7 @@ export default function StudentDashboard({ user, userData }) {
   }, [userData]);
 
   // 랭킹 탭 선택 시 데이터 로드
-  // 🚀 최적화: classInfo 객체 대신 classCode만 의존성으로 사용 + 캐시 가드
+  // 🚀 최적화: classInfo 캐시 사용 (DB 읽기 0회!)
   useEffect(() => {
     if (activeTab === 'ranking' && classInfo?.classCode) {
       // 🚀 캐시 가드: 60초 이내에 로드했으면 재로드하지 않음
@@ -555,13 +555,14 @@ export default function StudentDashboard({ user, userData }) {
       if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
         return;
       }
-      // 🔧 첫 로드 또는 데이터가 없으면 forceRefresh로 캐시 무시
-      const needsForceRefresh = !rankingLastLoaded || rankingData.length === 0;
-      loadRankingData(classInfo.classCode, rankingPeriod, needsForceRefresh);
+      // 🚀 classInfo에 랭킹 캐시가 있으면 forceRefresh 불필요 (DB 읽기 0회!)
+      const rankingField = rankingPeriod === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
+      const hasRankingCache = classInfo?.[rankingField]?.data;
+      loadRankingData(classInfo.classCode, rankingPeriod, false);
     }
   }, [activeTab, classInfo?.classCode, rankingPeriod]);
 
-  // 🚀 랭킹 데이터 로드 함수 - 최적화: 1,2,3등 + 내 랭킹만 로드
+  // 🚀 랭킹 데이터 로드 함수 - 최적화: classInfo 캐시 사용 (DB 읽기 0회!)
   const loadRankingData = async (classCode, period, forceRefresh = false) => {
     if (loadingRanking) return; // 🔥 동시 로드 방지
 
@@ -578,8 +579,20 @@ export default function StudentDashboard({ user, userData }) {
     }
     setLoadingRanking(true);
     try {
-      // 🚀 전체 랭킹 가져오기 (classes 문서에 저장됨 - DB 읽기 1회)
-      const fullRanking = await getClassRanking(classCode, period, { forceRefresh });
+      // 🚀 classInfo에서 캐시된 랭킹 사용 (DB 읽기 0회!)
+      const rankingField = period === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
+      let fullRanking = [];
+
+      if (classInfo?.[rankingField]?.data) {
+        fullRanking = classInfo[rankingField].data;
+        console.log(`[📊 캐시] 랭킹 - classInfo.${rankingField}에서 로드 (DB 읽기 0회)`);
+      } else if (forceRefresh) {
+        // 강제 새로고침 시에만 DB 조회
+        console.log(`[📊 DB읽기] 랭킹 강제 새로고침 - classCode: ${classCode}`);
+        fullRanking = await getClassRanking(classCode, period, { forceRefresh: true });
+      } else {
+        console.log(`[📊 캐시] 랭킹 데이터 없음 - 빈 배열 반환`);
+      }
 
       setRankingData(fullRanking);
       setRankingLastLoaded(Date.now());
@@ -806,27 +819,37 @@ export default function StudentDashboard({ user, userData }) {
 
       // 🚀 userData에서 글 요약 추출 (DB 읽기 0회!)
       studentWritings = getWritingSummaryFromUserData(currentUserData);
-      console.log(`[📊 최적화] 글 ${studentWritings.length}개 - users 문서에서 로드`);
+      console.log(`[📊 캐시] 글 ${studentWritings.length}개 - userData.writingSummary에서 로드 (DB 읽기 0회)`);
 
-      // 2. 통계는 studentStats 컬렉션에서 (1회 읽기)
-      try {
-        studentStats = await getStudentStats(user.uid);
-      } catch (err) {
-        console.error('학생 통계 조회 에러:', err);
-        studentStats = { totalSubmissions: 0, averageScore: 0, scores: [] };
-      }
+      // 2. 🚀 통계는 userData에서 계산 (writingSummary 기반 - DB 읽기 0회!)
+      // studentStats 컬렉션은 제출 시에만 업데이트하고, 로그인 시에는 writingSummary에서 계산
+      const submittedWritings = studentWritings.filter(w => !w.isDraft);
+      studentStats = {
+        totalSubmissions: submittedWritings.length,
+        averageScore: submittedWritings.length > 0
+          ? Math.round(submittedWritings.reduce((sum, w) => sum + (w.score || 0), 0) / submittedWritings.length)
+          : 0,
+        scores: submittedWritings.map(w => w.score || 0)
+      };
+      console.log(`[📊 캐시] 통계 - writingSummary에서 계산 (DB 읽기 0회)`);
 
       // 즉시 UI 업데이트
       setWritings(studentWritings);
       setStats(studentStats);
 
-      // 3. 반 정보가 있으면 과제도 로드 (classes 문서에서 - DB 읽기 1회만!)
+      // 3. 🚀 반 정보 로드 - 과제는 항상 최신 데이터 사용 (DB 읽기 1회)
+      // 과제는 교사가 언제든 추가/삭제할 수 있으므로 캐시만 사용하면 안됨
       if (userData.classCode) {
         try {
-          cls = await getClassByCode(userData.classCode);
+          console.log(`[📊 DB읽기] 학급 정보 - classes 문서 조회 (과제 최신화)`);
+          cls = await getClassByCode(userData.classCode, true); // forceRefresh로 최신 데이터
         } catch (err) {
           console.error('학급 정보 조회 에러:', err);
-          cls = null;
+          // 에러 시 캐시 사용
+          if (currentUserData.classInfo) {
+            cls = currentUserData.classInfo;
+            console.log(`[📊 캐시] 학급 정보 - 에러로 인해 캐시 사용`);
+          }
         }
       }
 
@@ -878,12 +901,11 @@ export default function StudentDashboard({ user, userData }) {
 
       // 🚀 로그인 시 총 DB 읽기 요약
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('[📊 로그인 완료] 총 DB 읽기: 2~3회');
+      console.log(`[📊 로그인 완료] 총 DB 읽기: 2회`);
       console.log('  - users 문서: 1회 (App.jsx에서 로드)');
-      console.log('  - classes 문서: 1회 (getClassByCode)');
-      console.log('  - studentStats 문서: 1회 (getStudentStats)');
-      console.log('  - writings 컬렉션: 0회 (userData.writingSummary 사용)');
-      console.log('  - assignments 컬렉션: 0회 (classes.assignmentSummary 사용)');
+      console.log('  - classes 문서: 1회 (과제 최신화)');
+      console.log('  - studentStats: 0회 (writingSummary에서 계산)');
+      console.log('  - writings 컬렉션: 0회 (userData.writingSummary 캐시)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
       console.error("데이터 로드 에러:", error);
@@ -1518,6 +1540,10 @@ export default function StudentDashboard({ user, userData }) {
                       </div>
                     );
                   } else if (face.svgType === 'animal' && face.animalType) {
+                    // 머리카락이 어울리지 않는 특수 동물 타입들
+                    const noHairAnimals = ['butterfly', 'frog', 'swan', 'tropicalfish', 'shark', 'octopus', 'ghost', 'alien', 'robot', 'pumpkin'];
+                    const showHair = !noHairAnimals.includes(face.animalType);
+
                     return (
                       <div className="relative" style={{ width: avatarSize, height: avatarSize * 1.2 }}>
                         {/* 옷 (상반신 아래쪽) - 동물은 기본 피부색 */}
@@ -1530,8 +1556,8 @@ export default function StudentDashboard({ user, userData }) {
                         <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
                           <AnimalFaceSVG type={face.animalType} size={avatarSize * 0.85} />
                         </div>
-                        {/* 머리카락 */}
-                        {hair.svgStyle && hair.svgStyle !== 'none' && (
+                        {/* 머리카락 - 특수 동물은 표시 안함 */}
+                        {showHair && hair.svgStyle && hair.svgStyle !== 'none' && (
                           <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
                             <HairSVG style={hair.svgStyle} color={actualHairColor} size={avatarSize * 0.85} />
                           </div>
@@ -3225,6 +3251,10 @@ export default function StudentDashboard({ user, userData }) {
                             </div>
                           );
                         } else if (face.svgType === 'animal' && face.animalType) {
+                          // 머리카락이 어울리지 않는 특수 동물 타입들
+                          const noHairAnimals = ['butterfly', 'frog', 'swan', 'tropicalfish', 'shark', 'octopus', 'ghost', 'alien', 'robot', 'pumpkin'];
+                          const showHair = !noHairAnimals.includes(face.animalType);
+
                           return (
                             <div className="relative" style={{ width: 120, height: 140 }}>
                               {/* 옷 (상반신 아래쪽) - 동물은 기본 피부색 */}
@@ -3235,8 +3265,8 @@ export default function StudentDashboard({ user, userData }) {
                               <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
                                 <AnimalFaceSVG type={face.animalType} size={95} />
                               </div>
-                              {/* 머리카락 (항상 얼굴 위에) */}
-                              {previewHair.svgStyle && previewHair.svgStyle !== 'none' && (
+                              {/* 머리카락 - 특수 동물은 표시 안함 */}
+                              {showHair && previewHair.svgStyle && previewHair.svgStyle !== 'none' && (
                                 <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
                                   <HairSVG
                                     style={previewHair.svgStyle || 'default'}

@@ -14,7 +14,7 @@ import { createAssignment, getAssignmentsByClass, deleteAssignment, migrateAssig
 import { generateTopics } from "../utils/geminiAPI";
 import { getSchedulerSettings, saveSchedulerSettings, disableScheduler, generateAutoAssignment, checkAndRunScheduler } from "../services/schedulerService";
 import { GRADE_LEVELS, MAX_STUDENTS_PER_CLASS } from "../config/auth";
-import { batchCreateStudents } from "../services/batchService";
+import { batchCreateStudents, deleteClassWithStudents } from "../services/batchService";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
 
@@ -95,6 +95,10 @@ export default function TeacherDashboard({ user, userData }) {
   const [onboardingStep, setOnboardingStep] = useState(1); // 1: 클래스 생성, 2: 학생 추가, 3: AI 주제 생성
   const [onboardingClass, setOnboardingClass] = useState(null); // 온보딩에서 생성한 클래스
 
+  // 3월 1일 자동 삭제 알림 관련 state
+  const [showMarch1Alert, setShowMarch1Alert] = useState(false);
+  const [daysUntilMarch1, setDaysUntilMarch1] = useState(0);
+
   // 분야 예시
   const categoryExamples = [
     { label: "가족", icon: "👨‍👩‍👧‍👦" },
@@ -140,6 +144,33 @@ export default function TeacherDashboard({ user, userData }) {
     if (!userData.onboardingCompleted) {
       setShowOnboarding(true);
     }
+
+    // 3월 1일 자동 삭제 알림 체크 (2월 22일 ~ 3월 1일 사이)
+    const checkMarch1Alert = () => {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      // 다음 3월 1일 계산 (현재 3월 1일 이후면 다음 해 3월 1일)
+      let march1 = new Date(currentYear, 2, 1); // 3월 1일
+      if (now >= march1) {
+        march1 = new Date(currentYear + 1, 2, 1);
+      }
+
+      const timeDiff = march1.getTime() - now.getTime();
+      const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+      // 7일 이내면 알림 표시 (이미 닫은 적 있으면 하루에 한 번만 표시)
+      if (daysDiff <= 7 && daysDiff >= 0) {
+        const lastDismissed = localStorage.getItem('march1AlertDismissed');
+        const today = now.toDateString();
+
+        if (lastDismissed !== today) {
+          setDaysUntilMarch1(daysDiff);
+          setShowMarch1Alert(true);
+        }
+      }
+    };
+
+    checkMarch1Alert();
   }, []);
 
   // 🔧 모바일 뒤로가기 처리 - 로그인 풀림 방지
@@ -209,12 +240,15 @@ export default function TeacherDashboard({ user, userData }) {
         runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
 
         // 🚀 로그인 완료 요약
+        const hasClassCache = userData.teacherClasses && userData.teacherClasses.length > 0;
+        const hasSchedulerCache = localStorage.getItem(`scheduler_${currentClassCode}`);
+        const dbReads = 1 + (hasClassCache ? 0 : 1) + (hasSchedulerCache ? 0 : 1);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[📊 교사 로그인 완료] 총 DB 읽기: 4회');
+        console.log(`[📊 교사 로그인 완료] 총 DB 읽기: ${dbReads}회`);
         console.log('  - users 문서: 1회 (App.jsx에서 로드)');
-        console.log('  - classes 컬렉션: 1회 (getTeacherClasses)');
-        console.log('  - assignments 컬렉션: 1회 (getAssignmentsByClass - 쿼리 1회로 9개 문서)');
-        console.log('  - schedulers 문서: 1회 (getSchedulerSettings)');
+        console.log(`  - classes 컬렉션: ${hasClassCache ? '0회 (userData.teacherClasses 캐시)' : '1회'}`);
+        console.log('  - assignments: 0회 (assignmentSummary 캐시)');
+        console.log(`  - schedulers: ${hasSchedulerCache ? '0회 (LocalStorage 캐시)' : '1회'}`);
         console.log('  - writings 컬렉션: 0회 (주제 클릭 시에만 로드)');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       });
@@ -293,17 +327,35 @@ export default function TeacherDashboard({ user, userData }) {
 
   const loadSchedulerSettings = async (classCode) => {
     try {
+      // 🚀 LocalStorage 캐시 사용 (DB 읽기 0회!)
+      const cacheKey = `scheduler_${classCode}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const cachedSettings = JSON.parse(cached);
+          setSchedulerSettings(cachedSettings);
+          console.log(`[📊 캐시] 스케줄러 설정 - LocalStorage에서 로드 (DB 읽기 0회)`);
+          return;
+        } catch (e) {}
+      }
+
+      // 캐시가 없으면 DB에서 로드
+      console.log(`[📊 DB읽기] 스케줄러 설정 조회 - classCode: ${classCode}`);
       const settings = await getSchedulerSettings(classCode);
       if (settings) {
         setSchedulerSettings(settings);
+        // 캐시 저장
+        localStorage.setItem(cacheKey, JSON.stringify(settings));
       } else {
-        setSchedulerSettings({
+        const defaultSettings = {
           enabled: false,
           selectedDays: [1, 2, 3, 4, 5],
           scheduledTime: "09:00",
           minScore: 70,
           maxAiProbability: 50
-        });
+        };
+        setSchedulerSettings(defaultSettings);
+        localStorage.setItem(cacheKey, JSON.stringify(defaultSettings));
       }
     } catch (error) {
       console.error("스케줄러 설정 로드 에러:", error);
@@ -315,6 +367,8 @@ export default function TeacherDashboard({ user, userData }) {
     setSchedulerLoading(true);
     try {
       await saveSchedulerSettings(selectedClass.classCode, schedulerSettings);
+      // 🚀 캐시 업데이트
+      localStorage.setItem(`scheduler_${selectedClass.classCode}`, JSON.stringify(schedulerSettings));
       alert(schedulerSettings.enabled ? "자동 출제 스케줄러가 활성화되었습니다!" : "스케줄러 설정이 저장되었습니다.");
       setShowSchedulerModal(false);
     } catch (error) {
@@ -358,25 +412,37 @@ export default function TeacherDashboard({ user, userData }) {
 
   const loadAssignments = async (classCode) => {
     try {
-      let classAssignments = await getAssignmentsByClass(classCode);
+      // 🚀 selectedClass.assignmentSummary 캐시 사용 (DB 읽기 0회!)
+      // 단, submissions 정보가 필요하면 DB에서 로드
+      const cachedClass = classes.find(c => c.classCode === classCode);
+      const cachedAssignments = cachedClass?.assignmentSummary;
 
-      // 🚀 submissions 마이그레이션 필요 여부 확인
-      // v3: users 컬렉션에서 닉네임 조회하여 저장
+      // 캐시된 과제가 있고 submissions 마이그레이션이 완료된 경우 캐시 사용
       const migrationKey = `submissions_migrated_v3_${classCode}`;
       const alreadyMigrated = localStorage.getItem(migrationKey);
 
+      if (cachedAssignments && cachedAssignments.length > 0 && alreadyMigrated) {
+        console.log(`[📊 캐시] 과제 ${cachedAssignments.length}개 - assignmentSummary에서 로드 (DB 읽기 0회)`);
+        setAssignments(cachedAssignments);
+        return;
+      }
+
+      // 캐시가 없거나 마이그레이션 필요하면 DB에서 로드
+      console.log(`[📊 DB읽기] 과제 조회 - classCode: ${classCode}`);
+      let classAssignments = await getAssignmentsByClass(classCode);
+
+      // 🚀 submissions 마이그레이션 필요 여부 확인
       if (!alreadyMigrated && classAssignments.length > 0) {
         console.log('[TeacherDashboard] submissions 마이그레이션 실행 중... (닉네임 조회)');
         const result = await migrateAssignmentSubmissions(classCode);
         if (result.success) {
           localStorage.setItem(migrationKey, 'true');
           // 마이그레이션 후 다시 로드
-          classAssignments = await getAssignmentsByClass(classCode, true); // forceRefresh
+          classAssignments = await getAssignmentsByClass(classCode, true);
           console.log('[TeacherDashboard] submissions 마이그레이션 완료');
         }
       }
 
-      // 모든 과제 표시 (1주일 필터 제거 - 제출글 탭에서 모든 주제 확인 가능)
       setAssignments(classAssignments);
     } catch (error) {
       console.error("과제 로드 에러:", error);
@@ -411,10 +477,11 @@ export default function TeacherDashboard({ user, userData }) {
     }
   };
 
-  const handleDeleteAssignment = async (assignmentId) => {
+  const handleDeleteAssignment = async (assignmentId, assignmentTitle = null) => {
     if (!confirm("이 과제를 삭제하시겠습니까?")) return;
     try {
-      await deleteAssignment(assignmentId);
+      // 🚀 classCode와 title을 전달해야 classes 문서와 학생 classInfo에서도 삭제됨
+      await deleteAssignment(assignmentId, selectedClass?.classCode, assignmentTitle);
       alert("과제가 삭제되었습니다.");
       loadAssignments(selectedClass.classCode);
     } catch (error) {
@@ -471,7 +538,34 @@ export default function TeacherDashboard({ user, userData }) {
   const loadClasses = async () => {
     setLoading(true);
     try {
-      const teacherClasses = await getTeacherClasses(user.uid);
+      // 🚀 userData.teacherClasses 캐시 사용 (DB 읽기 0회!)
+      let teacherClasses = [];
+      if (userData.teacherClasses && userData.teacherClasses.length > 0) {
+        teacherClasses = userData.teacherClasses;
+        console.log(`[📊 캐시] 학급 ${teacherClasses.length}개 - userData.teacherClasses에서 로드 (DB 읽기 0회)`);
+      } else {
+        // 캐시가 없으면 DB에서 로드 후 캐시 저장
+        console.log(`[📊 DB읽기] 학급 조회 - teacherId: ${user.uid}`);
+        teacherClasses = await getTeacherClasses(user.uid);
+        // 캐시 저장 (다음 로그인부터 DB 읽기 0회)
+        if (teacherClasses.length > 0) {
+          try {
+            await updateDoc(doc(db, 'users', user.uid), {
+              teacherClasses: teacherClasses.map(c => ({
+                classCode: c.classCode,
+                className: c.className,
+                gradeLevel: c.gradeLevel,
+                studentCount: c.students?.length || 0,
+                assignmentSummary: c.assignmentSummary || [],
+                schedulerEnabled: c.schedulerEnabled || false
+              }))
+            });
+            console.log(`[📊 캐시] teacherClasses 저장 완료`);
+          } catch (e) {
+            console.warn('teacherClasses 캐시 저장 실패:', e);
+          }
+        }
+      }
       setClasses(teacherClasses);
       if (!selectedClass && teacherClasses.length > 0) {
         setSelectedClass(teacherClasses[0]);
@@ -705,16 +799,28 @@ export default function TeacherDashboard({ user, userData }) {
   };
 
   const handleDeleteClass = async (classCode) => {
-    if (!confirm("정말 클래스를 삭제하시겠어요? 모든 학생 연결이 해제됩니다.")) return;
+    // 학급 정보 찾기
+    const targetClass = classes.find(c => c.classCode === classCode);
+    const studentCount = targetClass?.students?.length || 0;
+
+    const confirmMessage = `정말 학급 "${targetClass?.className || classCode}"을(를) 삭제하시겠습니까?\n\n⚠️ 경고: 이 작업은 취소할 수 없습니다!\n- 학생 ${studentCount}명의 계정이 완전히 삭제됩니다\n- 해당 학생들의 모든 글이 삭제됩니다\n- 학급의 모든 과제가 삭제됩니다\n\n삭제하시려면 "삭제"를 입력하세요:`;
+
+    const userInput = prompt(confirmMessage);
+    if (userInput !== "삭제") {
+      if (userInput !== null) {
+        alert("입력이 일치하지 않습니다. 삭제가 취소되었습니다.");
+      }
+      return;
+    }
 
     try {
-      await deleteClass(classCode);
-      alert("클래스를 삭제했습니다.");
+      const result = await deleteClassWithStudents(classCode);
+      alert(`학급이 삭제되었습니다.\n- 삭제된 학생: ${result.deletedStudents}명\n- 삭제된 글: ${result.deletedWritings}개`);
       setSelectedClass(null);
       loadClasses();
     } catch (error) {
       console.error("클래스 삭제 에러:", error);
-      alert("클래스 삭제에 실패했습니다.");
+      alert("클래스 삭제에 실패했습니다: " + error.message);
     }
   };
 
@@ -946,6 +1052,56 @@ export default function TeacherDashboard({ user, userData }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+      {/* 3월 1일 자동 삭제 알림 모달 */}
+      {showMarch1Alert && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-bounce-in">
+            <div className="bg-gradient-to-r from-red-500 to-orange-500 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">⚠️</span>
+                <div>
+                  <h3 className="text-xl font-bold text-white">학년말 데이터 삭제 안내</h3>
+                  <p className="text-red-100 text-sm">
+                    {daysUntilMarch1 === 0 ? "오늘" : `${daysUntilMarch1}일 후`} 자동 삭제 예정
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <p className="text-red-800 font-medium mb-2">
+                  <strong>3월 1일 00:00</strong>에 다음 데이터가 자동으로 삭제됩니다:
+                </p>
+                <ul className="text-red-700 text-sm space-y-1 ml-4 list-disc">
+                  <li>모든 <strong>학급</strong></li>
+                  <li>모든 <strong>학생 계정</strong></li>
+                  <li>모든 <strong>학생 글</strong></li>
+                  <li>모든 <strong>과제</strong></li>
+                </ul>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-blue-800 font-medium mb-1">📋 백업 권장 사항:</p>
+                <p className="text-blue-700 text-sm">
+                  학생들의 글을 보존하려면 삭제 전에 <strong>복사/붙여넣기</strong>나 <strong>화면 캡처</strong>로 백업해 주세요.
+                </p>
+              </div>
+              <p className="text-gray-600 text-sm mb-4">
+                선생님 계정은 유지되며, 새 학년도에 새로운 학급을 만들 수 있습니다.
+              </p>
+              <button
+                onClick={() => {
+                  setShowMarch1Alert(false);
+                  localStorage.setItem('march1AlertDismissed', new Date().toDateString());
+                }}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all"
+              >
+                확인했습니다
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-gradient-to-r from-blue-800 via-blue-600 to-cyan-500 text-white shadow-xl relative overflow-hidden">
         {/* 마법 효과 */}
@@ -1056,6 +1212,27 @@ export default function TeacherDashboard({ user, userData }) {
         {/* Classes Tab */}
         {activeTab === "classes" && (
           <div>
+            {/* 3월 1일 자동 삭제 안내 배너 */}
+            <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">📢</span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-amber-800 mb-1">학년말 데이터 삭제 안내</h4>
+                  <p className="text-amber-700 text-sm mb-2">
+                    매년 <strong>3월 1일 00:00</strong>에 모든 학급, 학생 계정, 학생 글이 자동으로 삭제됩니다.
+                    새 학년도에 새로운 학급을 만들 수 있도록 시스템이 초기화됩니다.
+                  </p>
+                  <div className="bg-white bg-opacity-60 rounded-lg p-3 text-sm">
+                    <p className="text-amber-800 font-medium mb-1">💡 백업 권장:</p>
+                    <p className="text-amber-700">
+                      학생들의 소중한 글을 보존하려면 삭제 전에 <strong>복사/붙여넣기</strong>나 <strong>화면 캡처</strong>로 백업해 주세요.
+                      선생님 계정은 삭제되지 않습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="mb-6 flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 {classes.length >= 1 ? (
@@ -1338,7 +1515,7 @@ export default function TeacherDashboard({ user, userData }) {
                                 </div>
                               </div>
                               <button
-                                onClick={() => handleDeleteAssignment(assignment.id)}
+                                onClick={() => handleDeleteAssignment(assignment.id, assignment.title)}
                                 className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
                               >
                                 🗑️ 삭제
@@ -2935,7 +3112,24 @@ export default function TeacherDashboard({ user, userData }) {
                         min="1"
                         max="40"
                         value={batchCount}
-                        onChange={(e) => setBatchCount(Math.min(40, Math.max(1, parseInt(e.target.value) || 1)))}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // 빈 값이면 빈 문자열 유지, 아니면 숫자로 변환 (입력 중에는 1-40 강제하지 않음)
+                          if (val === '') {
+                            setBatchCount('');
+                          } else {
+                            const num = parseInt(val);
+                            if (!isNaN(num)) {
+                              setBatchCount(Math.min(40, Math.max(1, num)));
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // 포커스 해제 시 빈 값이면 1로 설정
+                          if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                            setBatchCount(1);
+                          }
+                        }}
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                       />
                       <p className="text-xs text-gray-500 mt-1">최대 40명까지 가능합니다.</p>
@@ -2973,7 +3167,7 @@ export default function TeacherDashboard({ user, userData }) {
                       {batchResults.length === 0 ? (
                         <button
                           onClick={handleOnboardingBatchCreate}
-                          disabled={batchLoading || batchCount < 1}
+                          disabled={batchLoading || !batchCount || batchCount < 1}
                           className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
                         >
                           {batchLoading ? (
@@ -2985,7 +3179,7 @@ export default function TeacherDashboard({ user, userData }) {
                               생성 중...
                             </span>
                           ) : (
-                            `${batchCount}명 학생 계정 생성하기 →`
+                            `${batchCount || 0}명 학생 계정 생성하기 →`
                           )}
                         </button>
                       ) : (

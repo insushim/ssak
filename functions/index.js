@@ -14,6 +14,144 @@ const MAX_STUDENTS_PER_CLASS = 40;
 // Define secret for Gemini API key
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
+// 🚀 슈퍼관리자 userData에 학급 요약 정보 동기화 (DB 읽기 최적화)
+// 학급 생성/수정/삭제 시 호출하여 슈퍼관리자가 로그인할 때 추가 DB 읽기 없이 학급 정보 확인 가능
+const syncSuperAdminClassesSummary = async () => {
+  try {
+    // 모든 슈퍼관리자 조회
+    const superAdminsSnapshot = await db.collection('users')
+      .where('role', '==', 'super_admin')
+      .get();
+
+    if (superAdminsSnapshot.empty) {
+      console.log('[동기화] 슈퍼관리자 없음');
+      return;
+    }
+
+    // 모든 학급 정보 조회
+    const classesSnapshot = await db.collection('classes').get();
+
+    // 선생님 ID 수집 (teacherName이 없는 경우 조회 필요)
+    const teacherIds = new Set();
+    const classesData = [];
+
+    classesSnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      classesData.push({ id: docSnap.id, data });
+      if (data.teacherId && !data.teacherName) {
+        teacherIds.add(data.teacherId);
+      }
+    });
+
+    // teacherName이 없는 선생님들 이름 조회
+    const teacherNames = {};
+    if (teacherIds.size > 0) {
+      console.log(`[동기화] ${teacherIds.size}명의 선생님 이름 조회`);
+      await Promise.all(
+        Array.from(teacherIds).map(async (teacherId) => {
+          try {
+            const teacherDoc = await db.doc(`users/${teacherId}`).get();
+            if (teacherDoc.exists) {
+              const teacherData = teacherDoc.data();
+              teacherNames[teacherId] = teacherData.name || teacherData.email?.split('@')[0] || '알 수 없음';
+
+              // 해당 선생님의 모든 classes 문서에 teacherName 저장 (다음부터 조회 불필요)
+              const classesToUpdate = classesData.filter(c => c.data.teacherId === teacherId && !c.data.teacherName);
+              for (const classDoc of classesToUpdate) {
+                await db.doc(`classes/${classDoc.id}`).update({ teacherName: teacherNames[teacherId] });
+                console.log(`[동기화] 학급 ${classDoc.id}에 teacherName 저장: ${teacherNames[teacherId]}`);
+              }
+            }
+          } catch (e) {
+            console.warn(`선생님 ${teacherId} 조회 실패:`, e);
+          }
+        })
+      );
+    }
+
+    // classesSummary 생성
+    const classesSummary = classesData.map(({ id, data }) => ({
+      classCode: id,
+      className: data.className || id,
+      teacherId: data.teacherId || null,
+      teacherName: data.teacherName || teacherNames[data.teacherId] || '알 수 없음',
+      studentCount: data.students?.length || 0,
+      gradeLevel: data.gradeLevel || null,
+      createdAt: data.createdAt || null
+    }));
+
+    // 모든 슈퍼관리자의 userData에 classesSummary 저장
+    const batch = db.batch();
+    superAdminsSnapshot.forEach((docSnap) => {
+      batch.update(docSnap.ref, {
+        classesSummary,
+        classesSummaryUpdatedAt: new Date().toISOString()
+      });
+    });
+    await batch.commit();
+
+    console.log(`[동기화] ${superAdminsSnapshot.size}명의 슈퍼관리자에게 ${classesSummary.length}개 학급 정보 동기화 완료`);
+  } catch (error) {
+    console.error('[동기화] 슈퍼관리자 classesSummary 동기화 에러:', error);
+  }
+};
+
+// 🚀 학생 userData에 classInfo 동기화 (기존 학생 + 과제 변경 시)
+const syncStudentClassInfo = async (classCode) => {
+  try {
+    const classDoc = await db.doc(`classes/${classCode}`).get();
+    if (!classDoc.exists) {
+      console.log(`[동기화] 학급 ${classCode} 없음`);
+      return;
+    }
+
+    const classData = classDoc.data();
+
+    // 선생님 이름 조회
+    let teacherName = classData.teacherName;
+    if (!teacherName && classData.teacherId) {
+      const teacherDoc = await db.doc(`users/${classData.teacherId}`).get();
+      if (teacherDoc.exists) {
+        const teacherData = teacherDoc.data();
+        teacherName = teacherData.name || teacherData.email?.split('@')[0] || '알 수 없음';
+      }
+    }
+
+    const classInfo = {
+      classCode: classCode,
+      className: classData.className || classCode,
+      teacherId: classData.teacherId,
+      teacherName: teacherName || '알 수 없음',
+      gradeLevel: classData.gradeLevel,
+      assignmentSummary: classData.assignmentSummary || [],
+      weeklyRanking: classData.weeklyRanking || null,
+      monthlyRanking: classData.monthlyRanking || null
+    };
+
+    // 해당 학급의 모든 학생 조회
+    const studentsSnapshot = await db.collection('users')
+      .where('classCode', '==', classCode)
+      .where('role', '==', 'student')
+      .get();
+
+    if (studentsSnapshot.empty) {
+      console.log(`[동기화] 학급 ${classCode}에 학생 없음`);
+      return;
+    }
+
+    // 배치로 모든 학생 업데이트
+    const batch = db.batch();
+    studentsSnapshot.forEach((docSnap) => {
+      batch.update(docSnap.ref, { classInfo });
+    });
+    await batch.commit();
+
+    console.log(`[동기화] 학급 ${classCode}의 ${studentsSnapshot.size}명 학생 classInfo 동기화 완료`);
+  } catch (error) {
+    console.error('[동기화] 학생 classInfo 동기화 에러:', error);
+  }
+};
+
 exports.batchCreateStudents = onCall(async (request) => {
   // In v2, auth is in request.auth
   if (!request.auth) {
@@ -99,6 +237,18 @@ exports.batchCreateStudents = onCall(async (request) => {
         displayName
       });
 
+      // 🚀 학생 userData에 classInfo 캐시 (로그인 시 DB 읽기 0회!)
+      const classInfo = {
+        classCode: classCode,
+        className: classData.className || classCode,
+        teacherId: classData.teacherId,
+        teacherName: classData.teacherName || teacherData.name || teacherData.email?.split('@')[0] || '알 수 없음',
+        gradeLevel: classData.gradeLevel,
+        assignmentSummary: classData.assignmentSummary || [],
+        weeklyRanking: classData.weeklyRanking || null,
+        monthlyRanking: classData.monthlyRanking || null
+      };
+
       await db.doc(`users/${userRecord.uid}`).set({
         uid: userRecord.uid,
         email,
@@ -107,6 +257,8 @@ exports.batchCreateStudents = onCall(async (request) => {
         approved: true,
         gradeLevel,
         classCode,
+        classInfo,  // 🚀 캐시된 학급 정보
+        writingSummary: [],  // 🚀 초기값
         createdAt: now,
         createdBy: teacherUid
       });
@@ -132,6 +284,9 @@ exports.batchCreateStudents = onCall(async (request) => {
     await classRef.update({
       students: admin.firestore.FieldValue.arrayUnion(...newStudents)
     });
+
+    // 🚀 학생 추가 후 슈퍼관리자 classesSummary 동기화
+    await syncSuperAdminClassesSummary();
   }
 
   return {
@@ -1201,6 +1356,7 @@ exports.cleanupDuplicateFailedWritings = onCall(async (request) => {
 });
 
 // 🚀 학급 삭제 - 학급 내 모든 학생 삭제 (선생님은 제외)
+// 슈퍼 관리자 또는 해당 학급의 담당 선생님만 삭제 가능
 exports.deleteClassWithStudents = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
@@ -1212,26 +1368,37 @@ exports.deleteClassWithStudents = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'classCode가 필요합니다.');
   }
 
-  // 슈퍼 관리자만 실행 가능
+  // 사용자 권한 확인
   const userRef = db.doc(`users/${request.auth.uid}`);
   const userSnap = await userRef.get();
 
-  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
-    throw new HttpsError('permission-denied', '슈퍼 관리자만 학급을 삭제할 수 있습니다.');
+  if (!userSnap.exists) {
+    throw new HttpsError('permission-denied', '사용자 정보를 찾을 수 없습니다.');
+  }
+
+  const userData = userSnap.data();
+  const isSuperAdmin = userData.role === 'super_admin';
+  const isTeacher = userData.role === 'teacher';
+
+  // 학급 정보 먼저 조회하여 권한 확인
+  const classRef = db.doc(`classes/${classCode}`);
+  const classDoc = await classRef.get();
+
+  if (!classDoc.exists) {
+    throw new HttpsError('not-found', '학급을 찾을 수 없습니다.');
+  }
+
+  const classData = classDoc.data();
+
+  // 슈퍼 관리자가 아니고, 선생님이 아니거나, 해당 학급의 담당 선생님이 아닌 경우 거부
+  if (!isSuperAdmin && (!isTeacher || classData.teacherId !== request.auth.uid)) {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 또는 해당 학급의 담당 선생님만 학급을 삭제할 수 있습니다.');
   }
 
   try {
     console.log(`[학급 삭제] 시작 - classCode: ${classCode}`);
 
-    // 1. 학급 정보 조회
-    const classRef = db.doc(`classes/${classCode}`);
-    const classDoc = await classRef.get();
-
-    if (!classDoc.exists) {
-      throw new HttpsError('not-found', '학급을 찾을 수 없습니다.');
-    }
-
-    const classData = classDoc.data();
+    // classData는 이미 위에서 조회함
     const students = classData.students || [];
     const teacherId = classData.teacherId;
 
@@ -1327,6 +1494,9 @@ exports.deleteClassWithStudents = onCall(async (request) => {
     // 5. 학급 문서 삭제
     await classRef.delete();
 
+    // 🚀 학급 삭제 후 슈퍼관리자 classesSummary 동기화
+    await syncSuperAdminClassesSummary();
+
     console.log(`[학급 삭제] 완료 - 학생 ${deletedStudents}명, 글 ${deletedWritings}개, 과제 ${deletedAssignments}개 삭제`);
 
     return {
@@ -1340,5 +1510,207 @@ exports.deleteClassWithStudents = onCall(async (request) => {
   } catch (error) {
     console.error('[학급 삭제] 에러:', error);
     throw new HttpsError('internal', `학급 삭제 실패: ${error.message}`);
+  }
+});
+
+// 🚀 수동으로 슈퍼관리자 classesSummary + 학생 classInfo 동기화 (관리자용)
+exports.syncClassesSummary = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼 관리자만 실행 가능
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 실행할 수 있습니다.');
+  }
+
+  // 1. 🚀 각 학급의 assignmentSummary 정리 (assignments 컬렉션에 없는 과제 제거)
+  const classesSnapshot = await db.collection('classes').get();
+  let cleanedAssignments = 0;
+
+  for (const classDoc of classesSnapshot.docs) {
+    const classData = classDoc.data();
+    const assignmentSummary = classData.assignmentSummary || [];
+
+    if (assignmentSummary.length > 0) {
+      // assignments 컬렉션에서 실제 존재하는 과제 ID 조회
+      const assignmentsSnapshot = await db.collection('assignments')
+        .where('classCode', '==', classDoc.id)
+        .get();
+      const validAssignmentIds = new Set(assignmentsSnapshot.docs.map(d => d.id));
+      const validAssignmentTitles = new Set(assignmentsSnapshot.docs.map(d => d.data().title));
+
+      // 유효한 과제만 필터링
+      const cleanedSummary = assignmentSummary.filter(a =>
+        validAssignmentIds.has(a.id) || validAssignmentTitles.has(a.title)
+      );
+
+      if (cleanedSummary.length !== assignmentSummary.length) {
+        await db.doc(`classes/${classDoc.id}`).update({
+          assignmentSummary: cleanedSummary
+        });
+        cleanedAssignments += (assignmentSummary.length - cleanedSummary.length);
+        console.log(`[정리] 학급 ${classDoc.id}: ${assignmentSummary.length - cleanedSummary.length}개 과제 정리됨`);
+      }
+    }
+  }
+
+  // 2. 슈퍼관리자 classesSummary 동기화
+  await syncSuperAdminClassesSummary();
+
+  // 3. 모든 학급의 학생 classInfo 동기화
+  let syncedStudents = 0;
+  for (const classDoc of classesSnapshot.docs) {
+    await syncStudentClassInfo(classDoc.id);
+    syncedStudents++;
+  }
+
+  return { success: true, message: `동기화 완료 (학급 ${syncedStudents}개, 삭제된 과제 ${cleanedAssignments}개 정리)` };
+});
+
+// 🚀 매년 3월 1일 00:00 (한국 시간) 모든 학급 및 학생 자동 삭제
+// Cron: 0 15 28 2 * (UTC 기준 2월 28일 15:00 = 한국 시간 3월 1일 00:00)
+exports.autoDeleteAllClassesOnMarch1 = onSchedule({
+  schedule: '0 15 28 2 *',
+  timeZone: 'Asia/Seoul'
+}, async (event) => {
+  try {
+    const now = new Date();
+    console.log(`[연간 자동 삭제] 시작 - ${now.toISOString()}`);
+
+    // 모든 학급 조회
+    const classesSnapshot = await db.collection('classes').get();
+
+    if (classesSnapshot.empty) {
+      console.log('[연간 자동 삭제] 삭제할 학급 없음');
+      return { deleted: 0, message: '삭제할 학급이 없습니다.' };
+    }
+
+    let totalDeletedClasses = 0;
+    let totalDeletedStudents = 0;
+    let totalDeletedWritings = 0;
+    let totalDeletedAssignments = 0;
+    const errors = [];
+
+    // 각 학급 삭제
+    for (const classDoc of classesSnapshot.docs) {
+      const classCode = classDoc.id;
+      const classData = classDoc.data();
+      const students = classData.students || [];
+      const teacherId = classData.teacherId;
+
+      console.log(`[연간 자동 삭제] 학급 ${classCode} 처리 중 - 학생 ${students.length}명`);
+
+      let deletedStudentsInClass = 0;
+      let deletedWritingsInClass = 0;
+
+      // 학생 계정 삭제
+      for (const student of students) {
+        try {
+          const studentId = student.studentId;
+
+          // Firebase Auth에서 삭제
+          try {
+            await auth.deleteUser(studentId);
+          } catch (authError) {
+            if (authError.code !== 'auth/user-not-found') {
+              console.warn(`[연간 자동 삭제] Auth 삭제 실패 - ${studentId}:`, authError.message);
+            }
+          }
+
+          // Firestore users 문서 삭제
+          await db.doc(`users/${studentId}`).delete();
+
+          // 해당 학생의 글 삭제
+          const writingsQuery = db.collection('writings').where('studentId', '==', studentId);
+          const writingsSnapshot = await writingsQuery.get();
+
+          if (!writingsSnapshot.empty) {
+            const batch = db.batch();
+            writingsSnapshot.forEach((docSnap) => {
+              batch.delete(docSnap.ref);
+              deletedWritingsInClass++;
+            });
+            await batch.commit();
+          }
+
+          // studentStats 삭제
+          try {
+            await db.doc(`studentStats/${studentId}`).delete();
+          } catch (e) {
+            // 무시
+          }
+
+          // drafts 삭제
+          const draftsQuery = db.collection('drafts').where('studentId', '==', studentId);
+          const draftsSnapshot = await draftsQuery.get();
+          if (!draftsSnapshot.empty) {
+            const draftBatch = db.batch();
+            draftsSnapshot.forEach((docSnap) => draftBatch.delete(docSnap.ref));
+            await draftBatch.commit();
+          }
+
+          deletedStudentsInClass++;
+        } catch (studentError) {
+          console.error(`[연간 자동 삭제] 학생 삭제 실패 - ${student.studentId}:`, studentError);
+          errors.push({ classCode, studentId: student.studentId, error: studentError.message });
+        }
+      }
+
+      // 학급 과제 삭제
+      let deletedAssignmentsInClass = 0;
+      const assignmentsQuery = db.collection('assignments').where('classCode', '==', classCode);
+      const assignmentsSnapshot = await assignmentsQuery.get();
+      if (!assignmentsSnapshot.empty) {
+        const assignmentBatch = db.batch();
+        assignmentsSnapshot.forEach((docSnap) => {
+          assignmentBatch.delete(docSnap.ref);
+          deletedAssignmentsInClass++;
+        });
+        await assignmentBatch.commit();
+      }
+
+      // 선생님 classCode 제거 (선생님 계정은 유지)
+      if (teacherId) {
+        try {
+          const teacherRef = db.doc(`users/${teacherId}`);
+          const teacherDoc = await teacherRef.get();
+          if (teacherDoc.exists) {
+            const teacherData = teacherDoc.data();
+            if (teacherData.classCode === classCode) {
+              await teacherRef.update({ classCode: admin.firestore.FieldValue.delete() });
+            }
+          }
+        } catch (e) {
+          console.warn(`[연간 자동 삭제] 선생님 classCode 업데이트 실패:`, e);
+        }
+      }
+
+      // 학급 문서 삭제
+      await db.doc(`classes/${classCode}`).delete();
+
+      totalDeletedClasses++;
+      totalDeletedStudents += deletedStudentsInClass;
+      totalDeletedWritings += deletedWritingsInClass;
+      totalDeletedAssignments += deletedAssignmentsInClass;
+
+      console.log(`[연간 자동 삭제] 학급 ${classCode} 완료 - 학생 ${deletedStudentsInClass}명, 글 ${deletedWritingsInClass}개`);
+    }
+
+    console.log(`[연간 자동 삭제] 전체 완료 - 학급 ${totalDeletedClasses}개, 학생 ${totalDeletedStudents}명, 글 ${totalDeletedWritings}개, 과제 ${totalDeletedAssignments}개`);
+
+    return {
+      deletedClasses: totalDeletedClasses,
+      deletedStudents: totalDeletedStudents,
+      deletedWritings: totalDeletedWritings,
+      deletedAssignments: totalDeletedAssignments,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  } catch (error) {
+    console.error('[연간 자동 삭제] 에러:', error);
+    return null;
   }
 });
