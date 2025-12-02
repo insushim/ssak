@@ -27,6 +27,10 @@ export default function SuperAdminDashboard({ user, userData }) {
   const [selectedUserDetail, setSelectedUserDetail] = useState(null);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
 
+  // 🚀 거절된 사용자 목록
+  const [rejectedUsers, setRejectedUsers] = useState([]);
+  const [loadingRejected, setLoadingRejected] = useState(false);
+
   useEffect(() => {
     ensureSuperAdminAccess(user);
     loadData();
@@ -93,6 +97,7 @@ export default function SuperAdminDashboard({ user, userData }) {
       }
 
       // 2. 승인 대기 선생님 (보통 적음 - 1회 쿼리)
+      // 🔧 수정: rejected가 true인 선생님은 제외
       console.log('[📊 DB읽기] 승인 대기 선생님 조회');
       const pendingQuery = query(
         collection(db, "users"),
@@ -102,7 +107,11 @@ export default function SuperAdminDashboard({ user, userData }) {
       const pendingSnapshot = await getDocs(pendingQuery);
       const pending = [];
       pendingSnapshot.forEach((docSnap) => {
-        pending.push({ ...docSnap.data(), id: docSnap.id });
+        const data = docSnap.data();
+        // 🔧 rejected된 선생님은 목록에서 제외
+        if (!data.rejected) {
+          pending.push({ ...data, id: docSnap.id });
+        }
       });
       setPendingTeachers(pending);
       console.log(`[📊 DB읽기] 승인 대기 선생님 ${pending.length}명 로드`);
@@ -204,19 +213,103 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
   };
 
-  const rejectTeacher = async (teacherId) => {
-    if (!confirm("정말 승인 요청을 거절하시겠어요?")) return;
+  const rejectTeacher = async (teacherId, teacherEmail) => {
+    const reason = prompt(
+      "거절 사유를 입력해주세요 (선생님이 로그인할 때 이 메시지를 볼 수 있습니다):",
+      "선생님 인증 정보가 확인되지 않았습니다."
+    );
+
+    if (reason === null) return; // 취소 누름
 
     try {
       await updateDoc(doc(db, "users", teacherId), {
         approved: false,
-        rejected: true
+        rejected: true,
+        rejectedReason: reason || "관리자에 의해 거절되었습니다.",
+        rejectedAt: new Date().toISOString()
       });
-      alert("요청이 거절되었습니다.");
+      alert(`요청이 거절되었습니다.\n\n${teacherEmail}님이 로그인하면 거절 메시지를 확인할 수 있습니다.`);
       loadData();
     } catch (error) {
       console.error("거절 에러:", error);
       alert("처리에 실패했습니다.");
+    }
+  };
+
+  // 🚀 거절된 사용자 목록 조회
+  const loadRejectedUsers = async () => {
+    setLoadingRejected(true);
+    try {
+      console.log('[📊 DB읽기] 거절된 사용자 조회');
+      // 🔧 인덱스 없이도 동작하도록 approved=false인 사용자를 가져와서 rejected 필터링
+      const pendingQuery = query(
+        collection(db, "users"),
+        where("approved", "==", false)
+      );
+      const snapshot = await getDocs(pendingQuery);
+      const users = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        // rejected가 true인 사용자만 필터링
+        if (data.rejected === true) {
+          users.push({ ...data, id: docSnap.id });
+        }
+      });
+      setRejectedUsers(users);
+      console.log(`[📊 DB읽기] 거절된 사용자 ${users.length}명 로드`);
+      if (users.length === 0) {
+        alert("거절된 사용자가 없습니다.");
+      }
+    } catch (error) {
+      console.error("거절된 사용자 조회 에러:", error);
+      alert("조회에 실패했습니다: " + error.message);
+    } finally {
+      setLoadingRejected(false);
+    }
+  };
+
+  // 🚀 거절된 사용자를 학생으로 변경
+  const convertRejectedToStudent = async (userId, userName) => {
+    if (!confirm(`${userName}님을 학생으로 변경하시겠습니까?\n\n변경 후 바로 로그인이 가능해집니다.`)) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        role: 'student',
+        approved: true,
+        rejected: false,
+        rejectedReason: null,
+        rejectedAt: null
+      });
+      alert(`${userName}님이 학생으로 변경되었습니다.`);
+      loadRejectedUsers(); // 목록 새로고침
+    } catch (error) {
+      console.error("역할 변경 에러:", error);
+      alert("변경에 실패했습니다.");
+    }
+  };
+
+  // 🚀 거절된 사용자를 선생님으로 승인
+  const approveRejectedAsTeacher = async (userId, userName) => {
+    if (!confirm(`${userName}님을 선생님으로 승인하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        role: 'teacher',
+        approved: true,
+        rejected: false,
+        rejectedReason: null,
+        rejectedAt: null
+      });
+      alert(`${userName}님이 선생님으로 승인되었습니다.`);
+      loadRejectedUsers(); // 목록 새로고침
+      loadData(); // 전체 데이터 새로고침
+    } catch (error) {
+      console.error("승인 에러:", error);
+      alert("승인에 실패했습니다.");
     }
   };
 
@@ -372,6 +465,32 @@ export default function SuperAdminDashboard({ user, userData }) {
   // 🚀 중복 미제출글 정리
   const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
   const [cleanupResult, setCleanupResult] = useState(null);
+
+  // 🚀 통과 점수 70점 마이그레이션
+  const [migratingMinScore, setMigratingMinScore] = useState(false);
+  const [minScoreResult, setMinScoreResult] = useState(null);
+
+  const handleMigrateMinScore = async () => {
+    if (!confirm("기존 글의 통과 점수를 70점으로 마이그레이션하시겠습니까?\n\n• 모든 writings의 minScore가 70점으로 업데이트됩니다\n• 모든 학생의 writingSummary가 업데이트됩니다\n• 모든 학급의 랭킹이 70점 기준으로 재계산됩니다")) {
+      return;
+    }
+
+    setMigratingMinScore(true);
+    setMinScoreResult(null);
+
+    try {
+      const migrateFn = httpsCallable(functions, 'migrateMinScoreTo70');
+      const result = await migrateFn();
+      setMinScoreResult(result.data);
+      alert(`마이그레이션 완료!\n\n${result.data.message}`);
+    } catch (error) {
+      console.error("통과 점수 마이그레이션 에러:", error);
+      alert("마이그레이션 실패: " + error.message);
+      setMinScoreResult({ error: error.message });
+    } finally {
+      setMigratingMinScore(false);
+    }
+  };
 
   const handleCleanupDuplicates = async () => {
     if (!confirm("동일 주제의 중복 미제출글을 정리하시겠습니까?\n\n같은 주제에 여러 미제출글이 있는 경우, 가장 점수가 높은 글만 남기고 나머지는 삭제됩니다.")) {
@@ -554,7 +673,7 @@ ${result.data.message}`);
                         승인
                       </button>
                       <button
-                        onClick={() => rejectTeacher(teacher.id)}
+                        onClick={() => rejectTeacher(teacher.id, teacher.email)}
                         className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
                       >
                         거절
@@ -798,6 +917,120 @@ ${result.data.message}`);
                   )}
                 </div>
 
+                {/* 학생 classCode 마이그레이션 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-medium text-blue-800 mb-2">학생 classCode 마이그레이션</h3>
+                  <p className="text-sm text-blue-700 mb-3">
+                    특정 학급의 모든 학생에게 classCode를 일괄 적용합니다.<br/>
+                    학급 코드가 삭제되었다가 복구된 경우나 학생 데이터가 누락된 경우 사용합니다.
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      id="migrateClassSelect"
+                      className="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm"
+                      defaultValue=""
+                    >
+                      <option value="">학급 선택...</option>
+                      {classSummaries.map(cls => (
+                        <option key={cls.classCode} value={cls.classCode}>
+                          {cls.className} ({cls.classCode}) - {cls.studentCount || 0}명
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={async () => {
+                        const selectEl = document.getElementById('migrateClassSelect');
+                        const classCode = selectEl?.value;
+                        if (!classCode) {
+                          alert('학급을 선택해주세요.');
+                          return;
+                        }
+                        if (!confirm(`"${classSummaries.find(c => c.classCode === classCode)?.className}" 학급의 모든 학생에게 classCode를 적용하시겠습니까?`)) {
+                          return;
+                        }
+                        try {
+                          const migrateFn = httpsCallable(functions, 'migrateStudentsClassCode');
+                          const result = await migrateFn({ classCode });
+                          alert(`마이그레이션 완료!\n\n학급: ${result.data.className}\n학생: ${result.data.studentsUpdated}명\n글: ${result.data.writingsUpdated}개`);
+                        } catch (error) {
+                          console.error("학생 마이그레이션 에러:", error);
+                          alert("마이그레이션 실패: " + error.message);
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      학생 classCode 적용
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const selectEl = document.getElementById('migrateClassSelect');
+                        const classCode = selectEl?.value;
+                        if (!classCode) {
+                          alert('학급을 선택해주세요.');
+                          return;
+                        }
+                        const className = classSummaries.find(c => c.classCode === classCode)?.className;
+                        if (!confirm(`"${className}" 학급의 제출 현황을 복구하시겠습니까?\n\n기존 글(writings)에서 과제 제출 현황(submissions)을 다시 계산합니다.`)) {
+                          return;
+                        }
+                        try {
+                          const { migrateAssignmentSubmissions } = await import('../services/assignmentService');
+                          const result = await migrateAssignmentSubmissions(classCode);
+                          if (result.success) {
+                            alert(`제출 현황 복구 완료!\n\n학급: ${className}\n과제: ${result.migratedCount}개 업데이트됨`);
+                          } else {
+                            alert('복구 실패: ' + result.error);
+                          }
+                        } catch (error) {
+                          console.error("제출 현황 복구 에러:", error);
+                          alert("복구 실패: " + error.message);
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                    >
+                      제출 현황 복구
+                    </button>
+                  </div>
+                </div>
+
+                {/* 통과 점수 70점 마이그레이션 */}
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-medium text-purple-800 mb-2">통과 점수 70점 마이그레이션</h3>
+                  <p className="text-sm text-purple-700 mb-3">
+                    기존 글과 통계의 통과 기준을 70점으로 일괄 변경합니다.<br/>
+                    이전에 80점 기준으로 "미통과"였던 글이 70점 이상이면 "통과"로 바뀝니다.
+                  </p>
+                  <ul className="text-xs text-purple-600 mb-4 list-disc list-inside space-y-1">
+                    <li>모든 writings 문서의 minScore → 70점</li>
+                    <li>모든 학생의 writingSummary 업데이트</li>
+                    <li>모든 학급 랭킹 재계산 (70점 통과 기준)</li>
+                  </ul>
+                  <button
+                    onClick={handleMigrateMinScore}
+                    disabled={migratingMinScore}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {migratingMinScore ? '마이그레이션 중...' : '통과 점수 70점 마이그레이션 실행'}
+                  </button>
+                  {minScoreResult && (
+                    <div className={`mt-4 p-3 rounded-lg ${minScoreResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {minScoreResult.error ? (
+                        <p>오류: {minScoreResult.error}</p>
+                      ) : (
+                        <div>
+                          <p className="font-medium">{minScoreResult.message}</p>
+                          {minScoreResult.details && (
+                            <p className="text-sm mt-1">
+                              글 {minScoreResult.details.writingsUpdated}개, 사용자 {minScoreResult.details.usersUpdated}명,
+                              랭킹 {minScoreResult.details.classesUpdated}개 학급 업데이트
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* 중복 미제출글 정리 */}
                 <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
                   <h3 className="font-medium text-rose-800 mb-2">중복 미제출글 정리</h3>
@@ -854,6 +1087,66 @@ ${result.data.message}`);
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* 🚀 거절된 사용자 관리 */}
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">거절된 사용자 관리</h2>
+                  <p className="text-sm text-gray-500 mt-1">승인 거부된 사용자를 학생/선생님으로 변경할 수 있습니다</p>
+                </div>
+                <button
+                  onClick={loadRejectedUsers}
+                  disabled={loadingRejected}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium disabled:opacity-50"
+                >
+                  {loadingRejected ? '조회 중...' : '거절된 사용자 조회'}
+                </button>
+              </div>
+              {rejectedUsers.length > 0 ? (
+                <div className="divide-y divide-gray-200">
+                  {rejectedUsers.map((user) => (
+                    <div key={user.id} className="px-6 py-4 flex justify-between items-center">
+                      <div>
+                        <p className="font-medium text-gray-900">{user.name || user.nickname || '이름 없음'}</p>
+                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          역할: {user.role === 'teacher' ? '선생님' : '학생'} ·
+                          거절일: {user.rejectedAt ? new Date(user.rejectedAt).toLocaleDateString() : '-'}
+                        </p>
+                        {user.rejectedReason && (
+                          <p className="text-xs text-red-500 mt-1">사유: {user.rejectedReason}</p>
+                        )}
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => convertRejectedToStudent(user.id, user.name || user.email)}
+                          className="bg-emerald-500 text-white px-3 py-1.5 rounded text-sm hover:bg-emerald-600"
+                        >
+                          학생으로 변경
+                        </button>
+                        <button
+                          onClick={() => approveRejectedAsTeacher(user.id, user.name || user.email)}
+                          className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-600"
+                        >
+                          선생님으로 승인
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user.id, user.name || user.email)}
+                          className="bg-red-500 text-white px-3 py-1.5 rounded text-sm hover:bg-red-600"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-6 py-8 text-center text-gray-500">
+                  {loadingRejected ? '조회 중...' : '위의 "거절된 사용자 조회" 버튼을 클릭하세요'}
+                </div>
+              )}
             </div>
 
             {/* 시스템 정보 */}

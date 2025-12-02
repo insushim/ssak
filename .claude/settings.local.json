@@ -24,7 +24,9 @@
       "Bash(git clean:*)",
       "Bash(firebase firestore:indexes:*)",
       "Bash(npm install:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(git pull:*)",
+      "Bash(firebase functions:log:*)"
     ],
     "deny": [],
     "ask": []

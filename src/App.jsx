@@ -64,9 +64,36 @@ function App() {
               ) : userData?.role === ROLES.TEACHER ? (
                 userData?.approved ? (
                   <Navigate to="/teacher" replace />
-                ) : (
+                ) : userData?.rejected ? (
+                  // 거절된 선생님
                   <div className="min-h-screen flex items-center justify-center bg-gray-100">
                     <div className="bg-white p-8 rounded-lg shadow-md max-w-md text-center">
+                      <div className="text-6xl mb-4">😔</div>
+                      <h2 className="text-2xl font-bold mb-4 text-red-600">가입 요청이 거절되었습니다</h2>
+                      <p className="text-gray-600 mb-2">
+                        관리자가 선생님 계정 가입 요청을 거절하였습니다.
+                      </p>
+                      {userData?.rejectedReason && (
+                        <p className="text-gray-500 mb-4 bg-gray-100 p-3 rounded">
+                          사유: {userData.rejectedReason}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-400 mb-4">
+                        문의: 관리자에게 연락해주세요.
+                      </p>
+                      <button
+                        onClick={() => auth.signOut()}
+                        className="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600"
+                      >
+                        로그아웃
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // 승인 대기 중
+                  <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                    <div className="bg-white p-8 rounded-lg shadow-md max-w-md text-center">
+                      <div className="text-6xl mb-4">⏳</div>
                       <h2 className="text-2xl font-bold mb-4 text-gray-800">승인 대기 중</h2>
                       <p className="text-gray-600 mb-4">
                         계정이 아직 승인되지 않았습니다.

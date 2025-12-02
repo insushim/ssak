@@ -10,7 +10,7 @@ import {
   resetStudentPassword
 } from "../services/classService";
 import { deleteWriting, getClassRanking, getStudentGrowthData, invalidateClassWritingsCache, getWritingById } from "../services/writingService";
-import { createAssignment, getAssignmentsByClass, deleteAssignment, migrateAssignmentSubmissions } from "../services/assignmentService";
+import { createAssignment, getAssignmentsByClass, deleteAssignment } from "../services/assignmentService";
 import { generateTopics } from "../utils/geminiAPI";
 import { getSchedulerSettings, saveSchedulerSettings, disableScheduler, generateAutoAssignment, checkAndRunScheduler } from "../services/schedulerService";
 import { GRADE_LEVELS, MAX_STUDENTS_PER_CLASS } from "../config/auth";
@@ -123,8 +123,9 @@ export default function TeacherDashboard({ user, userData }) {
     { label: "안전", icon: "🛡️" },
   ];
 
-  // 글쓰기 유형
+  // 글쓰기 유형 (16개)
   const writingTypes = [
+    // 기본 유형 (8개)
     { value: "주장하는 글", label: "주장하는 글", icon: "💬", desc: "자신의 의견을 논리적으로" },
     { value: "설명하는 글", label: "설명하는 글", icon: "📖", desc: "정보를 쉽게 전달" },
     { value: "묘사하는 글", label: "묘사하는 글", icon: "🎨", desc: "생생하게 표현" },
@@ -133,6 +134,15 @@ export default function TeacherDashboard({ user, userData }) {
     { value: "일기", label: "일기", icon: "📔", desc: "하루를 기록" },
     { value: "감상문", label: "감상문", icon: "🎬", desc: "느낀 점을 정리" },
     { value: "상상글", label: "상상글", icon: "🦄", desc: "창의력을 발휘" },
+    // 추가 유형 (8개)
+    { value: "기사문", label: "기사문", icon: "📰", desc: "뉴스처럼 사실 전달" },
+    { value: "인터뷰", label: "인터뷰", icon: "🎤", desc: "질문과 대답 형식" },
+    { value: "비교/대조", label: "비교/대조", icon: "⚖️", desc: "두 가지를 비교" },
+    { value: "문제해결", label: "문제해결", icon: "💡", desc: "문제와 해결책 제시" },
+    { value: "광고/홍보", label: "광고/홍보", icon: "📢", desc: "설득하는 홍보글" },
+    { value: "보고서", label: "보고서", icon: "📋", desc: "조사 결과 정리" },
+    { value: "시/운문", label: "시/운문", icon: "🎭", desc: "감정을 시로 표현" },
+    { value: "토론/논쟁", label: "토론/논쟁", icon: "🗣️", desc: "찬반 의견 논쟁" },
   ];
 
   // 🚀 Ref to track previous classCode to prevent unnecessary re-renders
@@ -263,11 +273,16 @@ export default function TeacherDashboard({ user, userData }) {
 
   // 자동 출제 스케줄러 실행
   const runSchedulerCheck = async (classCode, gradeLevel) => {
+    console.log(`[스케줄러] runSchedulerCheck 호출됨 - classCode: ${classCode}, gradeLevel: ${gradeLevel}`);
     try {
       const result = await checkAndRunScheduler(classCode, gradeLevel, user.uid);
+      console.log(`[스케줄러] 결과:`, result);
       if (result.executed) {
         alert(result.message);
-        loadAssignments(classCode);
+        // 🚀 최적화: 새 과제를 직접 추가 (DB 재조회 없이)
+        if (result.assignment) {
+          setAssignments(prev => [result.assignment, ...prev]);
+        }
       }
     } catch (error) {
       console.error('스케줄러 체크 에러:', error);
@@ -412,37 +427,9 @@ export default function TeacherDashboard({ user, userData }) {
 
   const loadAssignments = async (classCode) => {
     try {
-      // 🚀 selectedClass.assignmentSummary 캐시 사용 (DB 읽기 0회!)
-      // 단, submissions 정보가 필요하면 DB에서 로드
-      const cachedClass = classes.find(c => c.classCode === classCode);
-      const cachedAssignments = cachedClass?.assignmentSummary;
-
-      // 캐시된 과제가 있고 submissions 마이그레이션이 완료된 경우 캐시 사용
-      const migrationKey = `submissions_migrated_v3_${classCode}`;
-      const alreadyMigrated = localStorage.getItem(migrationKey);
-
-      if (cachedAssignments && cachedAssignments.length > 0 && alreadyMigrated) {
-        console.log(`[📊 캐시] 과제 ${cachedAssignments.length}개 - assignmentSummary에서 로드 (DB 읽기 0회)`);
-        setAssignments(cachedAssignments);
-        return;
-      }
-
-      // 캐시가 없거나 마이그레이션 필요하면 DB에서 로드
+      // 🚀 선생님은 submissions 정보가 필요하므로 DB에서 로드 (assignmentSummary 캐시에는 submissions 없음)
       console.log(`[📊 DB읽기] 과제 조회 - classCode: ${classCode}`);
-      let classAssignments = await getAssignmentsByClass(classCode);
-
-      // 🚀 submissions 마이그레이션 필요 여부 확인
-      if (!alreadyMigrated && classAssignments.length > 0) {
-        console.log('[TeacherDashboard] submissions 마이그레이션 실행 중... (닉네임 조회)');
-        const result = await migrateAssignmentSubmissions(classCode);
-        if (result.success) {
-          localStorage.setItem(migrationKey, 'true');
-          // 마이그레이션 후 다시 로드
-          classAssignments = await getAssignmentsByClass(classCode, true);
-          console.log('[TeacherDashboard] submissions 마이그레이션 완료');
-        }
-      }
-
+      const classAssignments = await getAssignmentsByClass(classCode);
       setAssignments(classAssignments);
     } catch (error) {
       console.error("과제 로드 에러:", error);
@@ -538,34 +525,30 @@ export default function TeacherDashboard({ user, userData }) {
   const loadClasses = async () => {
     setLoading(true);
     try {
-      // 🚀 userData.teacherClasses 캐시 사용 (DB 읽기 0회!)
-      let teacherClasses = [];
-      if (userData.teacherClasses && userData.teacherClasses.length > 0) {
-        teacherClasses = userData.teacherClasses;
-        console.log(`[📊 캐시] 학급 ${teacherClasses.length}개 - userData.teacherClasses에서 로드 (DB 읽기 0회)`);
-      } else {
-        // 캐시가 없으면 DB에서 로드 후 캐시 저장
-        console.log(`[📊 DB읽기] 학급 조회 - teacherId: ${user.uid}`);
-        teacherClasses = await getTeacherClasses(user.uid);
-        // 캐시 저장 (다음 로그인부터 DB 읽기 0회)
-        if (teacherClasses.length > 0) {
-          try {
-            await updateDoc(doc(db, 'users', user.uid), {
-              teacherClasses: teacherClasses.map(c => ({
-                classCode: c.classCode,
-                className: c.className,
-                gradeLevel: c.gradeLevel,
-                studentCount: c.students?.length || 0,
-                assignmentSummary: c.assignmentSummary || [],
-                schedulerEnabled: c.schedulerEnabled || false
-              }))
-            });
-            console.log(`[📊 캐시] teacherClasses 저장 완료`);
-          } catch (e) {
-            console.warn('teacherClasses 캐시 저장 실패:', e);
-          }
+      // 🚀 항상 DB에서 최신 데이터 로드 (students 배열 포함)
+      // 캐시는 요약 정보만 저장하므로 학생 목록은 항상 DB에서 가져옴
+      console.log(`[📊 DB읽기] 학급 조회 - teacherId: ${user.uid}`);
+      const teacherClasses = await getTeacherClasses(user.uid);
+
+      // 🚀 캐시 업데이트 (요약 정보만 - 다음 로그인 시 빠른 표시용)
+      if (teacherClasses.length > 0) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            teacherClasses: teacherClasses.map(c => ({
+              classCode: c.classCode,
+              className: c.className,
+              gradeLevel: c.gradeLevel,
+              studentCount: c.students?.length || 0,
+              assignmentSummary: c.assignmentSummary || [],
+              schedulerEnabled: c.schedulerEnabled || false
+            }))
+          });
+          console.log(`[📊 캐시] teacherClasses 요약 저장 완료`);
+        } catch (e) {
+          console.warn('teacherClasses 캐시 저장 실패:', e);
         }
       }
+
       setClasses(teacherClasses);
       if (!selectedClass && teacherClasses.length > 0) {
         setSelectedClass(teacherClasses[0]);
@@ -1384,14 +1367,14 @@ export default function TeacherDashboard({ user, userData }) {
                       <p className="text-sm text-gray-600 mb-1">{GRADE_LEVELS[classItem.gradeLevel]}</p>
                       <p className="text-xs text-gray-500 mb-3">{classItem.description}</p>
                       <p className="text-sm text-gray-600 mb-4">
-                        학생 수 {classItem.students.length} / {classItem.maxStudents || MAX_STUDENTS_PER_CLASS}
+                        학생 수 {classItem.students?.length || 0} / {classItem.maxStudents || MAX_STUDENTS_PER_CLASS}
                       </p>
                       <div className="flex space-x-2">
                         <button
                           onClick={() => {
                             setSelectedClass(classItem);
                             setShowClassModal(true);
-                            loadStudentDetails(classItem.students);
+                            loadStudentDetails(classItem.students || []);
                           }}
                           className="flex-1 bg-indigo-500 text-white px-4 py-2 rounded text-sm hover:bg-indigo-600"
                         >
@@ -1486,7 +1469,7 @@ export default function TeacherDashboard({ user, userData }) {
                     <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {assignments.map((assignment) => {
+                      {[...assignments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((assignment) => {
                         // 남은 일수 계산
                         const createdAt = new Date(assignment.createdAt).getTime();
                         const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
@@ -1766,16 +1749,10 @@ export default function TeacherDashboard({ user, userData }) {
                             );
                           }
 
-                          // 🚀 최근 제출 순으로 정렬 (submissions의 최신 submittedAt 기준)
-                          const sortedAssignments = [...filteredAssignments].sort((a, b) => {
-                            // 각 주제의 가장 최근 제출 시간 찾기
-                            const getLatestSubmission = (assignment) => {
-                              const submissions = assignment.submissions || [];
-                              if (submissions.length === 0) return 0;
-                              return Math.max(...submissions.map(s => new Date(s.submittedAt).getTime()));
-                            };
-                            return getLatestSubmission(b) - getLatestSubmission(a);
-                          });
+                          // 🚀 과제 출제일 기준 최신순 정렬 (createdAt 기준)
+                          const sortedAssignments = [...filteredAssignments].sort((a, b) =>
+                            new Date(b.createdAt) - new Date(a.createdAt)
+                          );
 
                           return sortedAssignments.map((assignment) => {
                             const topic = assignment.title;
@@ -2371,9 +2348,9 @@ export default function TeacherDashboard({ user, userData }) {
               </button>
             </div>
 
-            <h3 className="font-semibold mb-2">학생 목록 ({selectedClass.students.length}/{selectedClass.maxStudents || MAX_STUDENTS_PER_CLASS})</h3>
+            <h3 className="font-semibold mb-2">학생 목록 ({selectedClass.students?.length || 0}/{selectedClass.maxStudents || MAX_STUDENTS_PER_CLASS})</h3>
 
-            {selectedClass.students.length === 0 ? (
+            {!selectedClass.students || selectedClass.students.length === 0 ? (
               <p className="text-gray-600 text-sm">아직 가입한 학생이 없습니다.</p>
             ) : (
               <div className="space-y-2">

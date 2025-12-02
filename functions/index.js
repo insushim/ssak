@@ -456,14 +456,14 @@ exports.resetStudentPassword = onCall(async (request) => {
   }
 });
 
-// Analyze writing using Gemini AI - 더 깐깐한 평가 기준
+// Analyze writing using Gemini AI - 격려 중심 평가
 exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
   }
 
   const data = request.data;
-  const {text, gradeLevel, topic, wordCount, idealWordCount} = data || {};
+  const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore} = data || {};
 
   if (!text || !topic) {
     throw new HttpsError('invalid-argument', '텍스트와 주제가 필요합니다.');
@@ -488,8 +488,40 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
 
     const gradeName = gradeLevelNames[gradeLevel] || gradeLevel;
 
-    const prompt = `당신은 ${gradeName} 학생의 글쓰기를 평가하는 친절하면서도 전문적인 선생님입니다.
-학생의 노력을 인정하면서도 구체적이고 도움이 되는 피드백을 제공해주세요.
+    // 🚀 고쳐쓰기 모드 - AI가 개선 여부 판단
+    const rewriteInfo = isRewrite && previousScore !== null
+      ? `\n\n**🔄 고쳐쓰기 모드**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+이 학생은 이전 글(${previousScore}점)을 수정하여 다시 제출했습니다.
+
+📌 평가 기준:
+1. 글이 실제로 개선되었는지 꼼꼼히 확인하세요
+2. 개선된 부분이 있다면 그에 맞게 점수를 올려주세요
+3. 개선이 없거나 오히려 나빠졌다면 점수를 올리지 마세요
+
+✅ 개선으로 인정되는 경우:
+- 글자 수가 의미있게 늘어남 (단순 반복 제외)
+- 새로운 내용이나 아이디어가 추가됨
+- 문장이 더 자연스럽게 다듬어짐
+- 맞춤법/문법 오류가 수정됨
+- 구성이 더 논리적으로 바뀜
+
+❌ 개선으로 인정되지 않는 경우:
+- 같은 내용을 단순 반복하여 글자 수만 늘림
+- 의미없는 문장 추가
+- 내용이 오히려 산만해짐
+- 거의 변화가 없음
+
+🎯 점수 산정:
+- 실제로 개선되었다면: 이전 점수보다 5~15점 상승
+- 변화가 거의 없다면: 이전 점수와 비슷하게
+- 오히려 나빠졌다면: 이전 점수보다 낮게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      : '';
+
+    const prompt = `당신은 ${gradeName} 학생의 글쓰기를 평가하는 따뜻하고 격려하는 선생님입니다.
+학생의 노력과 성장 가능성을 인정하면서 구체적이고 도움이 되는 피드백을 제공해주세요.
+**학생들이 글쓰기에 흥미를 잃지 않도록 격려 중심의 평가를 해주세요.**${rewriteInfo}
 
 주제: ${topic}
 글자 수: ${wordCount}자 (권장: ${idealWordCount}자)
@@ -512,46 +544,52 @@ ${text}
 
 위 경우 score는 반드시 0점, feedback에 "의미있는 글을 작성해주세요"라고 적어주세요.
 
-다음 기준에 따라 엄격하게 평가해주세요.
-분량이 부족하면 내용이 아무리 좋아도 높은 점수를 받을 수 없습니다.
-평균적인 글은 60-70점대, 잘 쓴 글은 70-80점대, 매우 뛰어난 글은 80점 이상입니다.
+**✨ 평가 방침 (매우 중요!):**
+- 학생들의 글쓰기 의욕을 북돋아주기 위해 **관대하게 평가**해주세요
+- 완벽하지 않아도 노력이 보이면 높은 점수를 주세요
+- 평균적인 글은 72-78점, 잘 쓴 글은 80-88점, 매우 뛰어난 글은 90점 이상입니다
+- **기본 점수를 높게 시작하고, 심각한 문제가 있을 때만 감점하세요**
 
-1. 내용 (30점):
-   - 25-30점: 주제에 대한 깊이 있는 이해와 창의적인 시각, 구체적인 예시와 근거
-   - 18-24점: 주제를 잘 이해하고 적절한 내용 전개, 일부 구체적 예시
-   - 10-17점: 기본적인 내용 전개는 있으나 깊이 부족
-   - 0-9점: 주제 이해 부족, 내용이 빈약함
+1. 내용 (25점) - 기본 18점에서 시작:
+   - 22-25점: 주제에 대한 이해와 나름의 시각이 있음
+   - 18-21점: 주제와 관련된 내용을 적절히 전개함
+   - 12-17점: 주제를 다루고 있으나 깊이가 부족
+   - 0-11점: 주제와 관련없거나 내용이 매우 빈약함
 
-2. 구성 (25점):
-   - 21-25점: 서론-본론-결론의 완벽한 구성, 문단 간 자연스러운 연결
-   - 15-20점: 기본적인 글 구조 갖춤, 대체로 논리적 흐름
-   - 8-14점: 구조가 불명확하거나 흐름이 어색함
-   - 0-7점: 구조 없이 나열식
+2. 주제 일치도 (10점) - ⚠️ 엄격하게 평가:
+   - 9-10점: 글 전체가 주제와 완벽히 일치, 주제를 벗어난 부분 없음
+   - 7-8점: 대부분 주제와 일치하나 일부 벗어난 내용 있음
+   - 4-6점: 주제와 관련은 있으나 상당 부분 벗어남
+   - 0-3점: 주제와 거의 관련 없는 내용 (이 경우 전체 점수 -20점 추가 감점!)
 
-3. 어휘 (20점):
-   - 17-20점: 다양하고 정확한 어휘 사용
-   - 12-16점: 적절한 어휘 사용, 가끔 반복되는 표현
-   - 6-11점: 기본적인 어휘만 사용, 표현이 단조로움
-   - 0-5점: 어휘 부족, 같은 단어 반복
+3. 구성 (20점) - 기본 14점에서 시작:
+   - 17-20점: 서론/본론/결론 구조가 명확함
+   - 14-16점: 기본적인 글 구조가 있음
+   - 9-13점: 구조가 다소 불명확함
+   - 0-8점: 구조 없이 나열식
 
-4. 문법/맞춤법 (15점):
-   - 13-15점: 맞춤법, 띄어쓰기, 문장 부호 완벽
-   - 9-12점: 사소한 실수 2-3개 정도
-   - 5-8점: 여러 개의 맞춤법/문법 오류
-   - 0-4점: 심각한 문법 오류 다수
+4. 어휘 및 문장 다양성 (20점) - 기본 14점에서 시작:
+   - 17-20점: 다양한 어휘와 문장 시작어 사용 (예: "나는", "그래서", "왜냐하면" 등 다양하게 시작)
+   - 14-16점: 기본적인 어휘, 문장 시작어가 2-3가지 정도
+   - 9-13점: 어휘가 단조롭고 같은 문장 시작어 반복 (예: 계속 "나는"으로 시작)
+   - 0-8점: 같은 단어/시작어 과도한 반복 (이 경우 -5점 추가 감점!)
 
-5. 창의성 (10점):
-   - 9-10점: 독창적인 관점과 참신한 아이디어
-   - 6-8점: 개성 있는 표현이나 흥미로운 접근
-   - 3-5점: 평범하지만 성실한 시도
-   - 0-2점: 틀에 박힌 내용
+5. 문법/맞춤법 (15점) - 기본 11점에서 시작:
+   - 13-15점: 맞춤법 오류 거의 없음
+   - 11-12점: 사소한 실수 몇 개
+   - 7-10점: 여러 개의 맞춤법 오류
+   - 0-6점: 심각한 문법 오류 다수
 
-글자 수 감점 (매우 중요!):
-- 권장 글자 수의 90% 미만: -5점
-- 권장 글자 수의 70% 미만: -15점
-- 권장 글자 수의 50% 미만: -25점
-- 권장 글자 수의 30% 미만: -35점
-- 권장 글자 수의 20% 미만: -50점 (매우 부족, 최대 50점까지만 가능)
+6. 창의성 (10점) - 기본 6점에서 시작:
+   - 9-10점: 독창적인 표현이나 시각
+   - 6-8점: 나름의 개성이 있음
+   - 3-5점: 평범하지만 성실함
+   - 0-2점: 매우 틀에 박힌 내용
+
+**📌 추가 감점 규칙 (반드시 적용!):**
+- 주제 일치도 3점 이하: 전체 점수에서 -20점 추가 감점
+- 같은 문장 시작어 4회 이상 연속 반복: -5점 추가 감점
+- 글자 수 감점은 서버에서 자동 적용됨 (AI는 글자 수 감점하지 마세요)
 
 **피드백 작성 지침 (매우 중요!):**
 1. "잘한 점"은 학생이 실제로 잘한 구체적인 부분을 3-4개 이상 찾아서 칭찬해주세요 (문장 인용 포함)
@@ -562,10 +600,11 @@ ${text}
 
 반드시 다음 JSON 형식으로만 응답하세요:
 {
-  "score": 총점(0-100),
-  "contentScore": 내용점수(0-30),
-  "structureScore": 구성점수(0-25),
-  "vocabularyScore": 어휘점수(0-20),
+  "score": 총점(0-100, 추가감점 포함),
+  "contentScore": 내용점수(0-25),
+  "topicRelevanceScore": 주제일치도점수(0-10),
+  "structureScore": 구성점수(0-20),
+  "vocabularyScore": 어휘및문장다양성점수(0-20),
   "grammarScore": 문법점수(0-15),
   "creativityScore": 창의성점수(0-10),
   "feedback": "전체적인 평가 한 줄 요약",
@@ -594,11 +633,61 @@ ${text}
 
     // 점수 유효성 검사 및 보정
     parsed.score = Math.max(0, Math.min(100, parsed.score || 0));
-    parsed.contentScore = Math.max(0, Math.min(30, parsed.contentScore || 0));
-    parsed.structureScore = Math.max(0, Math.min(25, parsed.structureScore || 0));
+    parsed.contentScore = Math.max(0, Math.min(25, parsed.contentScore || 0));
+    parsed.topicRelevanceScore = Math.max(0, Math.min(10, parsed.topicRelevanceScore || 0));
+    parsed.structureScore = Math.max(0, Math.min(20, parsed.structureScore || 0));
     parsed.vocabularyScore = Math.max(0, Math.min(20, parsed.vocabularyScore || 0));
     parsed.grammarScore = Math.max(0, Math.min(15, parsed.grammarScore || 0));
     parsed.creativityScore = Math.max(0, Math.min(10, parsed.creativityScore || 0));
+
+    // 🚀 주제 일치도 3점 이하 시 추가 감점 (AI가 안 했을 경우 대비)
+    if (parsed.topicRelevanceScore <= 3) {
+      const beforePenalty = parsed.score;
+      parsed.score = Math.max(0, parsed.score - 20);
+      parsed.topicPenalty = 20;
+      console.log(`[주제이탈 감점] 주제일치도 ${parsed.topicRelevanceScore}점 → -20점 (${beforePenalty}→${parsed.score})`);
+    }
+
+    // 🚀 글자 수 강제 감점 (완화된 기준)
+    if (wordCount && idealWordCount) {
+      const ratio = wordCount / idealWordCount;
+      let wordCountPenalty = 0;
+
+      if (ratio < 0.20) {
+        wordCountPenalty = 30; // 20% 미만: -30점
+      } else if (ratio < 0.30) {
+        wordCountPenalty = 25; // 20~29%: -25점
+      } else if (ratio < 0.40) {
+        wordCountPenalty = 20; // 30~39%: -20점
+      } else if (ratio < 0.50) {
+        wordCountPenalty = 15; // 40~49%: -15점
+      } else if (ratio < 0.60) {
+        wordCountPenalty = 12; // 50~59%: -12점
+      } else if (ratio < 0.70) {
+        wordCountPenalty = 10; // 60~69%: -10점
+      } else if (ratio < 0.80) {
+        wordCountPenalty = 7; // 70~79%: -7점
+      } else if (ratio < 0.90) {
+        wordCountPenalty = 5; // 80~89%: -5점
+      }
+      // 90% 이상: 감점 없음
+
+      if (wordCountPenalty > 0) {
+        const originalScore = parsed.score;
+        parsed.score = Math.max(0, parsed.score - wordCountPenalty);
+        parsed.wordCountPenalty = wordCountPenalty;
+        console.log(`[글자수 감점] ${wordCount}자/${idealWordCount}자 (${Math.round(ratio * 100)}%) → -${wordCountPenalty}점 (${originalScore}→${parsed.score})`);
+      }
+    }
+
+    // 🚀 고쳐쓰기 모드: AI 평가 결과 로깅 (강제 보정 없음 - AI가 개선 여부 판단)
+    if (isRewrite && previousScore !== null) {
+      const scoreDiff = parsed.score - previousScore;
+      console.log(`[고쳐쓰기] 이전: ${previousScore}점 → 현재: ${parsed.score}점 (${scoreDiff >= 0 ? '+' : ''}${scoreDiff}점)`);
+      parsed.isRewrite = true;
+      parsed.previousScore = previousScore;
+      parsed.scoreDiff = scoreDiff;
+    }
 
     return parsed;
   } catch (error) {
@@ -1712,5 +1801,267 @@ exports.autoDeleteAllClassesOnMarch1 = onSchedule({
   } catch (error) {
     console.error('[연간 자동 삭제] 에러:', error);
     return null;
+  }
+});
+
+// 🚀 학급 내 학생들의 classCode 필드 마이그레이션
+// 학급 코드가 삭제되었다가 복구된 경우 사용
+exports.migrateStudentsClassCode = onCall(async (request) => {
+  const { classCode } = request.data;
+  const userId = request.auth?.uid;
+
+  if (!userId) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼관리자 확인
+  const userSnap = await db.doc(`users/${userId}`).get();
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 실행할 수 있습니다.');
+  }
+
+  if (!classCode) {
+    throw new HttpsError('invalid-argument', 'classCode가 필요합니다.');
+  }
+
+  try {
+    // 1. 학급 문서에서 학생 목록 가져오기
+    const classDoc = await db.doc(`classes/${classCode}`).get();
+    if (!classDoc.exists) {
+      throw new HttpsError('not-found', `학급 ${classCode}를 찾을 수 없습니다.`);
+    }
+
+    const classData = classDoc.data();
+    const students = classData.students || [];
+    const className = classData.className || classCode;
+    const gradeLevel = classData.gradeLevel;
+    const teacherId = classData.teacherId;
+    const teacherName = classData.teacherName || '선생님';
+
+    console.log(`[classCode 마이그레이션] 시작 - 학급: ${className} (${classCode}), 학생: ${students.length}명`);
+
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    // 2. 각 학생의 users 문서 업데이트
+    for (const student of students) {
+      try {
+        const studentId = student.studentId;
+        const studentRef = db.doc(`users/${studentId}`);
+        const studentDoc = await studentRef.get();
+
+        if (studentDoc.exists) {
+          const studentData = studentDoc.data();
+
+          // classCode와 classInfo 모두 업데이트
+          await studentRef.update({
+            classCode: classCode,
+            'classInfo.classCode': classCode,
+            'classInfo.className': className,
+            'classInfo.gradeLevel': gradeLevel,
+            'classInfo.teacherId': teacherId,
+            'classInfo.teacherName': teacherName,
+            'classInfo.assignmentSummary': classData.assignmentSummary || []
+          });
+
+          updatedCount++;
+          console.log(`[classCode 마이그레이션] ${studentData.nickname || studentData.name} 업데이트 완료`);
+        } else {
+          console.warn(`[classCode 마이그레이션] 학생 문서 없음: ${studentId}`);
+          errorCount++;
+        }
+      } catch (e) {
+        console.error(`[classCode 마이그레이션] 학생 업데이트 실패:`, e);
+        errorCount++;
+      }
+    }
+
+    // 3. 해당 학급의 writings도 classCode 업데이트
+    // 학생 ID 목록으로 해당 학생들의 글을 직접 조회
+    let writingsUpdated = 0;
+    const studentIds = students.map(s => s.studentId);
+
+    // 학생별로 writings 조회하여 classCode 없는 것 업데이트
+    for (const studentId of studentIds) {
+      const writingsQuery = db.collection('writings')
+        .where('studentId', '==', studentId);
+      const writingsSnapshot = await writingsQuery.get();
+
+      for (const docSnap of writingsSnapshot.docs) {
+        const writingData = docSnap.data();
+        // classCode가 없거나 잘못된 경우 업데이트
+        if (!writingData.classCode || writingData.classCode !== classCode) {
+          await docSnap.ref.update({ classCode: classCode });
+          writingsUpdated++;
+        }
+      }
+    }
+
+    console.log(`[classCode 마이그레이션] 완료 - 학생 ${updatedCount}명, 글 ${writingsUpdated}개 업데이트`);
+
+    return {
+      success: true,
+      className,
+      classCode,
+      studentsUpdated: updatedCount,
+      writingsUpdated,
+      errors: errorCount
+    };
+  } catch (error) {
+    console.error('[classCode 마이그레이션] 에러:', error);
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+// 🚀 기존 글의 minScore를 70점으로 마이그레이션 + 랭킹 재계산
+exports.migrateMinScoreTo70 = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼 관리자만 실행 가능
+  const userRef = db.doc(`users/${request.auth.uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists || userSnap.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자만 실행할 수 있습니다.');
+  }
+
+  try {
+    console.log('[minScore 마이그레이션] 시작');
+
+    // 1. 모든 writings 문서에 minScore 70 추가 (없는 경우만)
+    const writingsSnapshot = await db.collection('writings').get();
+    let writingsUpdated = 0;
+
+    const batchSize = 500;
+    let batch = db.batch();
+    let batchCount = 0;
+
+    for (const docSnap of writingsSnapshot.docs) {
+      const data = docSnap.data();
+      // 🔧 minScore가 없는 경우만 70으로 설정 (선생님이 설정한 값은 유지!)
+      if (data.minScore === undefined) {
+        batch.update(docSnap.ref, { minScore: 70 });
+        writingsUpdated++;
+        batchCount++;
+
+        if (batchCount >= batchSize) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+
+    console.log(`[minScore 마이그레이션] writings ${writingsUpdated}개 업데이트`);
+
+    // 2. 모든 users의 writingSummary에서 minScore 업데이트 (undefined인 경우만!)
+    const usersSnapshot = await db.collection('users').where('role', '==', 'student').get();
+    let usersUpdated = 0;
+
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      if (userData.writingSummary && userData.writingSummary.length > 0) {
+        // 🔧 minScore가 undefined인 항목만 70으로 설정 (선생님이 설정한 값은 유지!)
+        let hasUndefined = false;
+        const updatedSummary = userData.writingSummary.map(w => {
+          if (w.minScore === undefined) {
+            hasUndefined = true;
+            return { ...w, minScore: 70 };
+          }
+          return w;
+        });
+
+        if (hasUndefined) {
+          await userDoc.ref.update({ writingSummary: updatedSummary });
+          usersUpdated++;
+        }
+      }
+    }
+
+    console.log(`[minScore 마이그레이션] users ${usersUpdated}명 writingSummary 업데이트`);
+
+    // 3. 모든 학급의 랭킹 재계산 (passCount 기준 70점으로)
+    const classesSnapshot = await db.collection('classes').get();
+    let classesUpdated = 0;
+
+    for (const classDoc of classesSnapshot.docs) {
+      const classData = classDoc.data();
+      const classCode = classDoc.id;
+
+      // 주간/월간 랭킹 재계산
+      for (const period of ['weekly', 'monthly']) {
+        const rankingField = period === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
+        const savedRanking = classData[rankingField];
+
+        if (savedRanking && savedRanking.data && savedRanking.data.length > 0) {
+          // passCount 재계산 (70점 기준)
+          const updatedData = [];
+
+          for (const student of savedRanking.data) {
+            // 해당 학생의 글 조회
+            const writingsQuery = await db.collection('writings')
+              .where('studentId', '==', student.studentId)
+              .where('classCode', '==', classCode)
+              .where('isDraft', '==', false)
+              .get();
+
+            let passCount = 0;
+            let totalScore = 0;
+            let submissionCount = 0;
+
+            writingsQuery.forEach(doc => {
+              const w = doc.data();
+              if (w.score >= 70) passCount++;
+              totalScore += w.score || 0;
+              submissionCount++;
+            });
+
+            const averageScore = submissionCount > 0 ? Math.round(totalScore / submissionCount) : 0;
+            // 새 랭킹 점수: 평균점수 × 3 + 통과횟수 × 20
+            const rankingScore = averageScore * 3 + passCount * 20;
+
+            updatedData.push({
+              ...student,
+              passCount,
+              averageScore,
+              submissionCount,
+              rankingScore
+            });
+          }
+
+          // 재정렬
+          updatedData.sort((a, b) => b.rankingScore - a.rankingScore);
+          const rankedData = updatedData.map((s, i) => ({ ...s, rank: i + 1 }));
+
+          await classDoc.ref.update({
+            [rankingField]: {
+              ...savedRanking,
+              data: rankedData,
+              updatedAt: new Date().toISOString()
+            }
+          });
+        }
+      }
+      classesUpdated++;
+    }
+
+    console.log(`[minScore 마이그레이션] 학급 ${classesUpdated}개 랭킹 재계산`);
+
+    return {
+      success: true,
+      writingsUpdated,
+      usersUpdated,
+      classesUpdated,
+      message: `마이그레이션 완료: 글 ${writingsUpdated}개, 학생 ${usersUpdated}명, 학급 ${classesUpdated}개`
+    };
+  } catch (error) {
+    console.error('[minScore 마이그레이션] 에러:', error);
+    throw new HttpsError('internal', error.message);
   }
 });

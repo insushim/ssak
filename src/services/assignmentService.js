@@ -175,12 +175,13 @@ export async function migrateAssignmentSummary(classCode) {
 
     const classData = classDoc.data();
 
-    // 🚀 description 필드가 없으면 강제 마이그레이션 (v3 업그레이드)
-    const hasDescription = classData.assignmentSummary &&
+    // 🚀 description과 minScore 필드가 있는지 확인 (v4 업그레이드)
+    const hasAllFields = classData.assignmentSummary &&
       classData.assignmentSummary.length > 0 &&
-      classData.assignmentSummary[0].description !== undefined;
+      classData.assignmentSummary[0].description !== undefined &&
+      classData.assignmentSummary[0].minScore !== undefined;
 
-    if (hasDescription) {
+    if (hasAllFields) {
       console.log(`[마이그레이션] assignmentSummary 최신 버전 - ${classData.assignmentSummary.length}개`);
       return { success: true, migrated: false };
     }
@@ -374,6 +375,8 @@ export async function getSubmissionsByStudent(studentId, forceRefresh = false) {
 // 🚀 글 제출 시 assignment에 제출자 정보 추가/업데이트
 // 목표점수 이상인 글만 추가됨
 export async function updateAssignmentSubmission(classCode, topic, submissionInfo) {
+  console.log(`[submissions] updateAssignmentSubmission 호출 - classCode: ${classCode}, topic: "${topic}"`);
+  console.log(`[submissions] submissionInfo:`, submissionInfo);
   try {
     // topic(제목)으로 assignment 찾기
     const q = query(
@@ -383,6 +386,7 @@ export async function updateAssignmentSubmission(classCode, topic, submissionInf
       limit(1)
     );
     const snapshot = await getDocs(q);
+    console.log(`[submissions] 과제 검색 결과: ${snapshot.size}개`);
 
     if (snapshot.empty) {
       console.log(`[submissions] "${topic}" 과제를 찾을 수 없음 (자유 주제일 수 있음)`);
@@ -594,11 +598,20 @@ export async function migrateAssignmentSubmissions(classCode) {
 
     console.log(`[마이그레이션] ${writingsByTopic.size}개 주제에서 목표점수 이상 글 발견`);
 
-    // 4. 각 과제의 submissions 업데이트 (강제 업데이트 - 기존 데이터도 정리)
+    // 4. 각 과제의 submissions 업데이트 (submissions가 없거나 비어있는 경우에만!)
     let migratedCount = 0;
+    let skippedCount = 0;
     for (const docSnap of assignmentsSnapshot.docs) {
       const assignmentData = docSnap.data();
       const topic = assignmentData.title;
+      const existingSubmissions = assignmentData.submissions || [];
+
+      // 🚀 이미 submissions가 있으면 스킵 (정상 동작 중이므로 건드리지 않음)
+      if (existingSubmissions.length > 0) {
+        console.log(`[마이그레이션] "${topic}" - 이미 ${existingSubmissions.length}명 submissions 있음 (스킵)`);
+        skippedCount++;
+        continue;
+      }
 
       const topicWritings = writingsByTopic.get(topic) || [];
 
@@ -613,19 +626,27 @@ export async function migrateAssignmentSubmissions(classCode) {
 
       const submissions = Array.from(studentMap.values());
 
+      if (submissions.length === 0) {
+        console.log(`[마이그레이션] "${topic}" - 제출글 없음 (스킵)`);
+        skippedCount++;
+        continue;
+      }
+
       await updateDoc(doc(db, 'assignments', docSnap.id), {
         submissions: submissions
       });
 
-      console.log(`[마이그레이션] "${topic}" - ${submissions.length}명 submissions (목표점수 이상)`);
+      console.log(`[마이그레이션] "${topic}" - ${submissions.length}명 submissions 복구됨`);
       migratedCount++;
     }
 
     // 캐시 무효화
-    invalidateAssignmentsCache(classCode);
+    if (migratedCount > 0) {
+      invalidateAssignmentsCache(classCode);
+    }
 
-    console.log(`[마이그레이션] 완료 - ${migratedCount}개 과제 업데이트됨`);
-    return { success: true, migratedCount };
+    console.log(`[마이그레이션] 완료 - ${migratedCount}개 복구, ${skippedCount}개 스킵 (이미 존재)`);
+    return { success: true, migratedCount, skippedCount };
   } catch (error) {
     console.error('[마이그레이션] 에러:', error);
     return { success: false, error: error.message };

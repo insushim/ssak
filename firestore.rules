@@ -117,10 +117,18 @@ service cloud.firestore {
       // Only approved teachers can create assignments
       allow create: if isApprovedTeacher();
 
-      // Only the teacher who created it or super admin can update/delete
-      allow update, delete: if isAuthenticated() &&
-                               (resource.data.teacherId == request.auth.uid ||
-                                isSuperAdmin());
+      // Teacher/super admin can update anything
+      // Students can only update submissions field (for adding their submission info)
+      allow update: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        (isStudent() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['submissions'])));
+
+      // Only teacher or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin());
     }
 
     // Assignment submissions collection

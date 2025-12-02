@@ -92,7 +92,8 @@ export function getAdjustedWordCount(gradeLevel, topic) {
 }
 
 // 기준 점수 (이 점수 이상이어야 제출 성공)
-export const PASSING_SCORE = 80;
+// 자유 주제 기본값 - 과제는 과제별 minScore 사용
+export const PASSING_SCORE = 70;
 
 // 표절 감지 임계값 (50% 이상 유사도)
 export const PLAGIARISM_THRESHOLD = 50;

@@ -102,16 +102,16 @@ const AVATAR_ITEMS = {
     { id: 'cloth3', emoji: '🎽', name: '운동복', price: 40, svgType: 'sportswear', color: '#FF6B6B' },
     { id: 'cloth4', emoji: '👗', name: '원피스', price: 80, svgType: 'dress', color: '#FF69B4' },
     { id: 'cloth5', emoji: '🧥', name: '코트', price: 100, svgType: 'coat', color: '#8B4513' },
-    { id: 'cloth6', emoji: '🥋', name: '도복', price: 120, svgType: 'tshirt', color: '#FFFFFF' },
+    { id: 'cloth6', emoji: '🥋', name: '도복', price: 120, svgType: 'taekwondo', color: '#FFFFFF' },
     { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'kimono', color: '#E91E63' },
     { id: 'cloth8', emoji: '🦸', name: '히어로 슈트', price: 300, svgType: 'superhero', color: '#1E3A8A' },
     { id: 'cloth9', emoji: '👑', name: '왕족 의상', price: 500, svgType: 'princess', color: '#FFD700' },
     { id: 'cloth10', emoji: '🧙', name: '마법사 로브', price: 400, svgType: 'wizard', color: '#4B0082' },
-    { id: 'cloth11', emoji: '🎅', name: '산타복', price: 150, svgType: 'sweater', color: '#DC2626' },
+    { id: 'cloth11', emoji: '🎅', name: '산타복', price: 150, svgType: 'santasuit', color: '#DC2626' },
     { id: 'cloth12', emoji: '🤵', name: '턱시도', price: 250, svgType: 'tuxedo', color: '#1a1a1a' },
-    { id: 'cloth13', emoji: '👩‍🎤', name: '록스타 재킷', price: 220, svgType: 'jacket', color: '#1a1a1a' },
+    { id: 'cloth13', emoji: '👩‍🎤', name: '록스타 재킷', price: 220, svgType: 'rockstarjacket', color: '#1a1a1a' },
     { id: 'cloth14', emoji: '🥷', name: '닌자복', price: 280, svgType: 'ninja', color: '#1a1a1a' },
-    { id: 'cloth15', emoji: '👨‍🚀', name: '우주복', price: 450, special: true, svgType: 'tshirt', color: '#F5F5F5' },
+    { id: 'cloth15', emoji: '👨‍🚀', name: '우주복', price: 450, special: true, svgType: 'spacesuit', color: '#F5F5F5' },
     { id: 'cloth16', emoji: '🧛', name: '뱀파이어 망토', price: 350, special: true, svgType: 'robe', color: '#800020' },
     { id: 'cloth17', emoji: '🧚', name: '요정 드레스', price: 380, special: true, svgType: 'princess', color: '#98FB98' },
     { id: 'cloth18', emoji: '🎭', name: '오페라 의상', price: 320, svgType: 'dress', color: '#8B0000' },
@@ -125,18 +125,18 @@ const AVATAR_ITEMS = {
     { id: 'acc3', emoji: '🕶️', name: '선글라스', price: 50, svgType: 'sunglasses' },
     { id: 'acc4', emoji: '🎀', name: '리본', price: 40, svgType: 'bow' },
     { id: 'acc5', emoji: '🎩', name: '모자', price: 60, svgType: 'hat' },
-    { id: 'acc6', emoji: '👒', name: '밀짚모자', price: 70, svgType: 'hat' },
-    { id: 'acc7', emoji: '🧢', name: '캡모자', price: 50, svgType: 'hat' },
+    { id: 'acc6', emoji: '👒', name: '밀짚모자', price: 70, svgType: 'strawhat' },
+    { id: 'acc7', emoji: '🧢', name: '캡모자', price: 50, svgType: 'cap' },
     { id: 'acc8', emoji: '💍', name: '반지', price: 100, svgType: 'ring' },
     { id: 'acc9', emoji: '📿', name: '목걸이', price: 80, svgType: 'necklace' },
     { id: 'acc10', emoji: '👑', name: '왕관', price: 300, svgType: 'crown' },
     { id: 'acc11', emoji: '🎭', name: '마스크', price: 150, svgType: 'mask' },
-    { id: 'acc12', emoji: '🦋', name: '나비장식', price: 120, svgType: 'bow' },
+    { id: 'acc12', emoji: '🦋', name: '나비장식', price: 120, svgType: 'butterfly' },
     { id: 'acc13', emoji: '⭐', name: '별장식', price: 100, svgType: 'star' },
     { id: 'acc14', emoji: '🌸', name: '꽃장식', price: 90, svgType: 'flower' },
     { id: 'acc15', emoji: '🎧', name: '헤드폰', price: 80, svgType: 'headphones' },
     { id: 'acc16', emoji: '🦴', name: '뼈다귀', price: 60, svgType: 'bone' },
-    { id: 'acc17', emoji: '🔮', name: '수정구슬', price: 200, special: true, svgType: 'wand' },
+    { id: 'acc17', emoji: '🔮', name: '수정구슬', price: 200, special: true, svgType: 'crystal_ball' },
     { id: 'acc18', emoji: '🗡️', name: '검', price: 250, special: true, svgType: 'sword' },
     { id: 'acc19', emoji: '🏹', name: '활', price: 220, svgType: 'bow_weapon' },
     { id: 'acc20', emoji: '🪄', name: '마법 지팡이', price: 350, special: true, svgType: 'wand' },
@@ -238,14 +238,14 @@ const ROOM_ITEMS = {
   ],
   // 인테리어/벽지
   wallpaper: [
-    { id: 'wall1', color: 'from-white to-gray-100', name: '기본', price: 0 },
-    { id: 'wall2', color: 'from-blue-50 to-blue-100', name: '하늘색', price: 50 },
-    { id: 'wall3', color: 'from-pink-50 to-pink-100', name: '핑크', price: 50 },
-    { id: 'wall4', color: 'from-green-50 to-green-100', name: '민트', price: 50 },
-    { id: 'wall5', color: 'from-amber-50 to-amber-100', name: '크림', price: 60 },
-    { id: 'wall6', color: 'from-purple-100 to-indigo-200', name: '우주', price: 150 },
-    { id: 'wall7', color: 'from-rose-100 via-pink-100 to-purple-100', name: '오로라', price: 200 },
-    { id: 'wall8', color: 'from-amber-200 via-yellow-100 to-amber-200', name: '황금', price: 300 }
+    { id: 'wall1', color: '#f5f5f5, #e8e8e8', name: '기본', price: 0 },
+    { id: 'wall2', color: '#e0f2fe, #bae6fd', name: '하늘색', price: 50 },
+    { id: 'wall3', color: '#fce7f3, #fbcfe8', name: '핑크', price: 50 },
+    { id: 'wall4', color: '#d1fae5, #a7f3d0', name: '민트', price: 50 },
+    { id: 'wall5', color: '#fef3c7, #fde68a', name: '크림', price: 60 },
+    { id: 'wall6', color: '#c4b5fd, #a5b4fc', name: '우주', price: 150 },
+    { id: 'wall7', color: '#fecdd3, #f9a8d4, #d8b4fe', name: '오로라', price: 200 },
+    { id: 'wall8', color: '#fcd34d, #fef08a, #fcd34d', name: '황금', price: 300 }
   ],
   // 장식품
   decorations: [
@@ -477,7 +477,7 @@ export default function StudentDashboard({ user, userData }) {
       // 글쓰기 중에 뒤로가기 -> 주제 선택으로 돌아가기
       if (currentWriting.content && currentWriting.content.trim().length > 0) {
         event.preventDefault();
-        if (window.confirm('작성 중인 글이 있습니다. 주제 선택으로 돌아가시겠습니까?\n(임시 저장된 내용은 유지됩니다)')) {
+        if (window.confirm('⚠️ 작성 중인 글이 있습니다!\n\n뒤로 가면 작성 중인 글이 삭제됩니다.\n그래도 뒤로 가시겠습니까?')) {
           setCurrentWriting(prev => ({
             ...prev,
             topic: '',
@@ -519,6 +519,25 @@ export default function StudentDashboard({ user, userData }) {
       window.removeEventListener('popstate', handlePopState);
     };
   }, [feedback, currentWriting.content, currentWriting.topic, selectedTopic]);
+
+  // 🚀 PC 새로고침/창닫기 시 경고 - 작성 중인 글 보호
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      // 글쓰기 중인 내용이 있을 때만 경고
+      if (currentWriting.content && currentWriting.content.trim().length > 0) {
+        e.preventDefault();
+        // 표준 방식 (Chrome 51+, Safari 9.1+)
+        e.returnValue = '작성 중인 글이 있습니다. 페이지를 떠나시겠습니까?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentWriting.content]);
 
   // 🚀 자동저장 useEffect 제거 - Firestore 비용 최적화
 
@@ -856,20 +875,21 @@ export default function StudentDashboard({ user, userData }) {
       if (cls) {
         setClassInfo(cls);
 
-        // 🚀 v4: description 필드 추가 마이그레이션 (강제 실행)
-        const migrationKey = `assignmentSummary_v4_${userData.classCode}`;
-        const hasDescription = cls.assignmentSummary &&
+        // 🚀 v5: description + minScore 필드 마이그레이션 (강제 실행)
+        const migrationKey = `assignmentSummary_v5_${userData.classCode}`;
+        const hasAllFields = cls.assignmentSummary &&
           cls.assignmentSummary.length > 0 &&
-          cls.assignmentSummary[0].description !== undefined;
+          cls.assignmentSummary[0].description !== undefined &&
+          cls.assignmentSummary[0].minScore !== undefined;
 
-        if (!hasDescription || !localStorage.getItem(migrationKey)) {
+        if (!hasAllFields || !localStorage.getItem(migrationKey)) {
           try {
-            console.log('[마이그레이션 v4] assignmentSummary description 추가');
+            console.log('[마이그레이션 v5] assignmentSummary minScore 추가');
             const result = await migrateAssignmentSummary(userData.classCode);
             if (result.migrated) {
               cls = await getClassByCode(userData.classCode);
               setClassInfo(cls);
-              console.log('[마이그레이션 v4] assignmentSummary 업데이트 완료');
+              console.log('[마이그레이션 v5] assignmentSummary 업데이트 완료');
             }
             localStorage.setItem(migrationKey, 'true');
           } catch (e) {
@@ -882,6 +902,9 @@ export default function StudentDashboard({ user, userData }) {
         console.log(`[📊 최적화] 과제 ${classAssignments.length}개 - classes 문서에서 로드 (DB 읽기 0회)`);
 
         // 목표에 도달한 과제 필터링
+        console.log('[과제 필터링] 전체 과제:', classAssignments.map(a => ({ title: a.title, minScore: a.minScore })));
+        console.log('[과제 필터링] 학생 글:', studentWritings.map(w => ({ topic: w.topic, score: w.score, isDraft: w.isDraft })));
+
         const pendingAssignments = classAssignments.filter(assignment => {
           const assignmentMinScore = assignment.minScore !== undefined ? assignment.minScore : PASSING_SCORE;
           const hasPassingSubmission = studentWritings.some(
@@ -889,6 +912,7 @@ export default function StudentDashboard({ user, userData }) {
                  w.topic === assignment.title &&
                  w.score >= assignmentMinScore
           );
+          console.log(`[과제 필터링] "${assignment.title}" - minScore: ${assignmentMinScore}, 통과: ${hasPassingSubmission}`);
           return !hasPassingSubmission;
         });
 
@@ -954,14 +978,53 @@ export default function StudentDashboard({ user, userData }) {
     // 해당 주제에 이전에 저장된 글이 있는지 확인 (로컬 메모리)
     const savedDraft = draftsByTopic[topic.title];
 
+    // 🚀 로컬 스토리지에서 임시 저장 확인 (크래시/새로고침 복구)
+    let localDraft = null;
+    try {
+      const localDraftKey = `writing_draft_${user.uid}_${topic.title}`;
+      const localDraftData = localStorage.getItem(localDraftKey);
+      if (localDraftData) {
+        localDraft = JSON.parse(localDraftData);
+        // 24시간 이내 저장된 것만 복구
+        const savedTime = new Date(localDraft.savedAt).getTime();
+        const now = Date.now();
+        if (now - savedTime > 24 * 60 * 60 * 1000) {
+          localDraft = null;
+          localStorage.removeItem(localDraftKey);
+        }
+      }
+    } catch (e) {
+      // 로컬 스토리지 오류 무시
+    }
+
     // 과제별 기준점수 적용 (과제가 아니면 기본 PASSING_SCORE 사용)
     const topicMinScore = topic.minScore !== undefined ? topic.minScore : PASSING_SCORE;
+
+    // 복구할 내용 결정: 로컬 스토리지 > 메모리 > 빈 문자열
+    const recoveredContent = localDraft?.content || savedDraft?.content || "";
+    const recoveredWordCount = localDraft?.wordCount || savedDraft?.wordCount || 0;
+
+    // 🚀 로컬 스토리지에서 복구된 경우 알림
+    if (localDraft?.content && localDraft.content.trim().length > 0) {
+      const savedTime = new Date(localDraft.savedAt);
+      const timeAgo = Math.floor((Date.now() - savedTime.getTime()) / 60000); // 분 단위
+      if (timeAgo < 60) {
+        setTimeout(() => {
+          alert(`📝 ${timeAgo}분 전에 작성하던 글이 복구되었습니다!\n\n글자 수: ${localDraft.wordCount}자`);
+        }, 500);
+      } else {
+        const hoursAgo = Math.floor(timeAgo / 60);
+        setTimeout(() => {
+          alert(`📝 ${hoursAgo}시간 전에 작성하던 글이 복구되었습니다!\n\n글자 수: ${localDraft.wordCount}자`);
+        }, 500);
+      }
+    }
 
     setCurrentWriting({
       ...currentWriting,
       topic: topic.title,
-      content: savedDraft?.content || "",
-      wordCount: savedDraft?.wordCount || 0,
+      content: recoveredContent,
+      wordCount: recoveredWordCount,
       isAssignment: topic.isAssignment || false,
       minScore: topicMinScore
     });
@@ -982,6 +1045,20 @@ export default function StudentDashboard({ user, userData }) {
     });
     // 글자 수 마일스톤 체크
     checkWordCountMilestone(wordCount);
+
+    // 🚀 로컬 스토리지에 자동 저장 (크래시/새로고침 대비)
+    if (currentWriting.topic && content.trim().length > 0) {
+      try {
+        const localDraftKey = `writing_draft_${user.uid}_${currentWriting.topic}`;
+        localStorage.setItem(localDraftKey, JSON.stringify({
+          content,
+          wordCount,
+          savedAt: new Date().toISOString()
+        }));
+      } catch (e) {
+        // 로컬 스토리지 오류 무시 (용량 초과 등)
+      }
+    }
   };
 
   // 실시간 조언 요청 (비용 최적화: 60초 쿨다운)
@@ -1061,11 +1138,15 @@ export default function StudentDashboard({ user, userData }) {
     setIsSubmitting(true);
     try {
       // 🚀 최적화: classCode와 userData 전달하여 Firestore 읽기 2회 감소
+      const classCode = userData.classCode || classInfo?.classCode;
+      console.log(`[제출] classCode: ${classCode}, topic: "${currentWriting.topic}"`);
+      console.log(`[제출] userData:`, userData);
+
       const result = await submitWriting(
         user.uid,
         currentWriting,
         !!rewriteMode,
-        userData.classCode || classInfo?.classCode,
+        classCode,
         userData
       );
 
@@ -1085,7 +1166,9 @@ export default function StudentDashboard({ user, userData }) {
         ...result.analysis,
         aiUsageCheck: result.aiUsageCheck,
         score: result.score,
-        earnedPoints: result.earnedPoints || 0 // 획득 포인트 정보 추가
+        earnedPoints: result.earnedPoints || 0, // 획득 포인트 정보 추가
+        notSaved: result.notSaved || false, // 저장 안됨 플래그
+        notSavedReason: result.reason || null // 저장 안된 이유
       });
 
       if (result.score >= requiredScore) {
@@ -1093,10 +1176,17 @@ export default function StudentDashboard({ user, userData }) {
         setTimeout(() => setShowConfetti(false), 5000);
       }
 
-      // 제출 성공 시 임시 저장 삭제
+      // 제출 성공 시 임시 저장 삭제 (서버 + 로컬)
       if (currentWriting.topic) {
         await deleteDraft(user.uid, currentWriting.topic);
         setHasDraft(false);
+        // 🚀 로컬 스토리지 임시 저장도 삭제
+        try {
+          const localDraftKey = `writing_draft_${user.uid}_${currentWriting.topic}`;
+          localStorage.removeItem(localDraftKey);
+        } catch (e) {
+          // 무시
+        }
       }
 
       // 글 초기화 (피드백은 유지)
@@ -1879,7 +1969,7 @@ export default function StudentDashboard({ user, userData }) {
                             <span className="text-2xl">✏️</span>
                             <div>
                               <h4 className="font-bold text-orange-800">고쳐쓰기 모드</h4>
-                              <p className="text-xs text-orange-600">이전 점수: {rewriteMode.score}점 → 80점 이상 목표!</p>
+                              <p className="text-xs text-orange-600">이전 점수: {rewriteMode.score}점 → {rewriteMode.minScore || PASSING_SCORE}점 이상 목표!</p>
                             </div>
                           </div>
                           <button
@@ -2407,6 +2497,22 @@ export default function StudentDashboard({ user, userData }) {
                       </div>
                     </div>
 
+                    {/* 🚀 저장 안됨 알림 (기존 미제출글보다 점수가 낮은 경우) */}
+                    {feedback.notSaved && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl">💡</span>
+                          <div>
+                            <p className="font-medium text-amber-800">이 글은 저장되지 않았어요</p>
+                            <p className="text-sm text-amber-600 mt-1">
+                              같은 주제로 이전에 더 높은 점수의 글이 있어서, 기존 글이 유지됩니다.
+                              <br />더 좋은 글을 작성하면 기존 글을 대체할 수 있어요!
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 포인트 획득 축하 카드 */}
                     {feedback.earnedPoints > 0 ? (
                       <div className="relative overflow-hidden bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-6 shadow-xl">
@@ -2722,13 +2828,15 @@ export default function StudentDashboard({ user, userData }) {
                               content: submittedWriting.content,
                               wordCount: submittedWriting.wordCount,
                               gradeLevel: userData.gradeLevel,
-                              studentName: userData.name
+                              studentName: userData.name,
+                              previousScore: feedback.score  // 🚀 이전 점수 저장 (AI 고쳐쓰기 보너스용)
                             });
-                            // 고쳐쓰기 모드 - AI 제안 저장
+                            // 고쳐쓰기 모드 - AI 제안 저장 (minScore 포함)
                             setRewriteMode({
                               detailedFeedback: feedback.detailedFeedback || [],
                               improvements: feedback.improvements || [],
-                              score: feedback.score
+                              score: feedback.score,
+                              minScore: submittedWriting.minScore || PASSING_SCORE
                             });
                             // 피드백 닫기
                             setFeedback(null);
@@ -2793,22 +2901,46 @@ export default function StudentDashboard({ user, userData }) {
 
             {/* 🚀 미달성 글 섹션 (기본 표시) */}
             {(() => {
-              const assignmentMap = new Map(allAssignments.map(a => [a.title, a.minScore]));
+              // 🚀 과제 제목 정규화 함수 (물음표, 공백 등 무시하고 비교)
+              const normalizeTitle = (title) => (title || '').replace(/[?？!！\s]/g, '').toLowerCase();
+
+              // 과제 맵 생성 (정규화된 제목 -> minScore)
+              const assignmentMap = new Map();
+              allAssignments.forEach(a => {
+                assignmentMap.set(normalizeTitle(a.title), a.minScore);
+              });
+
+              // 글 주제로 과제 minScore 찾기 (유사도 매칭)
+              const findAssignmentMinScore = (topic) => {
+                const normalizedTopic = normalizeTitle(topic);
+                // 정확히 일치하면 반환
+                if (assignmentMap.has(normalizedTopic)) {
+                  return assignmentMap.get(normalizedTopic);
+                }
+                // 포함 관계로 매칭 시도
+                for (const [key, value] of assignmentMap) {
+                  if (normalizedTopic.includes(key) || key.includes(normalizedTopic)) {
+                    return value;
+                  }
+                }
+                return undefined;
+              };
+
               const allSubmitted = writings.filter(w => !w.isDraft);
 
               const failedWritings = allSubmitted.filter(w => {
-                const requiredScore = w.minScore !== undefined ? w.minScore : (assignmentMap.get(w.topic) ?? PASSING_SCORE);
+                const requiredScore = w.minScore !== undefined ? w.minScore : (findAssignmentMinScore(w.topic) ?? PASSING_SCORE);
                 return w.score < requiredScore;
               });
 
               const passedWritings = allSubmitted.filter(w => {
-                const requiredScore = w.minScore !== undefined ? w.minScore : (assignmentMap.get(w.topic) ?? PASSING_SCORE);
+                const requiredScore = w.minScore !== undefined ? w.minScore : (findAssignmentMinScore(w.topic) ?? PASSING_SCORE);
                 return w.score >= requiredScore;
               });
 
               // 글 카드 렌더링 함수 - 🚀 클릭 시 상세 정보 로드 (DB 읽기 1회)
               const renderWritingCard = (writing) => {
-                const writingRequiredScore = writing.minScore !== undefined ? writing.minScore : (assignmentMap.get(writing.topic) ?? PASSING_SCORE);
+                const writingRequiredScore = writing.minScore !== undefined ? writing.minScore : (findAssignmentMinScore(writing.topic) ?? PASSING_SCORE);
                 const isPassed = writing.score >= writingRequiredScore;
                 const isSelected = selectedWritingDetail?.writingId === writing.writingId;
                 const detail = isSelected ? selectedWritingDetail : null;
@@ -3506,10 +3638,17 @@ export default function StudentDashboard({ user, userData }) {
                       className="absolute left-0 top-0 w-[60%] h-[65%] rounded-tl-xl overflow-hidden"
                       style={{
                         transform: 'skewY(3deg)',
-                        background: `linear-gradient(135deg, ${
-                          ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper())?.color?.includes('from-')
-                            ? '#e8e4e0' : '#f5f3f0'
-                        } 0%, #d4cfc8 100%)`,
+                        background: (() => {
+                          const wallpaper = ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper());
+                          if (wallpaper?.color) {
+                            const colors = wallpaper.color.split(', ');
+                            if (colors.length === 3) {
+                              return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`;
+                            }
+                            return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`;
+                          }
+                          return 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)';
+                        })(),
                         boxShadow: 'inset -15px 0 40px rgba(0,0,0,0.08), inset 0 -20px 40px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.3)'
                       }}
                     >
@@ -3543,7 +3682,17 @@ export default function StudentDashboard({ user, userData }) {
                       className="absolute right-0 top-0 w-[50%] h-[65%] rounded-tr-xl overflow-hidden"
                       style={{
                         transform: 'skewY(-3deg)',
-                        background: 'linear-gradient(225deg, #ece8e4 0%, #ccc7c0 100%)',
+                        background: (() => {
+                          const wallpaper = ROOM_ITEMS.wallpaper.find(w => w.id === getPreviewRoomWallpaper());
+                          if (wallpaper?.color) {
+                            const colors = wallpaper.color.split(', ');
+                            if (colors.length === 3) {
+                              return `linear-gradient(225deg, ${colors[1]} 0%, ${colors[2]} 50%, ${colors[0]} 100%)`;
+                            }
+                            return `linear-gradient(225deg, ${colors[1] || colors[0]} 0%, ${colors[0]} 100%)`;
+                          }
+                          return 'linear-gradient(225deg, #e8e8e8 0%, #f5f5f5 100%)';
+                        })(),
                         boxShadow: 'inset 15px 0 40px rgba(0,0,0,0.06), inset 0 -20px 40px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.3)'
                       }}
                     >
@@ -3564,7 +3713,7 @@ export default function StudentDashboard({ user, userData }) {
                           const elecId = getPreviewRoomElectronics();
                           const svgTypeMap = {
                             'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker',
-                            'elec5': 'tv', 'elec6': 'tv', 'elec7': 'tv', 'elec8': 'computer', 'elec9': 'vr'
+                            'elec5': 'aircon', 'elec6': 'bigTv', 'elec7': 'homeTheater', 'elec8': 'aiRobot', 'elec9': 'vr'
                           };
                           return <ElectronicsSVG type={svgTypeMap[elecId] || 'tv'} size={55} />;
                         })()}
@@ -3638,7 +3787,7 @@ export default function StudentDashboard({ user, userData }) {
                           {(() => {
                             const vehicleId = getPreviewRoomVehicle();
                             const svgTypeMap = {
-                              'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car',
+                              'car1': 'car', 'car2': 'suv', 'car3': 'sportsCar', 'car4': 'camper',
                               'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht',
                               'car8': 'privateJet', 'car9': 'rocket'
                             };
@@ -3835,7 +3984,7 @@ export default function StudentDashboard({ user, userData }) {
                               const svgTypeMap = {
                                 furniture: { 'furn1': 'sofa', 'furn2': 'bed', 'furn3': 'chair', 'furn4': 'desk', 'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa', 'furn9': 'bed', 'furn10': 'throne' },
                                 electronics: { 'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker', 'elec5': 'aircon', 'elec6': 'bigTv', 'elec7': 'homeTheater', 'elec8': 'aiRobot', 'elec9': 'vr' },
-                                vehicles: { 'car1': 'car', 'car2': 'car', 'car3': 'sportsCar', 'car4': 'car', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'privateJet', 'car9': 'rocket' },
+                                vehicles: { 'car1': 'car', 'car2': 'suv', 'car3': 'sportsCar', 'car4': 'camper', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'privateJet', 'car9': 'rocket' },
                                 pets: { 'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'rabbit', 'pet5': 'parrot', 'pet6': 'fish', 'pet7': 'fox', 'pet8': 'unicorn', 'pet9': 'dragon', 'pet10': 'eagle' },
                                 decorations: { 'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy', 'deco4': 'tent', 'deco5': 'christmasTree', 'deco6': 'fountain', 'deco7': 'statue', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'castle' }
                               };
@@ -3855,8 +4004,20 @@ export default function StudentDashboard({ user, userData }) {
                             })()
                           ) : item.emoji ? (
                             <span className="text-3xl">{item.emoji}</span>
-                          ) : item.color && typeof item.color === 'string' && item.color.startsWith('from-') ? (
-                            <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${item.color} border border-gray-200`}></div>
+                          ) : item.color && typeof item.color === 'string' && item.color.includes('#') ? (
+                            // 벽지 색상 (새 형식: "#color1, #color2, #color3")
+                            <div
+                              className="w-10 h-10 rounded-lg border border-gray-200"
+                              style={{
+                                background: (() => {
+                                  const colors = item.color.split(', ');
+                                  if (colors.length === 3) {
+                                    return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`;
+                                  }
+                                  return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`;
+                                })()
+                              }}
+                            ></div>
                           ) : item.style ? (
                             <div className={`w-10 h-10 rounded-full bg-gray-100 ${item.style}`}></div>
                           ) : item.color ? (

@@ -106,8 +106,13 @@ export async function generateAutoAssignment(classCode, gradeLevel, teacherId, s
     // 이전 과제 제목들 가져오기
     const previousTitles = await getPreviousAssignmentTitles(classCode);
 
-    // 글쓰기 유형 목록
-    const writingTypes = ['주장하는 글', '설명하는 글', '묘사하는 글', '서사/이야기', '편지', '일기', '감상문', '상상글'];
+    // 글쓰기 유형 목록 (16개)
+    const writingTypes = [
+      '주장하는 글', '설명하는 글', '묘사하는 글', '서사/이야기',
+      '편지', '일기', '감상문', '상상글',
+      '기사문', '인터뷰', '비교/대조', '문제해결',
+      '광고/홍보', '보고서', '시/운문', '토론/논쟁'
+    ];
 
     // 분야 목록
     const categories = ['가족', '학교', '친구', '환경', '동물', '꿈/미래', '여행', '취미', '계절/날씨', '음식', '과학', '스포츠', '문화', '사회'];
@@ -204,7 +209,13 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
       return false;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // 한국 시간(KST) 기준으로 오늘 날짜 계산
+    const now = new Date();
+    const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
+    const kstDate = new Date(now.getTime() + kstOffset);
+    const today = kstDate.toISOString().split('T')[0];
+
+    console.log(`[스케줄러] 오늘 날짜(KST): ${today}`);
 
     // 캐시 확인 (같은 날짜면 캐시 사용, forceRefresh가 아닐 때만)
     if (!forceRefresh) {
@@ -215,17 +226,22 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
       }
     }
 
-    // 🚀 오늘 날짜 범위 계산
-    const todayStart = `${today}T00:00:00.000Z`;
-    const todayEnd = `${today}T23:59:59.999Z`;
+    // 🚀 오늘 날짜 범위 계산 (KST 기준 00:00 ~ 23:59를 UTC로 변환)
+    const todayStart = `${today}T00:00:00+09:00`;
+    const todayEnd = `${today}T23:59:59+09:00`;
+    // ISO 문자열로 변환 (Firestore 비교용)
+    const todayStartUTC = new Date(todayStart).toISOString();
+    const todayEndUTC = new Date(todayEnd).toISOString();
+
+    console.log(`[스케줄러] 검색 범위: ${todayStartUTC} ~ ${todayEndUTC}`);
 
     console.log(`[📊 DB읽기] hasAutoAssignmentToday DB 조회 - classCode: ${classCode}`);
     // 🚀 Firestore에서 직접 필터링 (클라이언트 필터링 제거)
     const q = query(
       collection(db, 'autoAssignmentLogs'),
       where('classCode', '==', classCode),
-      where('createdAt', '>=', todayStart),
-      where('createdAt', '<=', todayEnd)
+      where('createdAt', '>=', todayStartUTC),
+      where('createdAt', '<=', todayEndUTC)
     );
     const snapshot = await getDocs(q);
 
@@ -251,7 +267,11 @@ export async function checkAndRunScheduler(classCode, gradeLevel, teacherId) {
   try {
     const settings = await getSchedulerSettings(classCode);
 
+    console.log(`[스케줄러] 체크 시작 - classCode: ${classCode}`);
+    console.log(`[스케줄러] 설정:`, settings);
+
     if (!settings || !settings.enabled) {
+      console.log(`[스케줄러] 비활성화 상태`);
       return { executed: false, reason: '스케줄러 비활성화' };
     }
 
@@ -259,9 +279,13 @@ export async function checkAndRunScheduler(classCode, gradeLevel, teacherId) {
     const currentDay = now.getDay(); // 0 = 일요일
     const currentHour = now.getHours();
 
+    console.log(`[스케줄러] 현재: ${now.toLocaleString()}, 요일: ${currentDay}, 시간: ${currentHour}시`);
+    console.log(`[스케줄러] 설정된 요일: ${settings.selectedDays}, 설정된 시간: ${settings.scheduledTime}`);
+
     // 요일 확인 (selectedDays: [1, 2, 3, 4, 5] = 월~금)
-    if (!settings.selectedDays.includes(currentDay)) {
-      return { executed: false, reason: '오늘은 출제 요일이 아님' };
+    if (!settings.selectedDays || !settings.selectedDays.includes(currentDay)) {
+      console.log(`[스케줄러] 오늘(${currentDay})은 출제 요일이 아님 (설정: ${settings.selectedDays})`);
+      return { executed: false, reason: `오늘은 출제 요일이 아님 (현재: ${currentDay}, 설정: ${settings.selectedDays})` };
     }
 
     // 시간 확인 (설정된 시간 이후면 실행)

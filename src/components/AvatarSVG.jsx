@@ -1059,6 +1059,7 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
 
 // 옷 SVG - 목과 팔 포함된 상반신
 export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, skinColor = '#FFD5B8' }) => {
+  const fillColor = color; // color prop을 fillColor로 사용
   const clothesTypes = {
     tshirt: (
       <svg width={size} height={size} viewBox="0 0 120 120">
@@ -1479,13 +1480,21 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
     ),
     pirate: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
+        <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 해적 복장 */}
-        <path d="M 30 0 L 10 25 L 25 35 L 25 120 L 95 120 L 95 35 L 110 25 L 90 0 Z" fill={fillColor} />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill={fillColor} />
+        {/* 소매 */}
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill={fillColor} opacity="0.85" />
+        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill={fillColor} opacity="0.85" />
         {/* 조끼 */}
-        <path d="M 40 30 L 35 35 L 35 90 L 45 100 L 60 35" fill="#654321" />
-        <path d="M 80 30 L 85 35 L 85 90 L 75 100 L 60 35" fill="#654321" />
+        <path d="M 40 25 L 35 30 L 35 85 L 45 95 L 60 30" fill="#654321" />
+        <path d="M 80 25 L 85 30 L 85 85 L 75 95 L 60 30" fill="#654321" />
         {/* 벨트 */}
-        <rect x="25" y="75" width="70" height="10" fill="#8B4513" />
+        <rect x="20" y="75" width="80" height="10" fill="#8B4513" />
         <rect x="55" y="73" width="10" height="14" rx="2" fill="#FFD700" />
         {/* 해골 마크 */}
         <circle cx="60" cy="50" r="8" fill="white" />
@@ -1495,34 +1504,195 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
     ),
     wizard: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="12" fill={skinColor} />
         {/* 마법사 로브 */}
-        <path d="M 30 0 Q 60 15 90 0 L 110 120 L 10 120 Z" fill={fillColor} />
+        <path d="M 30 12 Q 60 22 90 12 L 110 120 L 10 120 Z" fill={fillColor} />
+        {/* 넓은 소매 */}
+        <path d="M 30 15 L -5 50 L 5 75 L 25 55 Z" fill={fillColor} opacity="0.9" />
+        <path d="M 90 15 L 125 50 L 115 75 L 95 55 Z" fill={fillColor} opacity="0.9" />
+        {/* 소매 끝 손 */}
+        <ellipse cx="5" cy="68" rx="10" ry="8" fill={skinColor} />
+        <ellipse cx="115" cy="68" rx="10" ry="8" fill={skinColor} />
+        {/* 소매 금테두리 */}
+        <path d="M -5 50 L 5 75" stroke="#FFD700" strokeWidth="3" fill="none" />
+        <path d="M 125 50 L 115 75" stroke="#FFD700" strokeWidth="3" fill="none" />
+        {/* 로브 금테두리 */}
+        <path d="M 30 12 Q 60 22 90 12" stroke="#FFD700" strokeWidth="3" fill="none" />
         {/* 별과 달 무늬 */}
         <polygon points="30,40 32,46 38,46 33,50 35,56 30,52 25,56 27,50 22,46 28,46" fill="#FFD700" />
         <polygon points="75,60 77,66 83,66 78,70 80,76 75,72 70,76 72,70 67,66 73,66" fill="#FFD700" />
-        <circle cx="50" cy="80" r="8" fill="white" opacity="0.6" />
-        <circle cx="54" cy="80" r="6" fill={fillColor} opacity="0.3" />
+        <polygon points="50,85 51,89 55,89 52,92 53,96 50,94 47,96 48,92 45,89 49,89" fill="#C0C0C0" opacity="0.8" />
+        {/* 달 */}
+        <circle cx="85" cy="45" r="8" fill="#FFD700" opacity="0.7" />
+        <circle cx="88" cy="43" r="6" fill={fillColor} />
         {/* 신비로운 룬 문자 */}
-        <path d="M 40 95 L 45 105 L 50 95" stroke="#FFD700" strokeWidth="2" fill="none" />
-        <circle cx="60" cy="100" r="4" stroke="#FFD700" strokeWidth="2" fill="none" />
+        <path d="M 40 100 L 45 110 L 50 100" stroke="#FFD700" strokeWidth="2" fill="none" />
+        <circle cx="65" cy="105" r="4" stroke="#FFD700" strokeWidth="2" fill="none" />
+        <path d="M 75 100 L 80 108" stroke="#FFD700" strokeWidth="2" fill="none" />
       </svg>
     ),
     tuxedo: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
+        <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
         {/* 턱시도 */}
-        <path d="M 30 0 L 10 25 L 25 35 L 25 120 L 95 120 L 95 35 L 110 25 L 90 0 Z" fill="#000000" />
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill="#000000" />
+        {/* 소매 */}
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill="#000000" opacity="0.85" />
+        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill="#000000" opacity="0.85" />
         {/* 흰 셔츠 */}
-        <path d="M 50 15 L 52 120 L 68 120 L 70 15" fill="white" />
+        <path d="M 48 20 L 52 120 L 68 120 L 72 20" fill="white" />
         {/* 나비 넥타이 */}
-        <ellipse cx="50" cy="22" rx="8" ry="4" fill="#000000" />
-        <ellipse cx="70" cy="22" rx="8" ry="4" fill="#000000" />
-        <rect x="57" y="20" width="6" height="4" fill="#000000" />
+        <ellipse cx="50" cy="25" rx="8" ry="4" fill="#000000" />
+        <ellipse cx="70" cy="25" rx="8" ry="4" fill="#000000" />
+        <rect x="57" y="23" width="6" height="4" fill="#000000" />
         {/* 단추 */}
-        <circle cx="60" cy="35" r="2" fill="white" />
-        <circle cx="60" cy="50" r="2" fill="white" />
-        <circle cx="60" cy="65" r="2" fill="white" />
+        <circle cx="60" cy="40" r="2" fill="white" />
+        <circle cx="60" cy="55" r="2" fill="white" />
+        <circle cx="60" cy="70" r="2" fill="white" />
         {/* 포켓 */}
-        <rect x="35" y="45" width="12" height="3" fill="white" opacity="0.3" />
+        <rect x="28" y="50" width="12" height="3" fill="white" opacity="0.3" />
+      </svg>
+    ),
+    taekwondo: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="12" cy="55" rx="12" ry="18" fill={skinColor} />
+        <ellipse cx="108" cy="55" rx="12" ry="18" fill={skinColor} />
+        {/* 도복 몸통 */}
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 15 Z" fill="white" />
+        {/* 소매 */}
+        <path d="M 30 15 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill="white" opacity="0.95" />
+        <path d="M 90 15 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill="white" opacity="0.95" />
+        {/* V자 깃 */}
+        <path d="M 45 15 L 60 55 L 75 15" fill="white" stroke="#1a1a1a" strokeWidth="2" />
+        <path d="M 48 18 L 60 50 L 72 18" fill="#1a1a1a" opacity="0.1" />
+        {/* 검은 띠 */}
+        <rect x="20" y="60" width="80" height="12" fill="#1a1a1a" />
+        {/* 띠 매듭 */}
+        <path d="M 55 72 L 45 95 L 50 95 L 58 78" fill="#1a1a1a" />
+        <path d="M 65 72 L 75 95 L 70 95 L 62 78" fill="#1a1a1a" />
+        {/* 띠 금줄 (단) */}
+        <rect x="20" y="63" width="80" height="2" fill="#FFD700" />
+        <rect x="20" y="67" width="80" height="2" fill="#FFD700" />
+        {/* 도복 주름 */}
+        <path d="M 40 75 L 40 120" stroke="#ddd" strokeWidth="1" opacity="0.5" />
+        <path d="M 60 75 L 60 120" stroke="#ddd" strokeWidth="1" opacity="0.5" />
+        <path d="M 80 75 L 80 120" stroke="#ddd" strokeWidth="1" opacity="0.5" />
+      </svg>
+    ),
+    santasuit: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="12" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="8" cy="55" rx="10" ry="16" fill={skinColor} />
+        <ellipse cx="112" cy="55" rx="10" ry="16" fill={skinColor} />
+        {/* 산타 복장 몸통 */}
+        <path d="M 28 12 L 0 45 L 0 75 L 18 75 L 18 120 L 102 120 L 102 75 L 120 75 L 120 45 L 92 12 Z" fill="#DC143C" />
+        {/* 소매 */}
+        <path d="M 28 12 L 0 45 L 0 75 L 18 75 L 18 50 Z" fill="#DC143C" opacity="0.95" />
+        <path d="M 92 12 L 120 45 L 120 75 L 102 75 L 102 50 Z" fill="#DC143C" opacity="0.95" />
+        {/* 흰 털 테두리 - 목 */}
+        <ellipse cx="60" cy="15" rx="25" ry="8" fill="white" />
+        {/* 흰 털 테두리 - 소매 끝 */}
+        <ellipse cx="0" cy="72" rx="8" ry="5" fill="white" />
+        <ellipse cx="120" cy="72" rx="8" ry="5" fill="white" />
+        {/* 검은 벨트 */}
+        <rect x="18" y="70" width="84" height="14" fill="#1a1a1a" />
+        {/* 금색 버클 */}
+        <rect x="50" y="68" width="20" height="18" rx="3" fill="#FFD700" />
+        <rect x="54" y="72" width="12" height="10" rx="2" fill="#1a1a1a" />
+        {/* 흰 털 테두리 - 하단 */}
+        <rect x="18" y="112" width="84" height="8" rx="2" fill="white" />
+        {/* 금색 단추 */}
+        <circle cx="60" cy="40" r="5" fill="#FFD700" />
+        <circle cx="60" cy="55" r="5" fill="#FFD700" />
+      </svg>
+    ),
+    rockstarjacket: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 목 */}
+        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="8" cy="55" rx="10" ry="16" fill={skinColor} />
+        <ellipse cx="112" cy="55" rx="10" ry="16" fill={skinColor} />
+        {/* 가죽 재킷 몸통 */}
+        <path d="M 28 15 L 2 45 L 2 75 L 18 75 L 18 120 L 102 120 L 102 75 L 118 75 L 118 45 L 92 15 Z" fill="#1a1a1a" />
+        {/* 소매 */}
+        <path d="M 28 15 L 2 45 L 2 75 L 18 75 L 18 50 Z" fill="#1a1a1a" opacity="0.95" />
+        <path d="M 92 15 L 118 45 L 118 75 L 102 75 L 102 50 Z" fill="#1a1a1a" opacity="0.95" />
+        {/* 라펠 (깃) */}
+        <path d="M 45 15 L 35 20 L 40 55 L 55 35" fill="#2d2d2d" />
+        <path d="M 75 15 L 85 20 L 80 55 L 65 35" fill="#2d2d2d" />
+        {/* 지퍼 라인 */}
+        <rect x="58" y="35" width="4" height="85" fill="#C0C0C0" />
+        <rect x="57" y="35" width="6" height="8" fill="#808080" />
+        {/* 스터드 장식 - 어깨 */}
+        <circle cx="25" cy="25" r="3" fill="#C0C0C0" />
+        <circle cx="32" cy="22" r="3" fill="#C0C0C0" />
+        <circle cx="95" cy="25" r="3" fill="#C0C0C0" />
+        <circle cx="88" cy="22" r="3" fill="#C0C0C0" />
+        {/* 스터드 장식 - 라펠 */}
+        <circle cx="42" cy="35" r="2" fill="#C0C0C0" />
+        <circle cx="45" cy="45" r="2" fill="#C0C0C0" />
+        <circle cx="78" cy="35" r="2" fill="#C0C0C0" />
+        <circle cx="75" cy="45" r="2" fill="#C0C0C0" />
+        {/* 주머니 지퍼 */}
+        <path d="M 22 80 L 40 75" stroke="#C0C0C0" strokeWidth="3" />
+        <path d="M 98 80 L 80 75" stroke="#C0C0C0" strokeWidth="3" />
+        {/* 번개 무늬 (뒷면 느낌) */}
+        <polygon points="60,60 55,75 62,75 58,95 68,72 61,72 65,60" fill="#FFD700" opacity="0.8" />
+      </svg>
+    ),
+    spacesuit: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        <defs>
+          <linearGradient id="spacesuitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#F5F5F5" />
+            <stop offset="50%" stopColor="#E0E0E0" />
+            <stop offset="100%" stopColor="#BDBDBD" />
+          </linearGradient>
+        </defs>
+        {/* 목 (헬멧 연결부) */}
+        <ellipse cx="60" cy="8" rx="18" ry="10" fill="#808080" />
+        {/* 팔 - 우주복 팔 */}
+        <ellipse cx="5" cy="55" rx="12" ry="18" fill="url(#spacesuitGrad)" />
+        <ellipse cx="115" cy="55" rx="12" ry="18" fill="url(#spacesuitGrad)" />
+        {/* 장갑 */}
+        <ellipse cx="2" cy="72" rx="8" ry="6" fill="#FF6600" />
+        <ellipse cx="118" cy="72" rx="8" ry="6" fill="#FF6600" />
+        {/* 우주복 몸통 */}
+        <path d="M 30 10 L 5 40 L 5 75 L 20 75 L 20 120 L 100 120 L 100 75 L 115 75 L 115 40 L 90 10 Z" fill="url(#spacesuitGrad)" />
+        {/* 소매 */}
+        <path d="M 30 10 L 5 40 L 5 75 L 20 75 L 20 50 Z" fill="url(#spacesuitGrad)" opacity="0.95" />
+        <path d="M 90 10 L 115 40 L 115 75 L 100 75 L 100 50 Z" fill="url(#spacesuitGrad)" opacity="0.95" />
+        {/* 파란 줄무늬 - NASA 스타일 */}
+        <rect x="18" y="45" width="8" height="75" fill="#1565C0" />
+        <rect x="94" y="45" width="8" height="75" fill="#1565C0" />
+        {/* 가슴 패널 */}
+        <rect x="35" y="25" width="50" height="40" rx="5" fill="#424242" />
+        {/* 디스플레이/버튼 */}
+        <rect x="40" y="30" width="18" height="12" rx="2" fill="#00E676" opacity="0.8" />
+        <rect x="62" y="30" width="18" height="12" rx="2" fill="#FF5722" opacity="0.8" />
+        <circle cx="50" cy="52" r="4" fill="#2196F3" />
+        <circle cx="60" cy="52" r="4" fill="#FFC107" />
+        <circle cx="70" cy="52" r="4" fill="#4CAF50" />
+        {/* NASA 로고 위치 */}
+        <ellipse cx="60" cy="85" rx="15" ry="10" fill="#1565C0" />
+        <text x="60" y="88" fontSize="8" fill="white" textAnchor="middle" fontWeight="bold">NASA</text>
+        {/* 어깨 패드 */}
+        <ellipse cx="22" cy="25" rx="12" ry="8" fill="#808080" />
+        <ellipse cx="98" cy="25" rx="12" ry="8" fill="#808080" />
+        {/* 생명유지장치 연결 호스 */}
+        <path d="M 38 35 Q 25 40 22 55" stroke="#424242" strokeWidth="4" fill="none" />
+        <path d="M 82 35 Q 95 40 98 55" stroke="#424242" strokeWidth="4" fill="none" />
       </svg>
     )
   };
@@ -1563,22 +1733,22 @@ export const AccessorySVG = ({ type = 'none', size = 120 }) => {
             <stop offset="100%" stopColor="#FFA500" />
           </linearGradient>
         </defs>
-        {/* 왕관 본체 - 머리 위에 위치 */}
-        <path d="M 25 28 L 35 0 L 50 18 L 60 -10 L 70 18 L 85 0 L 95 28 L 90 33 L 30 33 Z" fill="url(#crownGradient)" />
+        {/* 왕관 본체 - 머리 위에 위치 (더 위로) */}
+        <path d="M 25 18 L 35 -10 L 50 8 L 60 -20 L 70 8 L 85 -10 L 95 18 L 90 23 L 30 23 Z" fill="url(#crownGradient)" />
         {/* 보석 */}
-        <circle cx="35" cy="0" r="5" fill="#FF0000" />
-        <circle cx="60" cy="-10" r="6" fill="#00BFFF" />
-        <circle cx="85" cy="0" r="5" fill="#00FF00" />
+        <circle cx="35" cy="-10" r="5" fill="#FF0000" />
+        <circle cx="60" cy="-20" r="6" fill="#00BFFF" />
+        <circle cx="85" cy="-10" r="5" fill="#00FF00" />
         {/* 왕관 밑단 */}
-        <rect x="30" y="28" width="60" height="8" fill="url(#crownGradient)" />
-        <circle cx="45" cy="32" r="3" fill="#FF69B4" />
-        <circle cx="60" cy="32" r="3" fill="#FF69B4" />
-        <circle cx="75" cy="32" r="3" fill="#FF69B4" />
+        <rect x="30" y="18" width="60" height="8" fill="url(#crownGradient)" />
+        <circle cx="45" cy="22" r="3" fill="#FF69B4" />
+        <circle cx="60" cy="22" r="3" fill="#FF69B4" />
+        <circle cx="75" cy="22" r="3" fill="#FF69B4" />
       </svg>
     ),
     bow: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 머리 오른쪽 옆에 리본 */}
+        {/* 머리 오른쪽 옆 위에 리본 (더 위로, 끈 없음) */}
         <defs>
           <linearGradient id="bowGradient" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#FF85A2" />
@@ -1586,79 +1756,151 @@ export const AccessorySVG = ({ type = 'none', size = 120 }) => {
           </linearGradient>
         </defs>
         {/* 왼쪽 날개 */}
-        <ellipse cx="78" cy="22" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(-20, 78, 22)" />
-        <ellipse cx="78" cy="22" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(-20, 78, 22)" />
+        <ellipse cx="78" cy="8" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(-20, 78, 8)" />
+        <ellipse cx="78" cy="8" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(-20, 78, 8)" />
         {/* 오른쪽 날개 */}
-        <ellipse cx="105" cy="28" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(20, 105, 28)" />
-        <ellipse cx="105" cy="28" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(20, 105, 28)" />
+        <ellipse cx="105" cy="14" rx="14" ry="10" fill="url(#bowGradient)" transform="rotate(20, 105, 14)" />
+        <ellipse cx="105" cy="14" rx="7" ry="4" fill="#FFB6C1" opacity="0.5" transform="rotate(20, 105, 14)" />
         {/* 중앙 매듭 */}
-        <circle cx="92" cy="25" r="6" fill="#FF1493" />
-        <ellipse cx="92" cy="24" rx="3" ry="2" fill="#FFB6C1" opacity="0.4" />
-        {/* 리본 꼬리 */}
-        <path d="M 89 31 Q 85 42 82 50" stroke="url(#bowGradient)" strokeWidth="5" fill="none" strokeLinecap="round" />
-        <path d="M 95 31 Q 99 42 102 50" stroke="url(#bowGradient)" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <circle cx="92" cy="11" r="6" fill="#FF1493" />
+        <ellipse cx="92" cy="10" rx="3" ry="2" fill="#FFB6C1" opacity="0.4" />
       </svg>
     ),
     hat: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 모자 챙 - 머리 위에 위치 */}
-        <ellipse cx="60" cy="28" rx="50" ry="12" fill="#1a1a1a" />
-        <ellipse cx="60" cy="25" rx="35" ry="8" fill="#2d2d2d" />
+        {/* 신사 모자 - 머리 위에 위치 (더 위로) */}
+        <ellipse cx="60" cy="18" rx="50" ry="12" fill="#1a1a1a" />
+        <ellipse cx="60" cy="15" rx="35" ry="8" fill="#2d2d2d" />
         {/* 모자 본체 */}
-        <path d="M 30 25 Q 30 -5 60 -10 Q 90 -5 90 25" fill="#1a1a1a" />
+        <path d="M 30 15 Q 30 -15 60 -20 Q 90 -15 90 15" fill="#1a1a1a" />
         {/* 모자 띠 */}
-        <rect x="30" y="18" width="60" height="8" fill="#8B4513" />
+        <rect x="30" y="8" width="60" height="8" fill="#8B4513" />
+      </svg>
+    ),
+    strawhat: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 밀짚모자 - 머리 위 (둥근 모양) */}
+        <defs>
+          <linearGradient id="strawGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#F4D03F" />
+            <stop offset="100%" stopColor="#DAA520" />
+          </linearGradient>
+        </defs>
+        {/* 넓은 챙 */}
+        <ellipse cx="60" cy="20" rx="55" ry="15" fill="url(#strawGradient)" />
+        <ellipse cx="60" cy="18" rx="48" ry="12" fill="#E8C547" />
+        {/* 둥근 모자 본체 */}
+        <ellipse cx="60" cy="8" rx="30" ry="18" fill="url(#strawGradient)" />
+        <ellipse cx="60" cy="5" rx="25" ry="14" fill="#E8C547" />
+        {/* 빨간 리본 */}
+        <rect x="30" y="12" width="60" height="6" fill="#DC2626" />
+        <rect x="55" y="8" width="10" height="14" rx="2" fill="#DC2626" />
+        {/* 짚 패턴 */}
+        <path d="M 35 22 L 40 18" stroke="#C4A017" strokeWidth="1" opacity="0.5" />
+        <path d="M 50 24 L 55 20" stroke="#C4A017" strokeWidth="1" opacity="0.5" />
+        <path d="M 65 24 L 70 20" stroke="#C4A017" strokeWidth="1" opacity="0.5" />
+        <path d="M 80 22 L 85 18" stroke="#C4A017" strokeWidth="1" opacity="0.5" />
+      </svg>
+    ),
+    cap: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 캡모자 - 머리 위 (챙이 앞으로) */}
+        <defs>
+          <linearGradient id="capGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#1E40AF" />
+          </linearGradient>
+        </defs>
+        {/* 모자 본체 */}
+        <path d="M 25 25 Q 25 0 60 -5 Q 95 0 95 25 L 95 30 L 25 30 Z" fill="url(#capGradient)" />
+        {/* 앞 챙 */}
+        <ellipse cx="60" cy="32" rx="35" ry="10" fill="#1E40AF" />
+        <ellipse cx="60" cy="30" rx="30" ry="8" fill="#2563EB" />
+        {/* 모자 꼭대기 단추 */}
+        <circle cx="60" cy="-3" r="4" fill="#1E40AF" />
+        {/* 로고 (간단한 별) */}
+        <polygon points="60,10 62,16 68,16 63,20 65,26 60,22 55,26 57,20 52,16 58,16" fill="#FFD700" transform="scale(0.6) translate(40, 0)" />
       </svg>
     ),
     headphones: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 헤드밴드 - 머리 위에 */}
-        <path d="M 22 55 Q 22 18 60 12 Q 98 18 98 55" stroke="#1a1a1a" strokeWidth="8" fill="none" />
-        {/* 이어컵 - 귀 위치에 */}
-        <rect x="10" y="48" width="22" height="32" rx="5" fill="#1a1a1a" />
-        <rect x="88" y="48" width="22" height="32" rx="5" fill="#1a1a1a" />
-        <ellipse cx="21" cy="64" rx="8" ry="12" fill="#404040" />
-        <ellipse cx="99" cy="64" rx="8" ry="12" fill="#404040" />
+        {/* 헤드밴드 - 머리 위에 (좌우로 더 넓게) */}
+        <path d="M 8 55 Q 8 10 60 5 Q 112 10 112 55" stroke="#1a1a1a" strokeWidth="8" fill="none" />
+        {/* 이어컵 - 귀 위치에 (더 바깥쪽) */}
+        <rect x="-2" y="45" width="26" height="38" rx="6" fill="#1a1a1a" />
+        <rect x="96" y="45" width="26" height="38" rx="6" fill="#1a1a1a" />
+        <ellipse cx="11" cy="64" rx="10" ry="15" fill="#404040" />
+        <ellipse cx="109" cy="64" rx="10" ry="15" fill="#404040" />
+        {/* LED 라이트 */}
+        <circle cx="11" cy="54" r="2" fill="#00FF00" />
+        <circle cx="109" cy="54" r="2" fill="#00FF00" />
+        {/* 쿠션 */}
+        <ellipse cx="11" cy="64" rx="6" ry="10" fill="#2d2d2d" />
+        <ellipse cx="109" cy="64" rx="6" ry="10" fill="#2d2d2d" />
       </svg>
     ),
     wand: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 마법 지팡이 - 몸통 오른쪽에 들고 있음 */}
         <defs>
           <linearGradient id="wandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#8B4513" />
             <stop offset="100%" stopColor="#4a2810" />
           </linearGradient>
         </defs>
-        <rect x="55" y="30" width="10" height="80" rx="2" fill="url(#wandGradient)" transform="rotate(-20, 60, 70)" />
-        <polygon points="60,15 55,30 65,30" fill="#FFD700" transform="rotate(-20, 60, 25)" />
-        <circle cx="60" cy="15" r="8" fill="#FFD700" transform="rotate(-20, 60, 15)" />
-        <circle cx="60" cy="15" r="4" fill="white" opacity="0.6" transform="rotate(-20, 60, 15)" />
-        <circle cx="50" cy="10" r="2" fill="#FFD700" />
-        <circle cx="70" cy="8" r="2" fill="#FFD700" />
-        <circle cx="55" cy="5" r="1.5" fill="#FFD700" />
-        <circle cx="68" cy="18" r="1.5" fill="#FFD700" />
+        <g transform="translate(110, 65) rotate(-35)">
+          <rect x="-2.5" y="0" width="5" height="40" rx="2" fill="url(#wandGradient)" />
+          {/* 손잡이 장식 */}
+          <rect x="-3.5" y="28" width="7" height="12" rx="2" fill="#654321" />
+          <rect x="-2.5" y="30" width="5" height="2" fill="#DAA520" />
+          <rect x="-2.5" y="35" width="5" height="2" fill="#DAA520" />
+          {/* 별 끝 */}
+          <polygon points="0,-8 2,-2.5 8,-2 3,1.5 5,7.5 0,4 -5,7.5 -3,1.5 -8,-2 -2,-2.5" fill="#FFD700" />
+          <polygon points="0,-6 1.5,-2 5,-1.5 2,1 3,4 0,2 -3,4 -2,1 -5,-1.5 -1.5,-2" fill="#FFFF00" />
+          {/* 반짝임 */}
+          <circle cx="-6" cy="-6" r="1.5" fill="#FFD700" opacity="0.8" />
+          <circle cx="6" cy="-7" r="1.2" fill="#FFD700" opacity="0.8" />
+          <circle cx="0" cy="-13" r="1.5" fill="#FFD700" opacity="0.6" />
+          {/* 마법 파티클 */}
+          <circle cx="-10" cy="-2" r="1.2" fill="#FF69B4" opacity="0.6" />
+          <circle cx="8" cy="-10" r="1.2" fill="#00FFFF" opacity="0.6" />
+        </g>
       </svg>
     ),
     ring: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 반지 - 손에 착용 (오른쪽 아래) */}
-        <g transform="translate(95, 95)">
-          <ellipse cx="0" cy="0" rx="8" ry="6" fill="#FFD700" />
-          <ellipse cx="0" cy="-2" rx="6" ry="4" fill="#FFA500" />
-          <circle cx="0" cy="-6" r="4" fill="#FF0000" />
-          <circle cx="0" cy="-6" r="2" fill="#FF69B4" opacity="0.6" />
+        {/* 반지 - 오른쪽 아래 손 위치 (더 아래로) */}
+        <g transform="translate(100, 110)">
+          <ellipse cx="0" cy="0" rx="10" ry="7" fill="#FFD700" />
+          <ellipse cx="0" cy="-2" rx="8" ry="5" fill="#FFA500" />
+          {/* 보석 */}
+          <circle cx="0" cy="-8" r="5" fill="#FF0000" />
+          <circle cx="0" cy="-8" r="3" fill="#FF69B4" opacity="0.6" />
+          <circle cx="-1" cy="-9" r="1.5" fill="white" opacity="0.7" />
+          {/* 작은 보석들 */}
+          <circle cx="-6" cy="-4" r="2" fill="#00BFFF" />
+          <circle cx="6" cy="-4" r="2" fill="#00BFFF" />
         </g>
       </svg>
     ),
     necklace: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 목걸이 - 목 주위 */}
-        <path d="M 35 75 Q 40 72 45 70 Q 50 68 55 67 Q 60 66 65 67 Q 70 68 75 70 Q 80 72 85 75"
-              stroke="#FFD700" strokeWidth="3" fill="none" strokeLinecap="round" />
-        {/* 펜던트 */}
-        <path d="M 55 67 L 60 75 L 65 67" fill="#FF1493" stroke="#C71585" strokeWidth="1" />
-        <circle cx="60" cy="73" r="3" fill="#FF69B4" />
-        <circle cx="60" cy="72" r="1.5" fill="white" opacity="0.5" />
+        {/* 목걸이 - 목 바로 아래 가슴 위치 */}
+        <path d="M 35 25 Q 40 22 50 20 Q 55 19 60 18 Q 65 19 70 20 Q 80 22 85 25"
+              stroke="#FFD700" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        {/* 체인이 아래로 내려옴 */}
+        <path d="M 35 25 Q 32 35 35 45" stroke="#FFD700" strokeWidth="2" fill="none" />
+        <path d="M 85 25 Q 88 35 85 45" stroke="#FFD700" strokeWidth="2" fill="none" />
+        <path d="M 35 45 Q 45 55 60 58 Q 75 55 85 45" stroke="#FFD700" strokeWidth="2" fill="none" />
+        {/* 체인 패턴 */}
+        <circle cx="40" cy="23" r="1.5" fill="#DAA520" />
+        <circle cx="50" cy="20" r="1.5" fill="#DAA520" />
+        <circle cx="70" cy="20" r="1.5" fill="#DAA520" />
+        <circle cx="80" cy="23" r="1.5" fill="#DAA520" />
+        {/* 하트 펜던트 */}
+        <path d="M 60 58 C 56 54 52 57 52 60 C 52 64 60 70 60 70 C 60 70 68 64 68 60 C 68 57 64 54 60 58"
+              fill="#FF1493" stroke="#C71585" strokeWidth="1" />
+        <circle cx="57" cy="61" r="1.5" fill="#FFB6C1" opacity="0.5" />
       </svg>
     ),
     mask: (
@@ -1683,173 +1925,372 @@ export const AccessorySVG = ({ type = 'none', size = 120 }) => {
     ),
     star: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 별 장식 - 머리 옆 */}
-        <g transform="translate(90, 25)">
+        {/* 별 장식 - 머리 오른쪽 옆 (미리보기에서 안 잘리게) */}
+        <g transform="translate(100, 25)">
           <polygon points="0,-12 3,-4 12,-4 5,2 8,10 0,5 -8,10 -5,2 -12,-4 -3,-4"
                    fill="#FFD700" stroke="#FFA500" strokeWidth="1" />
           <polygon points="0,-8 2,-3 7,-3 3,0 5,5 0,2 -5,5 -3,0 -7,-3 -2,-3"
                    fill="#FFFF00" opacity="0.6" />
+          {/* 반짝임 */}
+          <circle cx="5" cy="-8" r="1.5" fill="white" opacity="0.8" />
         </g>
       </svg>
     ),
     flower: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 꽃 장식 - 머리 옆 */}
-        <g transform="translate(88, 28)">
+        {/* 꽃 장식 - 머리 오른쪽 옆 (미리보기에서 안 잘리게) */}
+        <g transform="translate(100, 25)">
           {/* 꽃잎 */}
-          <circle cx="0" cy="-8" r="5" fill="#FF69B4" />
-          <circle cx="8" cy="0" r="5" fill="#FF69B4" />
-          <circle cx="0" cy="8" r="5" fill="#FF69B4" />
-          <circle cx="-8" cy="0" r="5" fill="#FF69B4" />
-          <circle cx="6" cy="-6" r="5" fill="#FFB6C1" />
-          <circle cx="6" cy="6" r="5" fill="#FFB6C1" />
-          <circle cx="-6" cy="6" r="5" fill="#FFB6C1" />
-          <circle cx="-6" cy="-6" r="5" fill="#FFB6C1" />
+          <ellipse cx="0" cy="-10" rx="6" ry="9" fill="#FF69B4" />
+          <ellipse cx="10" cy="0" rx="6" ry="9" fill="#FF69B4" transform="rotate(72)" />
+          <ellipse cx="6" cy="8" rx="6" ry="9" fill="#FFB6C1" transform="rotate(144)" />
+          <ellipse cx="-6" cy="8" rx="6" ry="9" fill="#FF69B4" transform="rotate(216)" />
+          <ellipse cx="-10" cy="0" rx="6" ry="9" fill="#FFB6C1" transform="rotate(288)" />
           {/* 꽃 중심 */}
-          <circle cx="0" cy="0" r="4" fill="#FFD700" />
-          <circle cx="0" cy="0" r="2" fill="#FFA500" />
+          <circle cx="0" cy="0" r="5" fill="#FFD700" />
+          <circle cx="0" cy="0" r="3" fill="#FFA500" />
+          <circle cx="-1" cy="-1" r="1" fill="white" opacity="0.5" />
+        </g>
+      </svg>
+    ),
+    butterfly: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 나비 장식 - 머리 위 오른쪽 */}
+        <g transform="translate(95, 10)">
+          <defs>
+            <linearGradient id="butterflyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8B5CF6" />
+              <stop offset="100%" stopColor="#EC4899" />
+            </linearGradient>
+          </defs>
+          {/* 왼쪽 날개 */}
+          <ellipse cx="-10" cy="-5" rx="10" ry="12" fill="url(#butterflyGradient)" />
+          <ellipse cx="-12" cy="8" rx="7" ry="8" fill="url(#butterflyGradient)" opacity="0.8" />
+          {/* 오른쪽 날개 */}
+          <ellipse cx="10" cy="-5" rx="10" ry="12" fill="url(#butterflyGradient)" />
+          <ellipse cx="12" cy="8" rx="7" ry="8" fill="url(#butterflyGradient)" opacity="0.8" />
+          {/* 날개 무늬 */}
+          <circle cx="-8" cy="-5" r="4" fill="#FFD700" opacity="0.6" />
+          <circle cx="8" cy="-5" r="4" fill="#FFD700" opacity="0.6" />
+          <circle cx="-10" cy="6" r="2" fill="white" opacity="0.4" />
+          <circle cx="10" cy="6" r="2" fill="white" opacity="0.4" />
+          {/* 몸통 */}
+          <ellipse cx="0" cy="0" rx="2" ry="10" fill="#1a1a1a" />
+          {/* 더듬이 */}
+          <path d="M -1 -10 Q -5 -15 -8 -14" stroke="#1a1a1a" strokeWidth="1" fill="none" />
+          <path d="M 1 -10 Q 5 -15 8 -14" stroke="#1a1a1a" strokeWidth="1" fill="none" />
+          <circle cx="-8" cy="-14" r="1.5" fill="#1a1a1a" />
+          <circle cx="8" cy="-14" r="1.5" fill="#1a1a1a" />
         </g>
       </svg>
     ),
     bone: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 뼈다귀 - 입에 물고 */}
-        <g transform="translate(60, 75) rotate(-10)">
-          <ellipse cx="-15" cy="0" rx="5" ry="7" fill="#F5F5DC" />
-          <ellipse cx="15" cy="0" rx="5" ry="7" fill="#F5F5DC" />
-          <rect x="-15" y="-3" width="30" height="6" rx="2" fill="#F5F5DC" />
-          <ellipse cx="-15" cy="0" rx="3" ry="4" fill="#E8E8D0" />
-          <ellipse cx="15" cy="0" rx="3" ry="4" fill="#E8E8D0" />
+        {/* 뼈다귀 - 머리 위 장식 (애완동물 스타일) */}
+        <g transform="translate(60, 5) rotate(-15)">
+          <ellipse cx="-18" cy="0" rx="6" ry="8" fill="#F5F5DC" />
+          <ellipse cx="-18" cy="-6" rx="5" ry="5" fill="#F5F5DC" />
+          <ellipse cx="-18" cy="6" rx="5" ry="5" fill="#F5F5DC" />
+          <ellipse cx="18" cy="0" rx="6" ry="8" fill="#F5F5DC" />
+          <ellipse cx="18" cy="-6" rx="5" ry="5" fill="#F5F5DC" />
+          <ellipse cx="18" cy="6" rx="5" ry="5" fill="#F5F5DC" />
+          <rect x="-18" y="-4" width="36" height="8" rx="3" fill="#F5F5DC" />
+          {/* 하이라이트 */}
+          <ellipse cx="-16" cy="-2" rx="3" ry="4" fill="#FFFFF0" opacity="0.5" />
+          <ellipse cx="16" cy="-2" rx="3" ry="4" fill="#FFFFF0" opacity="0.5" />
+        </g>
+      </svg>
+    ),
+    crystal_ball: (
+      <svg width={size} height={size} viewBox="0 0 120 120">
+        {/* 수정구슬 - 몸통 왼쪽에 들고 있음 */}
+        <g transform="translate(8, 75)">
+          {/* 받침대 */}
+          <ellipse cx="0" cy="10" rx="10" ry="3" fill="#4a3728" />
+          <path d="M -8 10 Q -6 5 0 0 Q 6 5 8 10" fill="#5c4033" />
+          <ellipse cx="0" cy="0" rx="6" ry="2.5" fill="#6b4423" />
+          {/* 수정구슬 본체 */}
+          <circle cx="0" cy="-10" r="14" fill="url(#crystalGradient)" />
+          <defs>
+            <radialGradient id="crystalGradient" cx="30%" cy="30%">
+              <stop offset="0%" stopColor="#E0E0FF" />
+              <stop offset="50%" stopColor="#9090FF" />
+              <stop offset="100%" stopColor="#4040AA" />
+            </radialGradient>
+          </defs>
+          {/* 반사광 */}
+          <ellipse cx="-4" cy="-15" rx="3" ry="2.5" fill="white" opacity="0.7" />
+          <circle cx="-6" cy="-12" r="1.5" fill="white" opacity="0.4" />
+          {/* 신비로운 빛 */}
+          <circle cx="2" cy="-8" r="2.5" fill="#FF69B4" opacity="0.3" />
+          <circle cx="-1" cy="-6" r="1.5" fill="#00FFFF" opacity="0.3" />
+          {/* 글로우 효과 */}
+          <circle cx="0" cy="-10" r="17" fill="none" stroke="#8080FF" strokeWidth="2" opacity="0.3" />
         </g>
       </svg>
     ),
     sword: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 검 - 옆에 장착 */}
-        <g transform="translate(85, 60) rotate(-30)">
-          <rect x="-3" y="0" width="6" height="50" rx="1" fill="#C0C0C0" />
-          <rect x="-3" y="0" width="3" height="50" fill="#E8E8E8" />
-          <path d="M -3 0 L 0 -10 L 3 0" fill="#8B4513" />
-          <rect x="-6" y="-2" width="12" height="4" rx="1" fill="#DAA520" />
-          <circle cx="0" cy="0" r="3" fill="#FFD700" />
+        {/* 검 - 몸통 오른쪽에 들고 있음 */}
+        <g transform="translate(112, 70) rotate(20)">
+          {/* 검날 */}
+          <path d="M 0 0 L 3.5 -40 L 0 -50 L -3.5 -40 L 0 0" fill="#C0C0C0" />
+          <path d="M 0 0 L 1.2 -40 L 0 -48 L 0 0" fill="#E8E8E8" />
+          {/* 가드 */}
+          <rect x="-9" y="-2" width="18" height="4" rx="2" fill="#DAA520" />
+          <circle cx="-7" cy="0" r="2" fill="#FFD700" />
+          <circle cx="7" cy="0" r="2" fill="#FFD700" />
+          {/* 손잡이 */}
+          <rect x="-2" y="2" width="4" height="15" rx="2" fill="#8B4513" />
+          <rect x="-2.5" y="4" width="5" height="2" fill="#654321" />
+          <rect x="-2.5" y="9" width="5" height="2" fill="#654321" />
+          <rect x="-2.5" y="14" width="5" height="2" fill="#654321" />
+          {/* 폼멜 */}
+          <circle cx="0" cy="19" r="3" fill="#DAA520" />
         </g>
       </svg>
     ),
     bow_weapon: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 활 - 등에 장착 */}
-        <g transform="translate(25, 50) rotate(15)">
-          <path d="M 0 -30 Q -8 0 0 30" stroke="#8B4513" strokeWidth="3" fill="none" />
-          <path d="M 0 -28 L 0 28" stroke="#D2691E" strokeWidth="1.5" fill="none" />
-          <line x1="0" y1="-30" x2="0" y2="30" stroke="#8B4513" strokeWidth="1" />
+        {/* 활 - 몸통 왼쪽에 들고 있음 */}
+        <g transform="translate(8, 70)">
+          {/* 활 몸체 */}
+          <path d="M 0 -30 Q -15 0 0 30" stroke="#8B4513" strokeWidth="4" fill="none" />
+          <path d="M 2 -28 Q -12 0 2 28" stroke="#A0522D" strokeWidth="2.5" fill="none" />
+          {/* 활 끝 장식 */}
+          <circle cx="0" cy="-30" r="2.5" fill="#DAA520" />
+          <circle cx="0" cy="30" r="2.5" fill="#DAA520" />
+          {/* 활 시위 */}
+          <path d="M 0 -28 Q 18 0 0 28" stroke="#D2691E" strokeWidth="1.5" fill="none" />
+          {/* 화살 (시위에 걸림) */}
+          <line x1="16" y1="0" x2="45" y2="0" stroke="#654321" strokeWidth="2.5" />
+          <polygon points="47,0 41,-2.5 41,2.5" fill="#808080" />
+          <path d="M 16 0 L 12 -2.5 L 12 2.5 Z" fill="#8B0000" />
+          <path d="M 14 0 L 10 -3 L 10 3 Z" fill="#8B0000" />
         </g>
       </svg>
     ),
     guitar: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 기타 - 옆에 */}
-        <g transform="translate(25, 60) rotate(-20)">
-          <ellipse cx="0" cy="10" rx="12" ry="18" fill="#8B4513" />
-          <ellipse cx="0" cy="10" rx="8" ry="14" fill="#D2691E" />
-          <circle cx="0" cy="10" r="5" fill="#1a1a1a" />
-          <rect x="-2" y="-20" width="4" height="30" fill="#654321" />
-          <rect x="-3" y="-22" width="6" height="3" fill="#2d2d2d" />
+        {/* 기타 - 몸통 앞에서 연주하는 자세 */}
+        <g transform="translate(60, 80) rotate(-10)">
+          {/* 기타 바디 */}
+          <ellipse cx="0" cy="12" rx="18" ry="24" fill="#8B4513" />
+          <ellipse cx="0" cy="4" rx="14" ry="16" fill="#8B4513" />
+          <ellipse cx="0" cy="12" rx="15" ry="20" fill="#D2691E" />
+          <ellipse cx="0" cy="4" rx="10" ry="13" fill="#D2691E" />
+          {/* 사운드홀 */}
+          <circle cx="0" cy="10" r="6" fill="#1a1a1a" />
+          <circle cx="0" cy="10" r="4.5" fill="#2d2d2d" />
+          {/* 넥 */}
+          <rect x="-3" y="-40" width="6" height="42" fill="#654321" />
+          <rect x="-2.5" y="-40" width="5" height="42" fill="#8B4513" />
+          {/* 프렛 */}
+          <rect x="-3" y="-32" width="6" height="1.5" fill="#C0C0C0" />
+          <rect x="-3" y="-24" width="6" height="1.5" fill="#C0C0C0" />
+          <rect x="-3" y="-16" width="6" height="1.5" fill="#C0C0C0" />
+          {/* 헤드 */}
+          <rect x="-4" y="-50" width="8" height="11" rx="2" fill="#1a1a1a" />
+          {/* 튜닝 페그 */}
+          <circle cx="-6" cy="-47" r="2" fill="#C0C0C0" />
+          <circle cx="-6" cy="-42" r="2" fill="#C0C0C0" />
+          <circle cx="6" cy="-47" r="2" fill="#C0C0C0" />
+          <circle cx="6" cy="-42" r="2" fill="#C0C0C0" />
+          {/* 줄 */}
+          <line x1="-1.5" y1="-40" x2="-1.5" y2="28" stroke="#D4AF37" strokeWidth="0.4" />
+          <line x1="0" y1="-40" x2="0" y2="28" stroke="#D4AF37" strokeWidth="0.4" />
+          <line x1="1.5" y1="-40" x2="1.5" y2="28" stroke="#D4AF37" strokeWidth="0.4" />
+          {/* 브릿지 */}
+          <rect x="-4" y="25" width="8" height="3" rx="1" fill="#1a1a1a" />
         </g>
       </svg>
     ),
     trumpet: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 트럼펫 */}
-        <g transform="translate(30, 65) rotate(-15)">
-          <ellipse cx="25" cy="0" rx="8" ry="12" fill="#FFD700" />
-          <rect x="0" y="-2" width="25" height="4" rx="1" fill="#DAA520" />
-          <circle cx="8" cy="0" r="3" fill="#FFA500" />
-          <circle cx="15" cy="0" r="3" fill="#FFA500" />
+        {/* 트럼펫 - 몸통 앞에서 연주하는 자세 */}
+        <defs>
+          <linearGradient id="trumpetGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFD700" />
+            <stop offset="100%" stopColor="#B8860B" />
+          </linearGradient>
+        </defs>
+        <g transform="translate(100, 62)">
+          {/* 벨 (나팔 부분) */}
+          <ellipse cx="12" cy="0" rx="12" ry="16" fill="url(#trumpetGradient)" />
+          <ellipse cx="12" cy="0" rx="8" ry="11" fill="#1a1a1a" />
+          <ellipse cx="12" cy="0" rx="6" ry="9" fill="#2d2d2d" />
+          {/* 본체 튜브 (수평) */}
+          <rect x="-40" y="-4" width="52" height="8" rx="3" fill="url(#trumpetGradient)" />
+          {/* 밸브들 */}
+          <rect x="-28" y="-12" width="6" height="10" rx="2" fill="#DAA520" />
+          <rect x="-19" y="-12" width="6" height="10" rx="2" fill="#DAA520" />
+          <rect x="-10" y="-12" width="6" height="10" rx="2" fill="#DAA520" />
+          {/* 밸브 캡 */}
+          <circle cx="-25" cy="-14" r="3" fill="#FFD700" />
+          <circle cx="-16" cy="-14" r="3" fill="#FFD700" />
+          <circle cx="-7" cy="-14" r="3" fill="#FFD700" />
+          {/* 마우스피스 (왼쪽) */}
+          <rect x="-48" y="-2.5" width="10" height="5" rx="2" fill="#C0C0C0" />
+          <ellipse cx="-48" cy="0" rx="2.5" ry="3" fill="#A0A0A0" />
         </g>
       </svg>
     ),
     palette: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 팔레트 - 손에 */}
-        <g transform="translate(90, 85)">
-          <ellipse cx="0" cy="0" rx="15" ry="12" fill="#8B4513" />
-          <circle cx="-6" cy="-4" r="3" fill="#FF0000" />
-          <circle cx="0" cy="-5" r="3" fill="#0000FF" />
-          <circle cx="6" cy="-4" r="3" fill="#FFFF00" />
-          <circle cx="-4" cy="2" r="3" fill="#00FF00" />
-          <circle cx="4" cy="2" r="3" fill="#FF69B4" />
-          <ellipse cx="8" cy="6" rx="4" ry="5" fill="#8B4513" />
+        {/* 팔레트 - 몸통 왼쪽에 */}
+        <g transform="translate(5, 72)">
+          {/* 팔레트 본체 */}
+          <ellipse cx="18" cy="8" rx="18" ry="14" fill="#8B4513" />
+          {/* 엄지 구멍 */}
+          <ellipse cx="10" cy="15" rx="4" ry="5" fill="#654321" />
+          {/* 물감들 */}
+          <circle cx="8" cy="1" r="3.5" fill="#FF0000" />
+          <circle cx="17" cy="-2" r="3.5" fill="#0000FF" />
+          <circle cx="26" cy="1" r="3.5" fill="#FFFF00" />
+          <circle cx="30" cy="10" r="3.5" fill="#00FF00" />
+          <circle cx="26" cy="17" r="3.5" fill="#FF69B4" />
+          <circle cx="15" cy="6" r="2.5" fill="#FFA500" />
+          {/* 섞인 물감 */}
+          <ellipse cx="19" cy="11" rx="3.5" ry="2.5" fill="#8B008B" opacity="0.7" />
+          {/* 붓 */}
+          <g transform="translate(30, -5) rotate(25)">
+            <rect x="-1.5" y="0" width="3" height="22" fill="#8B4513" />
+            <ellipse cx="0" cy="-2.5" rx="2.5" ry="4" fill="#2d2d2d" />
+            <rect x="-1.5" y="18" width="3" height="6" rx="1" fill="#C0C0C0" />
+          </g>
         </g>
       </svg>
     ),
     camera: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 카메라 - 목에 */}
-        <g transform="translate(60, 85)">
-          <rect x="-12" y="-8" width="24" height="16" rx="2" fill="#2d2d2d" />
-          <circle cx="0" cy="0" r="6" fill="#1a1a1a" />
-          <circle cx="0" cy="0" r="4" fill="#4a4a4a" />
-          <circle cx="-8" cy="-6" r="1.5" fill="#FF0000" />
-          <rect x="-2" y="-12" width="4" height="4" rx="1" fill="#2d2d2d" />
+        {/* 카메라 - 가슴에 걸린 상태 */}
+        {/* 끈 */}
+        <path d="M 42 55 Q 38 65 42 80" stroke="#1a1a1a" strokeWidth="2.5" fill="none" />
+        <path d="M 78 55 Q 82 65 78 80" stroke="#1a1a1a" strokeWidth="2.5" fill="none" />
+        <g transform="translate(60, 90)">
+          {/* 카메라 본체 */}
+          <rect x="-15" y="-10" width="30" height="20" rx="2.5" fill="#2d2d2d" />
+          <rect x="-13" y="-8" width="26" height="16" rx="2" fill="#1a1a1a" />
+          {/* 렌즈 */}
+          <circle cx="0" cy="0" r="8" fill="#1a1a1a" stroke="#404040" strokeWidth="1.5" />
+          <circle cx="0" cy="0" r="5.5" fill="#2d2d2d" />
+          <circle cx="0" cy="0" r="3" fill="#4a4a4a" />
+          <circle cx="-1.5" cy="-1.5" r="1.5" fill="white" opacity="0.3" />
+          {/* 플래시 */}
+          <rect x="-12" y="-8" width="6" height="4" rx="1" fill="#404040" />
+          {/* 셔터 버튼 */}
+          <circle cx="10" cy="-8" r="2.5" fill="#FF0000" />
+          {/* 뷰파인더 */}
+          <rect x="5" y="-13" width="6" height="4" rx="1" fill="#2d2d2d" />
         </g>
       </svg>
     ),
     microphone: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 마이크 - 손에 */}
-        <g transform="translate(95, 75) rotate(-20)">
-          <ellipse cx="0" cy="-8" rx="6" ry="10" fill="#2d2d2d" />
-          <rect x="-3" y="2" width="6" height="15" rx="2" fill="#4a4a4a" />
-          <rect x="-5" y="17" width="10" height="3" rx="1" fill="#2d2d2d" />
-          <line x1="-2" y1="-5" x2="-2" y2="-15" stroke="#6a6a6a" strokeWidth="1" />
-          <line x1="0" y1="-5" x2="0" y2="-15" stroke="#6a6a6a" strokeWidth="1" />
-          <line x1="2" y1="-5" x2="2" y2="-15" stroke="#6a6a6a" strokeWidth="1" />
+        {/* 마이크 - 몸통 오른쪽에 들고 있음 */}
+        <g transform="translate(108, 65) rotate(-20)">
+          {/* 마이크 헤드 (그릴) */}
+          <ellipse cx="0" cy="-10" rx="7" ry="11" fill="#2d2d2d" />
+          <ellipse cx="0" cy="-10" rx="6" ry="9" fill="#404040" />
+          {/* 그릴 패턴 */}
+          <line x1="-4" y1="-16" x2="-4" y2="-4" stroke="#1a1a1a" strokeWidth="0.4" />
+          <line x1="-1.5" y1="-18" x2="-1.5" y2="-2" stroke="#1a1a1a" strokeWidth="0.4" />
+          <line x1="1.5" y1="-18" x2="1.5" y2="-2" stroke="#1a1a1a" strokeWidth="0.4" />
+          <line x1="4" y1="-16" x2="4" y2="-4" stroke="#1a1a1a" strokeWidth="0.4" />
+          {/* 반짝임 */}
+          <ellipse cx="-2.5" cy="-12" rx="1.5" ry="2.5" fill="white" opacity="0.2" />
+          {/* 바디 */}
+          <rect x="-4" y="1" width="8" height="24" rx="2.5" fill="#1a1a1a" />
+          {/* 링 장식 */}
+          <rect x="-5" y="-1" width="10" height="3" rx="1" fill="#C0C0C0" />
+          <rect x="-4" y="6" width="8" height="1.5" fill="#404040" />
+          <rect x="-4" y="13" width="8" height="1.5" fill="#404040" />
+          {/* 바닥 */}
+          <ellipse cx="0" cy="25" rx="4" ry="1.5" fill="#2d2d2d" />
         </g>
       </svg>
     ),
     shining_star: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 빛나는 별 - 머리 위 */}
+        {/* 빛나는 별 - 머리 옆에 떠있는 효과 (미리보기에서 안 잘리게) */}
+        {/* 메인 별 */}
         <g transform="translate(60, 15)">
-          <polygon points="0,-15 4,-5 15,-5 6,2 10,12 0,6 -10,12 -6,2 -15,-5 -4,-5"
+          <polygon points="0,-15 4,-5 15,-5 7,2 10,12 0,6 -10,12 -7,2 -15,-5 -4,-5"
                    fill="#FFD700" stroke="#FFA500" strokeWidth="2" />
-          <polygon points="0,-10 2,-4 8,-4 4,0 6,6 0,3 -6,6 -4,0 -8,-4 -2,-4"
+          <polygon points="0,-10 2.5,-3 8,-3 4,1 6,7 0,4 -6,7 -4,1 -8,-3 -2.5,-3"
                    fill="#FFFF00" />
-          {/* 빛나는 효과 */}
-          <line x1="0" y1="-20" x2="0" y2="-25" stroke="#FFD700" strokeWidth="2" />
-          <line x1="0" y1="15" x2="0" y2="20" stroke="#FFD700" strokeWidth="2" />
-          <line x1="-18" y1="0" x2="-23" y2="0" stroke="#FFD700" strokeWidth="2" />
-          <line x1="18" y1="0" x2="23" y2="0" stroke="#FFD700" strokeWidth="2" />
         </g>
+        {/* 작은 별들 */}
+        <g transform="translate(25, 25)">
+          <polygon points="0,-6 1.5,-2 6,-2 2.5,0.5 4,5 0,3 -4,5 -2.5,0.5 -6,-2 -1.5,-2" fill="#FFD700" opacity="0.7" />
+        </g>
+        <g transform="translate(95, 25)">
+          <polygon points="0,-6 1.5,-2 6,-2 2.5,0.5 4,5 0,3 -4,5 -2.5,0.5 -6,-2 -1.5,-2" fill="#FFD700" opacity="0.7" />
+        </g>
+        {/* 빛나는 효과 */}
+        <line x1="60" y1="-2" x2="60" y2="-8" stroke="#FFD700" strokeWidth="2" opacity="0.8" />
+        <line x1="48" y1="5" x2="42" y2="2" stroke="#FFD700" strokeWidth="2" opacity="0.6" />
+        <line x1="72" y1="5" x2="78" y2="2" stroke="#FFD700" strokeWidth="2" opacity="0.6" />
+        {/* 반짝임 파티클 */}
+        <circle cx="38" cy="15" r="2" fill="#FFFF00" opacity="0.6" />
+        <circle cx="82" cy="15" r="2" fill="#FFFF00" opacity="0.6" />
+        <circle cx="50" cy="28" r="1.5" fill="#FFD700" opacity="0.5" />
+        <circle cx="70" cy="28" r="1.5" fill="#FFD700" opacity="0.5" />
       </svg>
     ),
     meteor: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 유성 */}
-        <g transform="translate(90, 20) rotate(30)">
-          <circle cx="0" cy="0" r="6" fill="#FFD700" />
+        {/* 유성 - 머리 옆에서 날아가는 모습 (미리보기에서 안 잘리게) */}
+        <g transform="translate(95, 20)">
+          {/* 유성 본체 */}
+          <circle cx="0" cy="0" r="10" fill="#FF6B00" />
+          <circle cx="0" cy="0" r="7" fill="#FFD700" />
           <circle cx="0" cy="0" r="4" fill="#FFFF00" />
+          <circle cx="-2" cy="-2" r="2" fill="white" opacity="0.8" />
           {/* 꼬리 */}
-          <path d="M -8 0 Q -15 -5 -25 -8" stroke="#FFA500" strokeWidth="3" opacity="0.7" strokeLinecap="round" />
-          <path d="M -8 0 Q -15 0 -22 0" stroke="#FFD700" strokeWidth="2" opacity="0.5" strokeLinecap="round" />
-          <path d="M -8 0 Q -15 5 -25 8" stroke="#FF8C00" strokeWidth="3" opacity="0.7" strokeLinecap="round" />
-          {/* 반짝임 */}
-          <circle cx="2" cy="-2" r="1.5" fill="white" opacity="0.8" />
+          <path d="M -10 3 Q -25 0 -50 5" stroke="#FF6B00" strokeWidth="6" opacity="0.7" strokeLinecap="round" />
+          <path d="M -10 1 Q -25 5 -45 8" stroke="#FFD700" strokeWidth="4" opacity="0.5" strokeLinecap="round" />
+          <path d="M -10 5 Q -25 10 -50 18" stroke="#FF8C00" strokeWidth="5" opacity="0.6" strokeLinecap="round" />
+          {/* 스파크 */}
+          <circle cx="-20" cy="2" r="2" fill="#FFFF00" opacity="0.7" />
+          <circle cx="-30" cy="8" r="1.5" fill="#FFD700" opacity="0.6" />
+          <circle cx="-25" cy="12" r="2" fill="#FF8C00" opacity="0.5" />
+          <circle cx="-40" cy="5" r="1" fill="#FFFF00" opacity="0.4" />
+        </g>
+        {/* 작은 유성 */}
+        <g transform="translate(35, 35) scale(0.4)">
+          <circle cx="0" cy="0" r="8" fill="#FF6B00" />
+          <circle cx="0" cy="0" r="5" fill="#FFD700" />
+          <path d="M -8 2 Q -18 0 -30 5" stroke="#FF6B00" strokeWidth="4" opacity="0.5" strokeLinecap="round" />
         </g>
       </svg>
     ),
     moon: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 달 - 머리 위 */}
-        <g transform="translate(60, 18)">
-          <circle cx="0" cy="0" r="12" fill="#FFD700" />
-          <circle cx="4" cy="0" r="10" fill="#1e293b" opacity="0.3" />
-          {/* 반짝임 */}
-          <circle cx="-3" cy="-3" r="2" fill="white" opacity="0.6" />
-          <circle cx="2" cy="3" r="1.5" fill="white" opacity="0.4" />
+        {/* 달 - 머리 옆에 떠있는 느낌 (미리보기에서 안 잘리게) */}
+        <g transform="translate(100, 30)">
+          {/* 달 그림자 (글로우 효과) */}
+          <circle cx="0" cy="0" r="18" fill="#FFD700" opacity="0.2" />
+          {/* 달 본체 */}
+          <circle cx="0" cy="0" r="14" fill="#FFF8DC" />
+          <circle cx="5" cy="0" r="12" fill="#1e293b" opacity="0.15" />
           {/* 크레이터 */}
-          <circle cx="-2" cy="2" r="1.5" fill="#E8D700" opacity="0.4" />
-          <circle cx="1" cy="-2" r="1" fill="#E8D700" opacity="0.4" />
+          <circle cx="-4" cy="-5" r="3" fill="#E8D8B0" opacity="0.5" />
+          <circle cx="3" cy="5" r="2.5" fill="#E8D8B0" opacity="0.4" />
+          <circle cx="-2" cy="3" r="2" fill="#E8D8B0" opacity="0.3" />
+          <circle cx="5" cy="-3" r="1.5" fill="#E8D8B0" opacity="0.3" />
+          {/* 반짝임 */}
+          <circle cx="-6" cy="-6" r="2" fill="white" opacity="0.6" />
+        </g>
+        {/* 작은 별들 */}
+        <g transform="translate(75, 20)">
+          <polygon points="0,-5 1,-2 5,-2 2,1 3,5 0,3 -3,5 -2,1 -5,-2 -1,-2" fill="#FFD700" opacity="0.6" />
+        </g>
+        <g transform="translate(115, 55)">
+          <polygon points="0,-4 1,-1 4,-1 2,1 2,4 0,2 -2,4 -2,1 -4,-1 -1,-1" fill="#FFD700" opacity="0.5" />
+        </g>
+        <g transform="translate(85, 55)">
+          <polygon points="0,-3 1,-1 3,-1 1,0 2,3 0,2 -2,3 -1,0 -3,-1 -1,-1" fill="#FFD700" opacity="0.4" />
         </g>
       </svg>
     )

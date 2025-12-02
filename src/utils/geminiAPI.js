@@ -1,7 +1,7 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
 
-export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWordCount) {
+export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWordCount, isRewrite = false, previousScore = null) {
   try {
     const analyzeWritingFn = httpsCallable(functions, 'analyzeWriting');
     const result = await analyzeWritingFn({
@@ -9,7 +9,9 @@ export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWo
       gradeLevel,
       topic,
       wordCount,
-      idealWordCount
+      idealWordCount,
+      isRewrite,
+      previousScore
     });
     return result.data;
   } catch (error) {

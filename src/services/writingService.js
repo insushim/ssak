@@ -303,13 +303,18 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     // AI 사용 감지 (참고사항으로만 - 제출 차단하지 않음)
     const aiUsageResult = await detectAIUsage(writingData.content, writingData.topic);
 
-    // AI 분석 (글자 수 포함)
+    // 🚀 고쳐쓰기 시 이전 점수 전달 (AI가 개선 여부 판단)
+    const previousScore = isRewrite ? (writingData.previousScore || null) : null;
+
+    // AI 분석 (글자 수 포함 + 고쳐쓰기 정보)
     const analysisResult = await analyzeWriting(
       writingData.content,
       writingData.gradeLevel,
       writingData.topic,
       wordCount,
-      standard.ideal
+      standard.ideal,
+      isRewrite,
+      previousScore
     );
 
     // 5. 제출 (기준 점수 체크 제거 - 모든 점수 허용)
@@ -320,6 +325,54 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     let finalClassCode = classCode;
     if (!finalClassCode && userData) {
       finalClassCode = userData.classCode;
+    }
+
+    const newScore = analysisResult.score;
+    const minScore = writingData.minScore || PASSING_SCORE;
+
+    // 🚀 동일 주제 미제출글 비교 로직 (DB 사용량 최소화)
+    // - 새 점수가 목표점수 미달인 경우만 비교
+    // - 기존 미제출글보다 점수가 낮으면 저장 안함
+    // - 기존 미제출글보다 점수가 높으면 기존 글 삭제 후 새 글 저장
+    let shouldSave = true;
+    let deletedOldWritingId = null;
+
+    if (newScore < minScore) {
+      // 미제출글인 경우: 동일 주제 기존 미제출글 확인
+      const existingWritings = userData?.writingSummary || [];
+      const sameTopic = existingWritings.find(w =>
+        w.topic === writingData.topic &&
+        w.score < (w.minScore || PASSING_SCORE) // 기존 미제출글만
+      );
+
+      if (sameTopic) {
+        if (newScore <= sameTopic.score) {
+          // 기존 미제출글보다 점수가 같거나 낮음 → 저장 안함
+          console.log(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 낮거나 같음(${newScore}점) - 저장 안함`);
+          shouldSave = false;
+        } else {
+          // 기존 미제출글보다 점수가 높음 → 기존 글 삭제
+          console.log(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 높음(${newScore}점) - 기존 글 삭제`);
+          try {
+            await deleteDoc(doc(db, 'writings', sameTopic.writingId));
+            deletedOldWritingId = sameTopic.writingId;
+          } catch (e) {
+            console.warn('기존 미제출글 삭제 실패:', e);
+          }
+        }
+      }
+    }
+
+    // 저장하지 않는 경우 (기존 미제출글보다 점수가 낮음)
+    if (!shouldSave) {
+      return {
+        ...writingData,
+        score: newScore,
+        analysis: analysisResult,
+        aiUsageCheck: aiUsageResult,
+        notSaved: true,
+        reason: '동일 주제의 기존 글보다 점수가 낮아 저장되지 않았습니다.'
+      };
     }
 
     const submissionData = {
@@ -334,7 +387,7 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       analysis: analysisResult,
       plagiarismCheck: null, // 🚀 자기 표절 검사 제거
       aiUsageCheck: aiUsageResult,
-      score: analysisResult.score
+      score: newScore
     };
 
     await setDoc(doc(db, 'writings', writingId), submissionData);
@@ -374,6 +427,10 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     }
 
     // 🚀 users 문서의 writingSummary 업데이트 (로그인 시 DB 읽기 0회!)
+    // 기존 미제출글 삭제한 경우, 해당 글도 writingSummary에서 제거
+    if (deletedOldWritingId) {
+      await updateWritingSummary(studentId, { writingId: deletedOldWritingId }, 'delete');
+    }
     await updateWritingSummary(studentId, submissionData, 'add');
 
     return submissionData;
@@ -1000,9 +1057,10 @@ async function recalculateClassRanking(classCode, period, classData = null) {
       const submissionCount = periodWritings.length;
       const totalScore = periodWritings.reduce((sum, w) => sum + (w.score || 0), 0);
       const averageScore = submissionCount > 0 ? Math.round(totalScore / submissionCount) : 0;
-      const passCount = periodWritings.filter(w => w.score >= 80).length;
+      const passCount = periodWritings.filter(w => w.score >= 70).length;  // 🚀 통과 기준 70점
       const highScore = Math.max(...periodWritings.map(w => w.score || 0), 0);
-      const rankingScore = averageScore * 3 + passCount * 15 + submissionCount * 2;
+      // 🚀 랭킹 점수: 평균 점수 × 3 + 통과 횟수 × 20 (제출 수 제외!)
+      const rankingScore = averageScore * 3 + passCount * 20;
 
       return {
         studentId,
@@ -1081,22 +1139,25 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
         student.submissionCount += 1;
         const newTotalScore = student.averageScore * (student.submissionCount - 1) + score;
         student.averageScore = Math.round(newTotalScore / student.submissionCount);
-        if (score >= 80) student.passCount += 1;
+        if (score >= 70) student.passCount += 1;  // 🚀 통과 기준 70점으로 변경
         if (score > student.highScore) student.highScore = score;
-        student.rankingScore = student.averageScore * 3 + student.passCount * 15 + student.submissionCount * 2;
+        // 🚀 랭킹 점수: 평균 점수 × 3 + 통과 횟수 × 20 (제출 수 제외!)
+        student.rankingScore = student.averageScore * 3 + student.passCount * 20;
         student.points = userData?.points || student.points;
         student.nickname = nickname;
       } else {
         // 새 학생 추가
+        const isPassed = score >= 70;  // 🚀 통과 기준 70점
         rankingData.push({
           studentId,
           nickname,
           points: userData?.points || 0,
           submissionCount: 1,
           averageScore: score,
-          passCount: score >= 80 ? 1 : 0,
+          passCount: isPassed ? 1 : 0,
           highScore: score,
-          rankingScore: score * 3 + (score >= 80 ? 15 : 0) + 2,
+          // 🚀 랭킹 점수: 평균 점수 × 3 + 통과 횟수 × 20 (제출 수 제외!)
+          rankingScore: score * 3 + (isPassed ? 20 : 0),
           streakDays: userData?.streakDays || 0
         });
       }

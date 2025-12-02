@@ -280,6 +280,7 @@ export const VehicleSVG = ({ type = 'car', size = 80 }) => {
   const vehicles = {
     car: (
       <svg width={size} height={size} viewBox="0 0 80 80">
+        {/* 기본 세단 - 빨간색 클래식 세단 */}
         <defs>
           <linearGradient id="carBody" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#FF6347" />
@@ -291,41 +292,160 @@ export const VehicleSVG = ({ type = 'car', size = 80 }) => {
             <stop offset="100%" stopColor="#4682B4" />
           </linearGradient>
         </defs>
-        <path d="M 15 45 L 20 30 L 60 30 L 65 45 L 70 45 L 70 55 L 10 55 L 10 45 Z" fill="url(#carBody)" />
-        <path d="M 22 32 L 25 40 L 55 40 L 58 32 Z" fill="url(#carWindow)" />
-        <path d="M 23 33 L 25 38 L 38 38 L 40 33 Z" fill="white" opacity="0.3" />
-        <rect x="10" y="50" width="60" height="10" rx="2" fill="#8B0000" />
-        <ellipse cx="22" cy="58" rx="9" ry="8" fill="#1a1a1a" />
-        <ellipse cx="58" cy="58" rx="9" ry="8" fill="#1a1a1a" />
-        <ellipse cx="22" cy="58" rx="5" ry="4" fill="#606060" />
-        <ellipse cx="58" cy="58" rx="5" ry="4" fill="#606060" />
-        <circle cx="22" cy="58" r="2" fill="#C0C0C0" />
-        <circle cx="58" cy="58" r="2" fill="#C0C0C0" />
-        <rect x="65" y="42" width="8" height="5" rx="2" fill="#FFFF00" />
-        <rect x="66" y="43" width="3" height="3" fill="white" opacity="0.5" />
-        <rect x="7" y="42" width="8" height="5" rx="2" fill="#FF0000" />
+        {/* 차체 - 세단 스타일 */}
+        <path d="M 12 48 L 18 32 L 62 32 L 68 48 Z" fill="url(#carBody)" />
+        <rect x="8" y="48" width="64" height="12" rx="2" fill="url(#carBody)" />
+        {/* 창문 - 4도어 세단 */}
+        <path d="M 20 34 L 23 44 L 38 44 L 38 34 Z" fill="url(#carWindow)" />
+        <path d="M 42 34 L 42 44 L 57 44 L 60 34 Z" fill="url(#carWindow)" />
+        <rect x="38" y="34" width="4" height="10" fill="#CC3700" />
+        {/* 창문 반사 */}
+        <path d="M 22 36 L 24 42 L 30 42 L 30 36 Z" fill="white" opacity="0.3" />
+        {/* 하단 */}
+        <rect x="8" y="56" width="64" height="4" rx="1" fill="#8B0000" />
+        {/* 바퀴 */}
+        <ellipse cx="22" cy="60" rx="10" ry="9" fill="#1a1a1a" />
+        <ellipse cx="58" cy="60" rx="10" ry="9" fill="#1a1a1a" />
+        <ellipse cx="22" cy="60" rx="6" ry="5" fill="#404040" />
+        <ellipse cx="58" cy="60" rx="6" ry="5" fill="#404040" />
+        <circle cx="22" cy="60" r="2" fill="#C0C0C0" />
+        <circle cx="58" cy="60" r="2" fill="#C0C0C0" />
+        {/* 헤드라이트/테일라이트 */}
+        <rect x="68" y="50" width="6" height="4" rx="1" fill="#FFFF00" />
+        <rect x="6" y="50" width="6" height="4" rx="1" fill="#FF0000" />
+        {/* 사이드 미러 */}
+        <rect x="15" y="38" width="4" height="3" rx="1" fill="#1a1a1a" />
+        <rect x="61" y="38" width="4" height="3" rx="1" fill="#1a1a1a" />
+      </svg>
+    ),
+    suv: (
+      <svg width={size} height={size} viewBox="0 0 80 80">
+        {/* SUV - 검정색 대형 SUV */}
+        <defs>
+          <linearGradient id="suvBody" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#3a3a3a" />
+            <stop offset="50%" stopColor="#2a2a2a" />
+            <stop offset="100%" stopColor="#1a1a1a" />
+          </linearGradient>
+        </defs>
+        {/* 높은 차체 */}
+        <rect x="8" y="25" width="64" height="30" rx="4" fill="url(#suvBody)" />
+        {/* 지붕 - 루프랙 */}
+        <rect x="12" y="20" width="56" height="8" rx="2" fill="#2a2a2a" />
+        <rect x="18" y="18" width="8" height="4" rx="1" fill="#606060" />
+        <rect x="34" y="18" width="12" height="4" rx="1" fill="#606060" />
+        <rect x="54" y="18" width="8" height="4" rx="1" fill="#606060" />
+        {/* 창문 - 큰 창 */}
+        <rect x="14" y="28" width="22" height="14" rx="2" fill="#4682B4" />
+        <rect x="40" y="28" width="26" height="14" rx="2" fill="#4682B4" />
+        <rect x="36" y="28" width="4" height="14" fill="#2a2a2a" />
+        {/* 창문 반사 */}
+        <rect x="16" y="30" width="8" height="6" rx="1" fill="white" opacity="0.2" />
+        {/* 하단 - 보호대 */}
+        <rect x="5" y="55" width="70" height="8" rx="2" fill="#404040" />
+        <rect x="8" y="57" width="64" height="4" fill="#606060" />
+        {/* 큰 바퀴 */}
+        <ellipse cx="20" cy="63" rx="12" ry="11" fill="#1a1a1a" />
+        <ellipse cx="60" cy="63" rx="12" ry="11" fill="#1a1a1a" />
+        <ellipse cx="20" cy="63" rx="7" ry="6" fill="#505050" />
+        <ellipse cx="60" cy="63" rx="7" ry="6" fill="#505050" />
+        <circle cx="20" cy="63" r="3" fill="#808080" />
+        <circle cx="60" cy="63" r="3" fill="#808080" />
+        {/* 그릴 */}
+        <rect x="66" y="35" width="8" height="15" rx="2" fill="#1a1a1a" />
+        <rect x="68" y="38" width="4" height="3" fill="#C0C0C0" />
+        <rect x="68" y="43" width="4" height="3" fill="#C0C0C0" />
+        {/* LED 헤드라이트 */}
+        <rect x="68" y="32" width="6" height="2" rx="1" fill="#FFFFFF" />
+        {/* 테일라이트 */}
+        <rect x="6" y="35" width="4" height="12" rx="1" fill="#FF0000" />
       </svg>
     ),
     sportsCar: (
       <svg width={size} height={size} viewBox="0 0 80 80">
+        {/* 스포츠카 - 노란색 람보르기니 스타일 */}
         <defs>
           <linearGradient id="sportsCarBody" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FF3333" />
-            <stop offset="50%" stopColor="#FF0000" />
-            <stop offset="100%" stopColor="#AA0000" />
+            <stop offset="0%" stopColor="#FFD700" />
+            <stop offset="50%" stopColor="#FFC000" />
+            <stop offset="100%" stopColor="#CC9900" />
           </linearGradient>
         </defs>
-        <path d="M 5 50 L 10 40 Q 25 25 55 25 L 75 40 L 75 50 L 5 50 Z" fill="url(#sportsCarBody)" />
-        <path d="M 20 28 Q 35 25 50 28 L 55 40 L 15 40 Z" fill="#1a1a1a" />
-        <path d="M 22 30 Q 35 28 45 30 L 48 38 L 18 38 Z" fill="#4682B4" opacity="0.7" />
-        <rect x="5" y="48" width="70" height="8" rx="2" fill="#8B0000" />
-        <ellipse cx="18" cy="55" rx="8" ry="7" fill="#1a1a1a" />
-        <ellipse cx="62" cy="55" rx="8" ry="7" fill="#1a1a1a" />
-        <ellipse cx="18" cy="55" rx="4" ry="3" fill="#C0C0C0" />
-        <ellipse cx="62" cy="55" rx="4" ry="3" fill="#C0C0C0" />
-        <rect x="68" y="42" width="10" height="4" rx="1" fill="#FFFF00" />
-        <path d="M 5 45 L 2 45 L 2 50 L 5 50" fill="url(#sportsCarBody)" />
-        <path d="M 10 35 L 20 35" stroke="#C0C0C0" strokeWidth="1" />
+        {/* 매우 낮은 차체 */}
+        <path d="M 5 52 L 15 42 L 30 38 L 65 38 L 78 45 L 78 52 Z" fill="url(#sportsCarBody)" />
+        {/* 날카로운 앞부분 */}
+        <path d="M 65 38 L 78 45 L 78 48 L 70 48 L 65 42 Z" fill="#CC9900" />
+        {/* 에어 인테이크 */}
+        <path d="M 68 48 L 76 48 L 76 52 L 68 52 Z" fill="#1a1a1a" />
+        <rect x="70" y="49" width="4" height="2" fill="#404040" />
+        {/* 낮은 윈드실드 */}
+        <path d="M 30 40 L 35 48 L 55 48 L 50 40 Z" fill="#1a1a1a" />
+        <path d="M 32 41 L 36 47 L 52 47 L 48 41 Z" fill="#4682B4" opacity="0.8" />
+        {/* 엔진 커버 (뒤쪽) */}
+        <rect x="8" y="44" width="20" height="8" rx="2" fill="#1a1a1a" />
+        <rect x="12" y="46" width="12" height="4" fill="#404040" />
+        {/* 사이드 에어 인테이크 */}
+        <path d="M 55 48 L 65 48 L 65 52 L 55 52 Z" fill="#1a1a1a" />
+        {/* 하단 */}
+        <rect x="5" y="52" width="73" height="6" rx="1" fill="#CC9900" />
+        {/* 낮은 바퀴 */}
+        <ellipse cx="22" cy="58" rx="10" ry="8" fill="#1a1a1a" />
+        <ellipse cx="62" cy="58" rx="10" ry="8" fill="#1a1a1a" />
+        <ellipse cx="22" cy="58" rx="6" ry="4" fill="#404040" />
+        <ellipse cx="62" cy="58" rx="6" ry="4" fill="#404040" />
+        {/* 스포크 휠 */}
+        <line x1="22" y1="54" x2="22" y2="62" stroke="#C0C0C0" strokeWidth="1" />
+        <line x1="18" y1="58" x2="26" y2="58" stroke="#C0C0C0" strokeWidth="1" />
+        <line x1="62" y1="54" x2="62" y2="62" stroke="#C0C0C0" strokeWidth="1" />
+        <line x1="58" y1="58" x2="66" y2="58" stroke="#C0C0C0" strokeWidth="1" />
+        {/* 리어 스포일러 */}
+        <rect x="5" y="40" width="15" height="3" rx="1" fill="#1a1a1a" />
+        <rect x="3" y="38" width="4" height="5" rx="1" fill="#1a1a1a" />
+      </svg>
+    ),
+    camper: (
+      <svg width={size} height={size} viewBox="0 0 80 80">
+        {/* 캠핑카 - 흰색 대형 캠핑카 */}
+        <defs>
+          <linearGradient id="camperBody" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="50%" stopColor="#F5F5F5" />
+            <stop offset="100%" stopColor="#E0E0E0" />
+          </linearGradient>
+        </defs>
+        {/* 캠핑카 본체 - 큰 박스 */}
+        <rect x="5" y="18" width="55" height="38" rx="3" fill="url(#camperBody)" />
+        {/* 운전석 */}
+        <path d="M 60 30 L 75 35 L 75 56 L 60 56 Z" fill="#4682B4" />
+        <path d="M 62 32 L 72 36 L 72 50 L 62 50 Z" fill="#87CEEB" />
+        {/* 창문들 */}
+        <rect x="10" y="25" width="12" height="10" rx="1" fill="#87CEEB" />
+        <rect x="26" y="25" width="12" height="10" rx="1" fill="#87CEEB" />
+        <rect x="42" y="25" width="12" height="10" rx="1" fill="#87CEEB" />
+        {/* 창문 커튼 */}
+        <rect x="10" y="25" width="12" height="3" fill="#FFB6C1" opacity="0.7" />
+        <rect x="26" y="25" width="12" height="3" fill="#FFB6C1" opacity="0.7" />
+        <rect x="42" y="25" width="12" height="3" fill="#FFB6C1" opacity="0.7" />
+        {/* 문 */}
+        <rect x="18" y="38" width="10" height="16" rx="1" fill="#D0D0D0" />
+        <circle cx="26" cy="46" r="1.5" fill="#FFD700" />
+        {/* 스트라이프 장식 */}
+        <rect x="5" y="40" width="55" height="3" fill="#FF6347" />
+        <rect x="5" y="44" width="55" height="2" fill="#4169E1" />
+        {/* 하단 */}
+        <rect x="5" y="56" width="70" height="6" rx="2" fill="#404040" />
+        {/* 바퀴 */}
+        <ellipse cx="20" cy="62" rx="10" ry="9" fill="#1a1a1a" />
+        <ellipse cx="65" cy="62" rx="10" ry="9" fill="#1a1a1a" />
+        <ellipse cx="20" cy="62" rx="5" ry="4" fill="#606060" />
+        <ellipse cx="65" cy="62" rx="5" ry="4" fill="#606060" />
+        {/* 에어컨 */}
+        <rect x="30" y="12" width="15" height="6" rx="2" fill="#C0C0C0" />
+        {/* 헤드라이트/테일라이트 */}
+        <rect x="72" y="40" width="4" height="6" rx="1" fill="#FFFF00" />
+        <rect x="2" y="45" width="4" height="8" rx="1" fill="#FF0000" />
+        {/* 사이드 미러 */}
+        <rect x="58" y="35" width="4" height="4" rx="1" fill="#1a1a1a" />
       </svg>
     ),
     motorcycle: (
