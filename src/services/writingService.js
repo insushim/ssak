@@ -9,7 +9,8 @@ import {
   orderBy,
   updateDoc,
   deleteDoc,
-  documentId
+  documentId,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { analyzeWriting, detectPlagiarism, detectAIUsage } from '../utils/geminiAPI';
@@ -291,7 +292,8 @@ export async function getWritingById(writingId) {
 
 // isRewrite: 고쳐쓰기 모드 여부 (포인트 지급 조건에 영향)
 // 🚀 최적화: classCode와 userData를 파라미터로 받아 getDoc 호출 최소화 (100,000명 대응)
-export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null) {
+// 🧪 testScoreMode: null(일반), 'pass'(도달점수), 'fail'(미달점수) - 테스트 학생용
+export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null) {
   try {
     // 글자 수 기준 가져오기
     const standard = WORD_COUNT_STANDARDS[writingData.gradeLevel];
@@ -327,8 +329,21 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       finalClassCode = userData.classCode;
     }
 
-    const newScore = analysisResult.score;
     const minScore = writingData.minScore || PASSING_SCORE;
+
+    // 🧪 테스트 모드: 점수 강제 설정
+    let newScore = analysisResult.score;
+    if (testScoreMode === 'pass') {
+      // 도달 점수: 기준점수 + 5 ~ 기준점수 + 20 사이 랜덤
+      newScore = minScore + Math.floor(Math.random() * 16) + 5;
+      if (newScore > 100) newScore = 100;
+      console.log(`[🧪 테스트] 도달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+    } else if (testScoreMode === 'fail') {
+      // 미달 점수: 기준점수 - 20 ~ 기준점수 - 1 사이 랜덤
+      newScore = minScore - Math.floor(Math.random() * 20) - 1;
+      if (newScore < 30) newScore = 30;
+      console.log(`[🧪 테스트] 미달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+    }
 
     // 🚀 동일 주제 미제출글 비교 로직 (DB 사용량 최소화)
     // - 새 점수가 목표점수 미달인 경우만 비교
@@ -380,6 +395,7 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       writingId,
       studentId,
       classCode: finalClassCode, // 🚀 랭킹 배치 조회를 위한 classCode 추가
+      nickname: userData?.nickname || userData?.name || writingData.studentName, // 🚀 선생님이 누가 썼는지 확인용
       isDraft: false,
       isRewrite, // 고쳐쓰기 여부 저장
       createdAt: writingData.createdAt || now,
@@ -393,12 +409,14 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     await setDoc(doc(db, 'writings', writingId), submissionData);
 
     // 6. 학생 통계 업데이트 + 캐시 무효화
-    await updateStudentStats(studentId, analysisResult.score);
+    // 🔧 newScore 사용 (테스트 모드에서 점수가 변경될 수 있음)
+    await updateStudentStats(studentId, newScore);
     invalidateStudentStatsCache(studentId);
 
     // 7. 포인트 지급 (고쳐쓰기 여부, AI 가능성, userData 전달)
     const aiProbability = aiUsageResult?.aiProbability || 0;
-    const earnedPoints = await awardPoints(studentId, analysisResult.score, isRewrite, aiProbability, userData);
+    // 🔧 newScore 사용 (테스트 모드에서 점수가 변경될 수 있음)
+    const earnedPoints = await awardPoints(studentId, newScore, isRewrite, aiProbability, userData);
     submissionData.earnedPoints = earnedPoints; // 지급된 포인트 정보 추가
 
     // 🚀 미달성 글 삭제는 서버에서 24시간마다 자동 처리 (Cloud Function)
@@ -414,16 +432,18 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       invalidateClassWritingsCache(classCode);
 
       // 🚀 assignments.submissions에 제출자 정보 추가 (선생님 주제 클릭 시 DB 읽기 0회!)
+      // 🔧 newScore 사용 (테스트 모드에서 점수가 변경될 수 있음)
       await updateAssignmentSubmission(classCode, writingData.topic, {
         studentId,
         nickname: userData?.nickname || userData?.name || '익명',
-        score: analysisResult.score,
+        score: newScore,
         writingId,
         submittedAt: submissionData.submittedAt
       });
 
       // 🚀 랭킹 증분 업데이트 (글 제출 시 바로 반영, 랭킹 조회 시 570회 읽기 방지!)
-      await updateStudentRankingOnSubmit(classCode, studentId, analysisResult.score, userData);
+      // 🔧 newScore 사용 (테스트 모드에서 점수가 변경될 수 있음)
+      await updateStudentRankingOnSubmit(classCode, studentId, newScore, userData);
     }
 
     // 🚀 users 문서의 writingSummary 업데이트 (로그인 시 DB 읽기 0회!)
@@ -1279,39 +1299,68 @@ export function getWritingSummaryFromUserData(userData) {
 }
 
 // 🚀 글 제출 시 users 문서의 writingSummary 업데이트
+// 🔧 트랜잭션 사용으로 race condition 방지 (awardPoints와 동시 업데이트 시 데이터 손실 방지)
 export async function updateWritingSummary(studentId, writingData, action = 'add') {
   try {
     const userRef = doc(db, 'users', studentId);
-    const userDoc = await getDoc(userRef);
 
-    if (!userDoc.exists()) return;
+    await runTransaction(db, async (transaction) => {
+      const userDoc = await transaction.get(userRef);
 
-    const userData = userDoc.data();
-    let summary = userData.writingSummary || [];
+      if (!userDoc.exists()) {
+        console.error('[writingSummary] users 문서가 존재하지 않음:', studentId);
+        throw new Error('users 문서가 존재하지 않음');
+      }
 
-    if (action === 'add' || action === 'update') {
-      // 기존 같은 writingId 제거
-      summary = summary.filter(s => s.writingId !== writingData.writingId);
+      const userData = userDoc.data();
+      let summary = userData.writingSummary || [];
 
-      // 새 요약 추가
-      summary.push({
-        writingId: writingData.writingId,
-        topic: writingData.topic,
-        score: writingData.score || 0,
-        wordCount: writingData.wordCount || 0,
-        isDraft: writingData.isDraft || false,
-        submittedAt: writingData.submittedAt,
-        createdAt: writingData.createdAt,
-        minScore: writingData.minScore
+      console.log(`[writingSummary] 현재 저장된 글 수: ${summary.length}`);
+
+      if (action === 'add' || action === 'update') {
+        // 기존 같은 writingId 제거
+        summary = summary.filter(s => s.writingId !== writingData.writingId);
+
+        // 🚀 새 요약 추가 - undefined 값 제거 (Firestore 에러 방지)
+        const newEntry = {
+          writingId: writingData.writingId || '',
+          topic: writingData.topic || '',
+          score: writingData.score || 0,
+          wordCount: writingData.wordCount || 0,
+          isDraft: writingData.isDraft || false
+        };
+        // undefined가 아닌 값만 추가
+        if (writingData.submittedAt) newEntry.submittedAt = writingData.submittedAt;
+        if (writingData.createdAt) newEntry.createdAt = writingData.createdAt;
+        if (writingData.minScore !== undefined && writingData.minScore !== null) {
+          newEntry.minScore = writingData.minScore;
+        }
+
+        summary.push(newEntry);
+        console.log(`[writingSummary] 새 글 추가:`, newEntry);
+      } else if (action === 'delete') {
+        summary = summary.filter(s => s.writingId !== writingData.writingId);
+      }
+
+      // 🚀 summary 배열에서 undefined 값 제거 (안전장치)
+      const cleanSummary = summary.map(item => {
+        const clean = {};
+        Object.keys(item).forEach(key => {
+          if (item[key] !== undefined && item[key] !== null) {
+            clean[key] = item[key];
+          }
+        });
+        return clean;
       });
-    } else if (action === 'delete') {
-      summary = summary.filter(s => s.writingId !== writingData.writingId);
-    }
 
-    await updateDoc(userRef, { writingSummary: summary });
-    console.log(`[📊 최적화] writingSummary ${action} - ${writingData.topic}`);
+      transaction.update(userRef, { writingSummary: cleanSummary });
+      console.log(`[writingSummary] ✅ 트랜잭션 저장 완료! 총 ${cleanSummary.length}개 - ${action}: ${writingData.topic}`);
+    });
+
+    return true;
   } catch (error) {
-    console.error('writingSummary 업데이트 에러:', error);
+    console.error('[writingSummary] ❌ 업데이트 에러:', error);
+    return false;
   }
 }
 
@@ -1331,9 +1380,27 @@ export async function getWritingDetail(writingId) {
 }
 
 // 🚀 기존 writings에서 writingSummary 마이그레이션 (달성글만!)
+// 주의: 이 함수는 writingSummary가 없을 때만 호출되어야 함
 export async function migrateWritingSummary(studentId) {
   try {
-    const writings = await getStudentWritings(studentId);
+    // 🚀 먼저 현재 users 문서의 writingSummary 확인 (덮어쓰기 방지!)
+    const userDoc = await getDoc(doc(db, 'users', studentId));
+    if (!userDoc.exists()) {
+      console.error('[마이그레이션] users 문서가 없음');
+      return { success: false, error: 'users 문서 없음' };
+    }
+
+    const existingData = userDoc.data();
+    const existingSummary = existingData.writingSummary || [];
+
+    // 🚀 이미 writingSummary가 있으면 마이그레이션 하지 않음!
+    if (existingSummary.length > 0) {
+      console.log(`[마이그레이션] 이미 writingSummary 존재 (${existingSummary.length}개) - 스킵`);
+      return { success: true, migrated: false, reason: 'already_exists' };
+    }
+
+    // 🚀 forceRefresh=true로 캐시 무시하고 최신 데이터 조회
+    const writings = await getStudentWritings(studentId, true);
     if (writings.length === 0) return { success: true, migrated: false };
 
     // 🚀 달성글만 필터링 (미달성글은 요약에서 제외)
