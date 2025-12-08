@@ -1,5 +1,4 @@
 const {onCall, HttpsError} = require('firebase-functions/v2/https');
-const {onSchedule} = require('firebase-functions/v2/scheduler');
 const {defineSecret} = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const {GoogleGenerativeAI} = require('@google/generative-ai');
