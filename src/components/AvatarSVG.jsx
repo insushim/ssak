@@ -732,15 +732,16 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     // 단발 - 볼 정도 길이 (여성형 단발)
     short: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {gradientDefs}
         <defs>
           <linearGradient id="shortHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="50%" stopColor={color} />
+            <stop offset="50%" stopColor={baseColor} />
             <stop offset="100%" stopColor={darkerColor} />
           </linearGradient>
         </defs>
         {/* 머리 윗부분 볼륨 */}
-        <ellipse cx="60" cy="16" rx="48" ry="14" fill="url(#shortHairGrad)" />
+        <ellipse cx="60" cy="16" rx="48" ry="14" fill={isGradient ? fillColor : "url(#shortHairGrad)"} />
         {/* 뒤통수 */}
         <path d="M 12 22 Q 12 6 60 3 Q 108 6 108 22" fill={fillColor} />
         {/* 옆머리 - 볼까지 내려옴 */}
@@ -759,26 +760,27 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     // 긴머리 - 어깨까지
     long: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {gradientDefs}
         <defs>
           <linearGradient id="longHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="30%" stopColor={color} />
+            <stop offset="30%" stopColor={baseColor} />
             <stop offset="100%" stopColor={darkerColor} />
           </linearGradient>
           <linearGradient id="longHairSide" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="50%" stopColor={color} />
+            <stop offset="50%" stopColor={baseColor} />
             <stop offset="100%" stopColor={darkerColor} />
           </linearGradient>
         </defs>
         {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="15" rx="48" ry="13" fill="url(#longHairGrad)" />
+        <ellipse cx="60" cy="15" rx="48" ry="13" fill={isGradient ? fillColor : "url(#longHairGrad)"} />
         {/* 뒤통수 */}
         <path d="M 12 20 Q 10 5 60 2 Q 110 5 108 20" fill={fillColor} />
         {/* 왼쪽 긴 머리 */}
-        <path d="M 12 20 Q 2 45 5 80 Q 8 115 25 118 Q 35 115 32 90 L 28 55 Q 22 35 12 25 Z" fill="url(#longHairSide)" />
+        <path d="M 12 20 Q 2 45 5 80 Q 8 115 25 118 Q 35 115 32 90 L 28 55 Q 22 35 12 25 Z" fill={isGradient ? fillColor : "url(#longHairSide)"} />
         {/* 오른쪽 긴 머리 */}
-        <path d="M 108 20 Q 118 45 115 80 Q 112 115 95 118 Q 85 115 88 90 L 92 55 Q 98 35 108 25 Z" fill="url(#longHairSide)" />
+        <path d="M 108 20 Q 118 45 115 80 Q 112 115 95 118 Q 85 115 88 90 L 92 55 Q 98 35 108 25 Z" fill={isGradient ? fillColor : "url(#longHairSide)"} />
         {/* 앞머리 - 눈썹 위까지 */}
         <path d="M 22 28 Q 40 20 60 22 Q 80 20 98 28 Q 88 36 60 34 Q 32 36 22 28 Z" fill={fillColor} />
         {/* 머리카락 결 - 윤기 표현 */}
@@ -955,10 +957,11 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     // 엘프머리 - 뾰족한 귀 스타일의 긴 머리
     elf: (
       <svg width={size} height={size} viewBox="0 0 120 120">
+        {gradientDefs}
         <defs>
           <linearGradient id="elfHairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="50%" stopColor={color} />
+            <stop offset="50%" stopColor={baseColor} />
             <stop offset="100%" stopColor={darkerColor} />
           </linearGradient>
         </defs>
@@ -966,9 +969,9 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <ellipse cx="60" cy="15" rx="46" ry="13" fill={fillColor} />
         <path d="M 14 20 Q 12 6 60 3 Q 108 6 106 20" fill={fillColor} />
         {/* 왼쪽 긴 머리 - 뾰족하게 */}
-        <path d="M 14 20 Q 5 40 8 70 Q 5 100 2 118 Q 15 115 20 90 L 24 50 Q 20 35 14 25 Z" fill="url(#elfHairGrad)" />
+        <path d="M 14 20 Q 5 40 8 70 Q 5 100 2 118 Q 15 115 20 90 L 24 50 Q 20 35 14 25 Z" fill={isGradient ? fillColor : "url(#elfHairGrad)"} />
         {/* 오른쪽 긴 머리 - 뾰족하게 */}
-        <path d="M 106 20 Q 115 40 112 70 Q 115 100 118 118 Q 105 115 100 90 L 96 50 Q 100 35 106 25 Z" fill="url(#elfHairGrad)" />
+        <path d="M 106 20 Q 115 40 112 70 Q 115 100 118 118 Q 105 115 100 90 L 96 50 Q 100 35 106 25 Z" fill={isGradient ? fillColor : "url(#elfHairGrad)"} />
         {/* 앞머리 - 갈라진 스타일 */}
         <path d="M 24 26 Q 42 20 55 24 L 48 36 Q 35 34 24 30 Z" fill={fillColor} />
         <path d="M 96 26 Q 78 20 65 24 L 72 36 Q 85 34 96 30 Z" fill={fillColor} />
