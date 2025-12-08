@@ -893,17 +893,17 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     // 묶음머리 (번/상투)
     bun: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 머리 윗부분 */}
-        <ellipse cx="60" cy="22" rx="46" ry="14" fill={fillColor} />
-        <path d="M 14 25 Q 14 10 60 5 Q 106 10 106 25" fill={fillColor} />
+        {/* 머리 윗부분 - 위로 올림 */}
+        <ellipse cx="60" cy="12" rx="46" ry="14" fill={fillColor} />
+        <path d="M 14 15 Q 14 0 60 -5 Q 106 0 106 15" fill={fillColor} />
         {/* 번 (상투) - 위에 */}
-        <circle cx="60" cy="-2" r="18" fill={fillColor} />
-        <ellipse cx="60" cy="-4" rx="10" ry="8" fill={lighterColor} opacity="0.15" />
-        {/* 앞머리 */}
-        <path d="M 25 28 Q 42 22 60 24 Q 78 22 95 28 Q 85 36 60 34 Q 35 36 25 28 Z" fill={fillColor} />
+        <circle cx="60" cy="-12" r="18" fill={fillColor} />
+        <ellipse cx="60" cy="-14" rx="10" ry="8" fill={lighterColor} opacity="0.15" />
+        {/* 앞머리 - 눈썹 안 가리게 위로 */}
+        <path d="M 25 18 Q 42 12 60 14 Q 78 12 95 18 Q 85 26 60 24 Q 35 26 25 18 Z" fill={fillColor} />
         {/* 옆머리 */}
-        <path d="M 14 28 Q 8 40 10 55 L 18 52 Q 16 42 18 30 Z" fill={fillColor} />
-        <path d="M 106 28 Q 112 40 110 55 L 102 52 Q 104 42 102 30 Z" fill={fillColor} />
+        <path d="M 14 18 Q 8 30 10 45 L 18 42 Q 16 32 18 20 Z" fill={fillColor} />
+        <path d="M 106 18 Q 112 30 110 45 L 102 42 Q 104 32 102 20 Z" fill={fillColor} />
       </svg>
     ),
     // 공주머리 (웨이브 긴머리)
@@ -1013,21 +1013,27 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <circle cx="15" cy="90" r="1.5" fill="white" opacity="0.4" />
       </svg>
     ),
-    // 산타머리 - 산타 모자만 (머리카락 없음, 얼굴 안 가림)
+    // 산타머리 - 산타 모자 + 머리카락
     santa: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        {/* 산타 모자 - 훨씬 위로 올림 */}
-        <path d="M 20 18 Q 60 -30 100 18 Q 70 22 20 18" fill="#DC143C" />
-        <path d="M 92 10 Q 110 -5 118 15 Q 120 28 112 32" fill="#DC143C" />
-        {/* 모자 흰 테두리 - 머리 맨 위에 */}
-        <ellipse cx="60" cy="20" rx="44" ry="7" fill="white" />
+        {/* 머리카락 베이스 */}
+        <ellipse cx="60" cy="18" rx="46" ry="16" fill={fillColor} />
+        <path d="M 14 22 Q 14 8 60 5 Q 106 8 106 22" fill={fillColor} />
+        {/* 옆머리 */}
+        <path d="M 14 25 Q 8 38 10 52 L 18 50 Q 16 40 18 28 Z" fill={fillColor} />
+        <path d="M 106 25 Q 112 38 110 52 L 102 50 Q 104 40 102 28 Z" fill={fillColor} />
+        {/* 산타 모자 - 머리 위에 */}
+        <path d="M 20 15 Q 60 -25 100 15 Q 70 18 20 15" fill="#DC143C" />
+        <path d="M 92 8 Q 108 -8 116 12 Q 118 22 110 26" fill="#DC143C" />
+        {/* 모자 흰 테두리 */}
+        <ellipse cx="60" cy="16" rx="42" ry="6" fill="white" />
         {/* 모자 끝 폼폼 */}
-        <circle cx="115" cy="22" r="10" fill="white" />
+        <circle cx="113" cy="18" r="9" fill="white" />
         {/* 모자 하이라이트 */}
-        <path d="M 35 8 Q 55 -12 75 3" stroke="#FF6B6B" strokeWidth="4" opacity="0.4" fill="none" />
+        <path d="M 35 5 Q 55 -15 75 0" stroke="#FF6B6B" strokeWidth="3" opacity="0.4" fill="none" />
       </svg>
     ),
-    // 우주비행사 - 헬멧 (머리 맨 위에만, 얼굴 안 가림)
+    // 우주비행사 - 헬멧 (위로 올려서 눈썹 안 가림)
     astronaut: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         <defs>
@@ -1037,20 +1043,20 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
             <stop offset="100%" stopColor="#C0C0C0" />
           </linearGradient>
         </defs>
-        {/* 헬멧 외부 프레임 - 맨 위 반구만 */}
-        <path d="M 12 35 Q 12 -5 60 -8 Q 108 -5 108 35" fill="url(#helmetGrad)" />
+        {/* 헬멧 외부 프레임 - 위로 올림 */}
+        <path d="M 12 25 Q 12 -15 60 -18 Q 108 -15 108 25" fill="url(#helmetGrad)" />
         {/* 헬멧 아래 테두리 */}
-        <path d="M 12 35 Q 60 42 108 35" stroke="#808080" strokeWidth="3" fill="none" />
+        <path d="M 12 25 Q 60 32 108 25" stroke="#808080" strokeWidth="3" fill="none" />
         {/* 바이저 반사광 */}
-        <ellipse cx="40" cy="18" rx="15" ry="8" fill="white" opacity="0.3" />
+        <ellipse cx="40" cy="8" rx="15" ry="8" fill="white" opacity="0.3" />
         {/* 귀 부분 - 위쪽에 */}
-        <circle cx="10" cy="30" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
-        <circle cx="110" cy="30" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <circle cx="10" cy="20" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <circle cx="110" cy="20" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
         {/* 안테나 */}
-        <rect x="57" y="-15" width="4" height="12" fill="#808080" />
-        <circle cx="59" cy="-15" r="4" fill="#FF0000" />
+        <rect x="57" y="-25" width="4" height="12" fill="#808080" />
+        <circle cx="59" cy="-25" r="4" fill="#FF0000" />
         {/* 헬멧 라인 디테일 */}
-        <path d="M 25 32 Q 60 38 95 32" stroke="#A0A0A0" strokeWidth="1.5" fill="none" opacity="0.5" />
+        <path d="M 25 22 Q 60 28 95 22" stroke="#A0A0A0" strokeWidth="1.5" fill="none" opacity="0.5" />
       </svg>
     )
   };
