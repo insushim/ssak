@@ -662,29 +662,27 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
     }
   }
 
-  // 밝은 하이라이트 색상 계산
-  const getLighterColor = (c) => {
-    if (!c || c.includes('linear-gradient')) return '#888888';
-    if (c === '#1a1a1a') return '#4a4a4a';
-    if (c === '#4a3728') return '#7a5a48'; // 갈색
-    if (c === '#8B4513') return '#B8763F'; // 밤색
-    if (c === '#FFD700') return '#FFE44D'; // 금발
-    if (c === '#DC143C') return '#FF4D6D'; // 빨강
-    if (c === '#9370DB') return '#B8A2E8'; // 보라
-    if (c === '#4169E1') return '#7B9AEA'; // 파랑
-    return c;
+  // 색상을 어둡게/밝게 조정하는 헬퍼 함수
+  const adjustColor = (hex, percent) => {
+    if (!hex || hex.includes('linear-gradient')) return hex;
+    // hex -> RGB
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+    const num = parseInt(c, 16);
+    let r = (num >> 16) & 255;
+    let g = (num >> 8) & 255;
+    let b = num & 255;
+    // 조정
+    r = Math.min(255, Math.max(0, Math.round(r * (1 + percent))));
+    g = Math.min(255, Math.max(0, Math.round(g * (1 + percent))));
+    b = Math.min(255, Math.max(0, Math.round(b * (1 + percent))));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
   };
-  const lighterColor = getLighterColor(baseColor);
-  // 어두운 그림자 색상
-  const getDarkerColor = (c) => {
-    if (!c || c.includes('linear-gradient')) return '#333333';
-    if (c === '#1a1a1a') return '#000000';
-    if (c === '#4a3728') return '#2a1a10';
-    if (c === '#8B4513') return '#5C2E0D';
-    if (c === '#FFD700') return '#CC9900';
-    return '#1a1a1a';
-  };
-  const darkerColor = getDarkerColor(baseColor);
+
+  // 밝은 하이라이트 색상 계산 (30% 밝게)
+  const lighterColor = adjustColor(baseColor, 0.3);
+  // 어두운 그림자 색상 (30% 어둡게)
+  const darkerColor = adjustColor(baseColor, -0.3);
 
   // 그라데이션용 fill 값
   const fillColor = isGradient ? 'url(#hairGradientCustom)' : baseColor;
