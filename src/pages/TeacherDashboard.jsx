@@ -1461,54 +1461,67 @@ export default function TeacherDashboard({ user, userData }) {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 현재 출제된 과제 */}
                 <div className="bg-white shadow rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">출제된 과제 ({assignments.length})</h3>
-                    <span className="text-xs text-gray-400">※ 1주일 지난 과제는 자동 숨김</span>
-                  </div>
-                  {assignments.length === 0 ? (
-                    <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
-                  ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {[...assignments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((assignment) => {
-                        // 남은 일수 계산
-                        const createdAt = new Date(assignment.createdAt).getTime();
-                        const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
-                        const daysLeft = Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
+                  {(() => {
+                    // 만료되지 않은 과제만 필터링
+                    const activeAssignments = assignments.filter(assignment => {
+                      const createdAt = new Date(assignment.createdAt).getTime();
+                      const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
+                      return Date.now() < expiresAt;
+                    });
 
-                        return (
-                          <div key={assignment.id} className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                    daysLeft <= 2 ? 'bg-red-100 text-red-600' :
-                                    daysLeft <= 4 ? 'bg-yellow-100 text-yellow-600' :
-                                    'bg-green-100 text-green-600'
-                                  }`}>
-                                    {daysLeft}일 남음
-                                  </span>
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold">출제된 과제 ({activeAssignments.length})</h3>
+                          <span className="text-xs text-gray-400">※ 1주일 지난 과제는 자동 숨김</span>
+                        </div>
+                        {activeAssignments.length === 0 ? (
+                          <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
+                        ) : (
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {[...activeAssignments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((assignment) => {
+                              // 남은 일수 계산
+                              const createdAt = new Date(assignment.createdAt).getTime();
+                              const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
+                              const daysLeft = Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
+
+                              return (
+                                <div key={assignment.id} className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
+                                  <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                          daysLeft <= 2 ? 'bg-red-100 text-red-600' :
+                                          daysLeft <= 4 ? 'bg-yellow-100 text-yellow-600' :
+                                          'bg-green-100 text-green-600'
+                                        }`}>
+                                          {daysLeft}일 남음
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-600">{assignment.description}</p>
+                                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                                        <span>📅 {new Date(assignment.createdAt).toLocaleDateString()}</span>
+                                        {assignment.dueDate && (
+                                          <span className="text-orange-500">⏰ 마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleDeleteAssignment(assignment.id, assignment.title)}
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                                    >
+                                      🗑️ 삭제
+                                    </button>
+                                  </div>
                                 </div>
-                                <p className="text-sm text-gray-600">{assignment.description}</p>
-                                <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                                  <span>📅 {new Date(assignment.createdAt).toLocaleDateString()}</span>
-                                  {assignment.dueDate && (
-                                    <span className="text-orange-500">⏰ 마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleDeleteAssignment(assignment.id, assignment.title)}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                              >
-                                🗑️ 삭제
-                              </button>
-                            </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* AI 주제 자동 생성 */}

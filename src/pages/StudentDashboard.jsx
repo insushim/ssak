@@ -13,8 +13,7 @@ import {
   deleteDraft,
   getClassRanking,
   getWritingSummaryFromUserData,
-  getWritingDetail,
-  migrateWritingSummary
+  getWritingDetail
 } from "../services/writingService";
 import { getAssignmentsFromClassInfo, migrateAssignmentSummary } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
@@ -367,6 +366,10 @@ export default function StudentDashboard({ user, userData }) {
   const [completedAssignmentsCount, setCompletedAssignmentsCount] = useState(0);
   const [rewriteMode, setRewriteMode] = useState(null); // 고쳐쓰기 모드 - AI 제안 저장
 
+  // 🧪 테스트 모드 관련 state
+  const isTestStudent = userData.isTestStudent || false;
+  const [testScoreMode, setTestScoreMode] = useState(null); // null: 일반, 'pass': 도달점수, 'fail': 미달점수
+
   // 실시간 조언 관련 state
   const [quickAdvice, setQuickAdvice] = useState(null);
   const [loadingQuickAdvice, setLoadingQuickAdvice] = useState(false);
@@ -445,7 +448,8 @@ export default function StudentDashboard({ user, userData }) {
   const [nicknameAlertInput, setNicknameAlertInput] = useState('');
 
   useEffect(() => {
-    loadData();
+    // 🚀 초기 로드 및 새로고침 시에는 DB에서 최신 데이터 가져옴
+    loadData(true);
     // 음성 인식 지원 확인
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       setSpeechSupported(true);
@@ -633,6 +637,9 @@ export default function StudentDashboard({ user, userData }) {
   };
 
   // 음성 인식 초기화
+  const isListeningRef = useRef(false); // 클로저 문제 해결용
+  const interimTranscriptRef = useRef(''); // 중간 결과 저장용
+
   const initSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -640,19 +647,35 @@ export default function StudentDashboard({ user, userData }) {
       recognition.lang = 'ko-KR';
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 3; // 여러 대안 중 최적 선택
 
       recognition.onresult = (event) => {
         let finalTranscript = '';
         let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
+          // 가장 신뢰도 높은 결과 선택
+          const result = event.results[i];
+          let bestTranscript = result[0].transcript;
+          let bestConfidence = result[0].confidence || 0;
+
+          // 대안들 중 더 높은 신뢰도 찾기
+          for (let j = 1; j < result.length; j++) {
+            if (result[j].confidence > bestConfidence) {
+              bestConfidence = result[j].confidence;
+              bestTranscript = result[j].transcript;
+            }
+          }
+
+          if (result.isFinal) {
+            finalTranscript += bestTranscript;
           } else {
-            interimTranscript += transcript;
+            interimTranscript += bestTranscript;
           }
         }
+
+        // 중간 결과 저장 (UI 표시용)
+        interimTranscriptRef.current = interimTranscript;
 
         if (finalTranscript) {
           setCurrentWriting(prev => ({
@@ -660,17 +683,32 @@ export default function StudentDashboard({ user, userData }) {
             content: prev.content + finalTranscript,
             wordCount: (prev.content + finalTranscript).replace(/\s/g, "").length
           }));
+          interimTranscriptRef.current = ''; // 확정되면 중간 결과 클리어
         }
       };
 
       recognition.onerror = (event) => {
         console.error('음성 인식 에러:', event.error);
+        // no-speech 에러는 무시하고 계속 듣기
+        if (event.error === 'no-speech') {
+          return;
+        }
+        // aborted는 사용자가 중단한 것이므로 무시
+        if (event.error === 'aborted') {
+          return;
+        }
         setIsListening(false);
+        isListeningRef.current = false;
       };
 
       recognition.onend = () => {
-        if (isListening) {
-          recognition.start();
+        // ref를 사용해 현재 상태 정확히 확인
+        if (isListeningRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.log('음성 인식 재시작 실패:', e);
+          }
         }
       };
 
@@ -686,11 +724,19 @@ export default function StudentDashboard({ user, userData }) {
     }
 
     if (isListening) {
+      isListeningRef.current = false;
       recognitionRef.current?.stop();
       setIsListening(false);
+      interimTranscriptRef.current = '';
     } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
+      isListeningRef.current = true;
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error('음성 인식 시작 실패:', e);
+        isListeningRef.current = false;
+      }
     }
   };
 
@@ -798,7 +844,8 @@ export default function StudentDashboard({ user, userData }) {
 
   // 🚀 최적화: writings 컬렉션 쿼리 완전 제거! (DB 읽기 76회 → 0회)
   // users 문서의 writingSummary에서 글 목록 가져오기
-  const loadData = async () => {
+  // 🚀 forceRefresh: true면 DB에서 최신 데이터, false면 로컬 userData 사용
+  const loadData = async (forceRefresh = false) => {
     try {
       let studentWritings = [];
       let studentStats = null;
@@ -806,39 +853,43 @@ export default function StudentDashboard({ user, userData }) {
       let classAssignments = [];
 
       // 1. 🚀 users 문서에서 글 요약 가져오기
-      // v4: 미달성글 삭제 + 달성글만 저장 마이그레이션
       let currentUserData = userData;
-      const migrationKey = `writingSummary_v4_${user.uid}`;
-      const needsMigration = !userData.writingSummary ||
-        userData.writingSummary.length === 0 ||
-        !localStorage.getItem(migrationKey);
 
-      if (needsMigration) {
+      // 새로고침 시에만 DB에서 최신 데이터 가져옴 (비용 절약!)
+      if (forceRefresh) {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('../config/firebase');
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          currentUserData = userDoc.data();
+          console.log(`[📊 DB읽기] users 문서 새로고침 - writingSummary 개수: ${currentUserData.writingSummary?.length || 0}`);
+          console.log(`[📊 DB읽기] writingSummary 내용:`, currentUserData.writingSummary);
+        }
+      }
+
+      // 🚀 v6: 마이그레이션 완전 제거 - 이미 존재하는 writingSummary를 절대 덮어쓰지 않음
+      // writingSummary가 있으면 그대로 사용, 없으면 빈 배열로 초기화
+      const hasWritingSummary = currentUserData.writingSummary && Array.isArray(currentUserData.writingSummary);
+
+      console.log(`[loadData] writingSummary 상태: ${hasWritingSummary ? `${currentUserData.writingSummary.length}개 있음` : '없음'}`);
+
+      // writingSummary가 없는 경우에만 초기화 (마이그레이션 없이 빈 배열로)
+      if (!hasWritingSummary) {
+        console.log('[loadData] writingSummary 없음 - 빈 배열로 초기화');
+        currentUserData.writingSummary = [];
+        // DB에도 빈 배열 저장 (다음 로드 시 초기화 반복 방지)
         try {
-          console.log('[마이그레이션 v4] 미달성글 삭제 + 달성글만 저장');
-          const result = await migrateWritingSummary(user.uid);
-          if (result.migrated && result.count >= 0) {
-            console.log(`[마이그레이션 v4] 달성글 ${result.count}개만 저장 완료`);
-            // 🚀 마이그레이션 후 새 데이터 가져오기 (1회 읽기)
-            const { doc, getDoc } = await import('firebase/firestore');
-            const { db } = await import('../config/firebase');
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-              currentUserData = userDoc.data();
-            }
-            localStorage.setItem(migrationKey, 'true');
-          } else {
-            console.log('[마이그레이션 v4] 글 없음 - 스킵');
-            localStorage.setItem(migrationKey, 'true');
-          }
+          const { doc, updateDoc } = await import('firebase/firestore');
+          const { db } = await import('../config/firebase');
+          await updateDoc(doc(db, 'users', user.uid), { writingSummary: [] });
         } catch (e) {
-          console.warn('writingSummary 마이그레이션 실패:', e);
+          console.warn('writingSummary 초기화 저장 실패:', e);
         }
       }
 
       // 🚀 userData에서 글 요약 추출 (DB 읽기 0회!)
       studentWritings = getWritingSummaryFromUserData(currentUserData);
-      console.log(`[📊 캐시] 글 ${studentWritings.length}개 - userData.writingSummary에서 로드 (DB 읽기 0회)`);
+      console.log(`[📊 캐시] 글 ${studentWritings.length}개 - userData에서 로드`);
 
       // 2. 🚀 통계는 userData에서 계산 (writingSummary 기반 - DB 읽기 0회!)
       // studentStats 컬렉션은 제출 시에만 업데이트하고, 로그인 시에는 writingSummary에서 계산
@@ -898,8 +949,15 @@ export default function StudentDashboard({ user, userData }) {
         }
 
         // 🚀 classes 문서의 assignmentSummary에서 과제 목록 추출 (DB 읽기 0회!)
-        classAssignments = getAssignmentsFromClassInfo(cls);
-        console.log(`[📊 최적화] 과제 ${classAssignments.length}개 - classes 문서에서 로드 (DB 읽기 0회)`);
+        const allClassAssignments = getAssignmentsFromClassInfo(cls);
+
+        // 만료되지 않은 과제만 필터링 (생성일 기준 7일 이내)
+        classAssignments = allClassAssignments.filter(assignment => {
+          const createdAt = new Date(assignment.createdAt).getTime();
+          const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
+          return Date.now() < expiresAt;
+        });
+        console.log(`[📊 최적화] 과제 ${classAssignments.length}개 (만료 제외) - classes 문서에서 로드 (DB 읽기 0회)`);
 
         // 목표에 도달한 과제 필터링
         console.log('[과제 필터링] 전체 과제:', classAssignments.map(a => ({ title: a.title, minScore: a.minScore })));
@@ -1133,6 +1191,28 @@ export default function StudentDashboard({ user, userData }) {
       return;
     }
 
+    // 🚀 고쳐쓰기 모드: 최소 10글자 이상 변경해야 제출 가능
+    if (rewriteMode && rewriteMode.originalContent) {
+      const original = rewriteMode.originalContent.replace(/\s/g, '');
+      const current = currentWriting.content.replace(/\s/g, '');
+
+      // 글자 수 차이 계산
+      const lengthDiff = Math.abs(current.length - original.length);
+
+      // 내용 변경량 계산 (간단한 방식: 다른 글자 수)
+      let changedChars = 0;
+      const minLen = Math.min(original.length, current.length);
+      for (let i = 0; i < minLen; i++) {
+        if (original[i] !== current[i]) changedChars++;
+      }
+      changedChars += Math.abs(original.length - current.length);
+
+      if (changedChars < 10) {
+        alert("고쳐쓰기 모드에서는 수정을 해야 제출할 수 있습니다.");
+        return;
+      }
+    }
+
     if (!confirm("글을 제출하시겠습니까? 제출 후 AI가 분석합니다.")) return;
 
     setIsSubmitting(true);
@@ -1147,7 +1227,8 @@ export default function StudentDashboard({ user, userData }) {
         currentWriting,
         !!rewriteMode,
         classCode,
-        userData
+        userData,
+        testScoreMode // 🧪 테스트 모드 점수 (null, 'pass', 'fail')
       );
 
       // 과제별 기준점수 (과제가 아니면 기본 PASSING_SCORE 사용)
@@ -1190,6 +1271,10 @@ export default function StudentDashboard({ user, userData }) {
       }
 
       // 글 초기화 (피드백은 유지)
+      // 🚀 주의: setSelectedTopic(null)을 먼저 해야 피드백 화면이 표시됨
+      setSelectedTopic(null);
+      setAiHelp(null);
+      setRewriteMode(null); // 고쳐쓰기 모드 종료
       setCurrentWriting({
         topic: "",
         content: "",
@@ -1197,11 +1282,19 @@ export default function StudentDashboard({ user, userData }) {
         gradeLevel: userData.gradeLevel,
         studentName: userData.name
       });
-      setSelectedTopic(null);
-      setAiHelp(null);
-      setRewriteMode(null); // 고쳐쓰기 모드 종료
 
-      loadData();
+      // 🚀 제출 성공 시 writings 목록에 새 글 추가 (loadData 호출하지 않음 - 피드백 화면 유지!)
+      // loadData()를 호출하면 비동기 처리 중 피드백 화면이 깜빡이거나 사라질 수 있음
+      if (!result.notSaved) {
+        setWritings(prev => [...prev, {
+          writingId: result.writingId,
+          topic: result.topic,
+          score: result.score,
+          submittedAt: result.submittedAt,
+          wordCount: result.wordCount,
+          minScore: result.minScore || requiredScore
+        }]);
+      }
 
       // 🚀 비용 최적화: 글 제출 후 랭킹 새로고침 제거 (랭킹 탭에서만 로드)
     } catch (error) {
@@ -2429,6 +2522,55 @@ export default function StudentDashboard({ user, userData }) {
                       )}
                     </div>
 
+                    {/* 🧪 테스트 학생 점수 선택 UI */}
+                    {isTestStudent && (
+                      <div className="mt-2 p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">🧪</span>
+                          <span className="font-bold text-yellow-700">테스트 모드</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setTestScoreMode(null)}
+                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                              testScoreMode === null
+                                ? 'bg-gray-700 text-white'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            일반 제출
+                          </button>
+                          <button
+                            onClick={() => setTestScoreMode('pass')}
+                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                              testScoreMode === 'pass'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'
+                            }`}
+                          >
+                            ✅ 도달 점수
+                          </button>
+                          <button
+                            onClick={() => setTestScoreMode('fail')}
+                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                              testScoreMode === 'fail'
+                                ? 'bg-red-600 text-white'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
+                          >
+                            ❌ 미달 점수
+                          </button>
+                        </div>
+                        {testScoreMode && (
+                          <p className="mt-2 text-sm text-yellow-600">
+                            {testScoreMode === 'pass'
+                              ? '📌 제출 시 기준점수 이상의 점수로 저장됩니다.'
+                              : '📌 제출 시 기준점수 미만의 점수로 저장됩니다.'}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* 제출/취소 버튼 */}
                     <div className="mt-2 flex space-x-2">
                       <button
@@ -2436,7 +2578,7 @@ export default function StudentDashboard({ user, userData }) {
                         disabled={isSubmitting || !currentWriting.content}
                         className="flex-1 bg-indigo-500 text-white px-6 py-3 rounded font-semibold hover:bg-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
-                        {isSubmitting ? "AI 분석 중..." : "제출하기"}
+                        {isSubmitting ? "AI 분석 중..." : (isTestStudent && testScoreMode ? `🧪 테스트 제출 (${testScoreMode === 'pass' ? '도달' : '미달'})` : "제출하기")}
                       </button>
                       <button
                         onClick={() => {
@@ -2831,12 +2973,13 @@ export default function StudentDashboard({ user, userData }) {
                               studentName: userData.name,
                               previousScore: feedback.score  // 🚀 이전 점수 저장 (AI 고쳐쓰기 보너스용)
                             });
-                            // 고쳐쓰기 모드 - AI 제안 저장 (minScore 포함)
+                            // 고쳐쓰기 모드 - AI 제안 저장 (minScore + 원본 내용 포함)
                             setRewriteMode({
                               detailedFeedback: feedback.detailedFeedback || [],
                               improvements: feedback.improvements || [],
                               score: feedback.score,
-                              minScore: submittedWriting.minScore || PASSING_SCORE
+                              minScore: submittedWriting.minScore || PASSING_SCORE,
+                              originalContent: submittedWriting.content // 🚀 원본 내용 저장 (고쳐쓰기 검증용)
                             });
                             // 피드백 닫기
                             setFeedback(null);

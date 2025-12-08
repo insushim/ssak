@@ -1,18 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updateUserData } from '../services/authService';
+import { updateUserData, getUserData } from '../services/authService';
 import { auth } from '../config/firebase';
 import { ROLES } from '../config/auth';
 
 export default function RoleSelection() {
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
+
+  // 🚀 페이지 로드 시 기존 역할 확인
+  useEffect(() => {
+    const checkExistingRole = async () => {
+      try {
+        if (auth.currentUser) {
+          const existingData = await getUserData(auth.currentUser.uid);
+          // 이미 학생이면 학생 페이지로 이동
+          if (existingData?.role === ROLES.STUDENT) {
+            alert('이미 학생 계정이 있습니다. 학생 페이지로 이동합니다.');
+            navigate('/student');
+            return;
+          }
+          // 이미 선생님이면 홈으로 이동
+          if (existingData?.role === ROLES.TEACHER) {
+            navigate('/');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('역할 확인 에러:', error);
+      } finally {
+        setChecking(false);
+      }
+    };
+    checkExistingRole();
+  }, [navigate]);
 
   // 선생님으로 바로 가입 (학생은 교사가 일괄 생성)
   const handleTeacherSignup = async () => {
     setLoading(true);
 
     try {
+      // 🚀 다시 한번 기존 역할 확인 (동시 요청 방지)
+      const existingData = await getUserData(auth.currentUser.uid);
+      if (existingData?.role === ROLES.STUDENT) {
+        alert('이미 학생 계정이 있습니다. 선생님으로 변경할 수 없습니다.');
+        navigate('/student');
+        return;
+      }
+
       await updateUserData(auth.currentUser.uid, {
         role: ROLES.TEACHER,
         gradeLevel: null,
@@ -27,6 +63,14 @@ export default function RoleSelection() {
       setLoading(false);
     }
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+        <div className="text-white text-xl">확인 중...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 py-12 px-4 sm:px-6 lg:px-8">

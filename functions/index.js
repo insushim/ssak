@@ -456,6 +456,110 @@ exports.resetStudentPassword = onCall(async (request) => {
   }
 });
 
+// 🚀 글쓰기 품질 검사 함수 (반복문장, 무의미한 글 감지)
+function checkWritingQuality(text) {
+  // 1. 한글 자음/모음만 있는 무의미한 글 감지
+  const koreanJamoPattern = /[ㄱ-ㅎㅏ-ㅣ]{5,}/g;
+  const jamoMatches = text.match(koreanJamoPattern) || [];
+  const totalJamoLength = jamoMatches.reduce((sum, m) => sum + m.length, 0);
+  if (totalJamoLength > text.length * 0.3) {
+    return {
+      isInvalid: true,
+      reason: '무의미한 자음/모음 반복',
+      feedback: '의미있는 문장으로 글을 작성해주세요. 자음이나 모음만 나열하면 글이 될 수 없어요.',
+      improvement: '완성된 글자와 문장으로 자신의 생각을 표현해보세요.'
+    };
+  }
+
+  // 2. 알파벳/숫자 무의미 나열 감지
+  const nonsensePattern = /[a-zA-Z0-9ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔㅁㄴㅇㄹㅎㅗㅓㅏㅣㅋㅌㅊㅍㅠㅜㅡ]{10,}/g;
+  const nonsenseMatches = text.match(nonsensePattern) || [];
+  const totalNonsenseLength = nonsenseMatches.reduce((sum, m) => sum + m.length, 0);
+  if (totalNonsenseLength > text.length * 0.4) {
+    return {
+      isInvalid: true,
+      reason: '무의미한 문자 나열',
+      feedback: '의미있는 한글 문장으로 글을 작성해주세요.',
+      improvement: '주제에 맞는 내용을 생각하며 차근차근 써보세요.'
+    };
+  }
+
+  // 3. 문장 단위 반복 감지
+  const sentences = text.split(/[.!?。]\s*/).filter(s => s.trim().length > 5);
+  if (sentences.length >= 3) {
+    const sentenceCount = {};
+    sentences.forEach(s => {
+      const normalized = s.trim().replace(/\s+/g, ' ');
+      sentenceCount[normalized] = (sentenceCount[normalized] || 0) + 1;
+    });
+
+    // 같은 문장이 3번 이상 반복되는지 체크
+    const repeatedSentences = Object.entries(sentenceCount).filter(([_, count]) => count >= 3);
+    const totalRepeated = repeatedSentences.reduce((sum, [_, count]) => sum + count, 0);
+
+    if (totalRepeated > sentences.length * 0.5) {
+      return {
+        isInvalid: true,
+        reason: '동일 문장 과도한 반복',
+        feedback: '같은 문장을 반복하지 말고, 다양한 내용으로 글을 채워주세요.',
+        improvement: '각 문장마다 새로운 내용이나 생각을 담아보세요.'
+      };
+    }
+  }
+
+  // 4. 짧은 구절/패턴 반복 감지 (예: "~을 알고요" 반복)
+  const shortPatterns = text.match(/(.{4,20})[.!?,]?\s*/g) || [];
+  if (shortPatterns.length >= 5) {
+    const patternCount = {};
+    shortPatterns.forEach(p => {
+      const normalized = p.trim().replace(/\s+/g, ' ');
+      if (normalized.length >= 4) {
+        patternCount[normalized] = (patternCount[normalized] || 0) + 1;
+      }
+    });
+
+    const mostRepeated = Object.entries(patternCount).sort((a, b) => b[1] - a[1])[0];
+    if (mostRepeated && mostRepeated[1] >= 5 && mostRepeated[1] > shortPatterns.length * 0.3) {
+      return {
+        isInvalid: true,
+        reason: `"${mostRepeated[0].substring(0, 20)}..." 패턴 ${mostRepeated[1]}회 반복`,
+        feedback: `같은 표현("${mostRepeated[0].substring(0, 15)}...")을 너무 많이 반복했어요. 다양한 문장으로 표현해보세요.`,
+        improvement: '같은 말을 반복하지 말고, 각각 다른 내용과 표현으로 써보세요.'
+      };
+    }
+  }
+
+  // 5. 유니크한 단어 비율 체크 (다양성)
+  const words = text.match(/[가-힣a-zA-Z]+/g) || [];
+  if (words.length >= 20) {
+    const uniqueWords = new Set(words.map(w => w.toLowerCase()));
+    const diversityRatio = uniqueWords.size / words.length;
+
+    if (diversityRatio < 0.25) { // 유니크 단어가 25% 미만이면
+      return {
+        isInvalid: true,
+        reason: `단어 다양성 매우 부족 (${Math.round(diversityRatio * 100)}%)`,
+        feedback: '같은 단어를 너무 많이 반복하고 있어요. 다양한 단어를 사용해보세요.',
+        improvement: '비슷한 뜻의 다른 단어들도 찾아서 사용해보세요.'
+      };
+    }
+  }
+
+  // 6. 의미있는 한글 비율 체크
+  const koreanChars = (text.match(/[가-힣]/g) || []).length;
+  const totalChars = text.replace(/\s/g, '').length;
+  if (totalChars > 20 && koreanChars / totalChars < 0.5) {
+    return {
+      isInvalid: true,
+      reason: '한글 비율 부족',
+      feedback: '한글로 된 의미있는 문장을 작성해주세요.',
+      improvement: '주제에 대한 자신의 생각을 한글 문장으로 표현해보세요.'
+    };
+  }
+
+  return { isInvalid: false };
+}
+
 // Analyze writing using Gemini AI - 격려 중심 평가
 exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
@@ -467,6 +571,28 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
 
   if (!text || !topic) {
     throw new HttpsError('invalid-argument', '텍스트와 주제가 필요합니다.');
+  }
+
+  // 🚀 서버 측 무의미한 글 감지 (AI 호출 전에 체크)
+  const qualityCheck = checkWritingQuality(text);
+  if (qualityCheck.isInvalid) {
+    console.log(`[무의미한 글 감지] 사유: ${qualityCheck.reason}`);
+    return {
+      score: 0,
+      contentScore: 0,
+      topicRelevanceScore: 0,
+      structureScore: 0,
+      vocabularyScore: 0,
+      grammarScore: 0,
+      creativityScore: 0,
+      feedback: qualityCheck.feedback,
+      strengths: [],
+      improvements: [qualityCheck.improvement],
+      overallFeedback: qualityCheck.feedback,
+      writingTips: ['주제에 맞는 의미있는 내용을 작성해보세요.', '같은 말을 반복하지 말고 다양한 문장으로 표현해보세요.'],
+      detailedFeedback: [],
+      qualityPenalty: qualityCheck.reason
+    };
   }
 
   try {
@@ -488,34 +614,31 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
 
     const gradeName = gradeLevelNames[gradeLevel] || gradeLevel;
 
-    // 🚀 고쳐쓰기 모드 - AI가 개선 여부 판단
+    // 🚀 고쳐쓰기 모드 - 학생의 노력을 인정하여 점수 상승
     const rewriteInfo = isRewrite && previousScore !== null
-      ? `\n\n**🔄 고쳐쓰기 모드**
+      ? `\n\n**🔄 고쳐쓰기 모드 - 반드시 점수 상승!**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 이 학생은 이전 글(${previousScore}점)을 수정하여 다시 제출했습니다.
 
-📌 평가 기준:
-1. 글이 실제로 개선되었는지 꼼꼼히 확인하세요
-2. 개선된 부분이 있다면 그에 맞게 점수를 올려주세요
-3. 개선이 없거나 오히려 나빠졌다면 점수를 올리지 마세요
+⭐️ 핵심 원칙: 고쳐쓰기는 학생의 노력을 인정하여 **반드시 점수를 올려주세요!**
+학생이 피드백을 받고 다시 노력했다는 것 자체가 칭찬받을 일입니다.
 
-✅ 개선으로 인정되는 경우:
-- 글자 수가 의미있게 늘어남 (단순 반복 제외)
-- 새로운 내용이나 아이디어가 추가됨
-- 문장이 더 자연스럽게 다듬어짐
-- 맞춤법/문법 오류가 수정됨
-- 구성이 더 논리적으로 바뀜
+🎯 점수 산정 (필수!):
+- 최소 점수: ${previousScore + 3}점 (이전 점수 + 3점 이상)
+- 권장 점수: ${previousScore + 5}점 ~ ${previousScore + 12}점
+- 내용이 조금이라도 추가/수정되었다면: +5점 ~ +10점
+- 문법/맞춤법이 개선되었다면: +3점 ~ +5점 추가
+- 구성이 개선되었다면: +3점 ~ +5점 추가
 
-❌ 개선으로 인정되지 않는 경우:
-- 같은 내용을 단순 반복하여 글자 수만 늘림
-- 의미없는 문장 추가
-- 내용이 오히려 산만해짐
-- 거의 변화가 없음
+📌 평가 시 주의사항:
+1. 고쳐쓰기한 글은 무조건 이전 점수(${previousScore}점)보다 높게 평가하세요
+2. 학생이 다시 시도한 노력 자체를 인정해주세요
+3. 작은 개선이라도 긍정적으로 평가하세요
+4. 점수가 떨어지면 학생이 의욕을 잃습니다!
 
-🎯 점수 산정:
-- 실제로 개선되었다면: 이전 점수보다 5~15점 상승
-- 변화가 거의 없다면: 이전 점수와 비슷하게
-- 오히려 나빠졌다면: 이전 점수보다 낮게
+❌ 점수를 올리지 않아도 되는 유일한 경우:
+- 이전 글과 완전히 동일한 내용 (복사-붙여넣기)
+- 무의미한 문자 반복으로만 채움
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
       : '';
 
@@ -680,13 +803,29 @@ ${text}
       }
     }
 
-    // 🚀 고쳐쓰기 모드: AI 평가 결과 로깅 (강제 보정 없음 - AI가 개선 여부 판단)
+    // 🚀 고쳐쓰기 모드: 점수가 떨어지면 강제로 올려줌!
     if (isRewrite && previousScore !== null) {
+      const originalAiScore = parsed.score;
       const scoreDiff = parsed.score - previousScore;
-      console.log(`[고쳐쓰기] 이전: ${previousScore}점 → 현재: ${parsed.score}점 (${scoreDiff >= 0 ? '+' : ''}${scoreDiff}점)`);
+
+      // 점수가 떨어졌거나 같으면 강제로 올려줌 (최소 +3점)
+      if (parsed.score <= previousScore) {
+        const minBonus = 3;
+        const maxBonus = 8;
+        // 이전 점수에 따라 보너스 조정 (높을수록 보너스 적게)
+        const bonus = previousScore >= 85 ? minBonus :
+                      previousScore >= 75 ? minBonus + 2 :
+                      previousScore >= 65 ? minBonus + 3 :
+                      maxBonus;
+        parsed.score = Math.min(100, previousScore + bonus);
+        console.log(`[고쳐쓰기 보정] AI점수(${originalAiScore}) <= 이전점수(${previousScore}) → 강제 상승: ${parsed.score}점 (+${bonus})`);
+      } else {
+        console.log(`[고쳐쓰기] 이전: ${previousScore}점 → 현재: ${parsed.score}점 (+${scoreDiff}점)`);
+      }
+
       parsed.isRewrite = true;
       parsed.previousScore = previousScore;
-      parsed.scoreDiff = scoreDiff;
+      parsed.scoreDiff = parsed.score - previousScore;
     }
 
     return parsed;

@@ -402,6 +402,29 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
   };
 
+  // 🧪 테스트 학생 지정/해제
+  const handleToggleTestStudent = async (userId, currentIsTest) => {
+    const newIsTest = !currentIsTest;
+    const message = newIsTest
+      ? '이 학생을 테스트 학생으로 지정하시겠습니까?\n\n테스트 학생은 글 제출 시 점수를 직접 선택할 수 있습니다.'
+      : '테스트 학생 지정을 해제하시겠습니까?';
+
+    if (!confirm(message)) return;
+
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        isTestStudent: newIsTest
+      });
+      alert(newIsTest ? '🧪 테스트 학생으로 지정되었습니다.' : '테스트 학생 지정이 해제되었습니다.');
+      if (selectedClass) {
+        loadClassStudents(selectedClass);
+      }
+    } catch (error) {
+      console.error("테스트 학생 지정 에러:", error);
+      alert("테스트 학생 지정에 실패했습니다.");
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut();
@@ -788,6 +811,17 @@ ${result.data.message}`);
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex space-x-2">
+                                          <button
+                                            onClick={() => handleToggleTestStudent(student.id, student.isTestStudent)}
+                                            className={`px-3 py-1.5 border rounded-lg transition-colors font-medium shadow-sm ${
+                                              student.isTestStudent
+                                                ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200'
+                                                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                                            }`}
+                                            title={student.isTestStudent ? '테스트 모드 해제' : '테스트 학생 지정'}
+                                          >
+                                            {student.isTestStudent ? '🧪 테스트' : '테스트'}
+                                          </button>
                                           <button
                                             onClick={() => handleUpdateUserRole(student.id, student.role)}
                                             className="px-3 py-1.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-200 transition-colors font-medium shadow-sm"
