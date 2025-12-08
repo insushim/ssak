@@ -405,7 +405,7 @@ export default function StudentDashboard({ user, userData }) {
   });
   const [shopCategory, setShopCategory] = useState('avatar');
   const [avatarTab, setAvatarTab] = useState('faces');
-  const [showPassedWritings, setShowPassedWritings] = useState(false); // 달성 글 펼침 상태
+  const [showPassedWritings, setShowPassedWritings] = useState(true); // 달성 글 펼침 상태 (기본: 펼침)
   // 아바타 미리보기 상태
   const [previewItem, setPreviewItem] = useState(null); // { item, category }
   const [previewEquipped, setPreviewEquipped] = useState(null); // 미리보기용 임시 장착 상태

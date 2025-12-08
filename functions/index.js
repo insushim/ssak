@@ -1,4 +1,5 @@
 const {onCall, HttpsError} = require('firebase-functions/v2/https');
+const {onSchedule} = require('firebase-functions/v2/scheduler');
 const {defineSecret} = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const {GoogleGenerativeAI} = require('@google/generative-ai');
@@ -2204,3 +2205,237 @@ exports.migrateMinScoreTo70 = onCall(async (request) => {
     throw new HttpsError('internal', error.message);
   }
 });
+
+// ============================================
+// 🚀 자동 출제 스케줄러 (매일 아침 8시 실행 - 선생님 접속 필요 없음)
+// ============================================
+exports.autoAssignmentScheduler = onSchedule({
+  schedule: '0 8 * * 1-5', // 월-금 매일 오전 8시 (KST)
+  timeZone: 'Asia/Seoul',
+  secrets: [geminiApiKey]
+}, async (event) => {
+  console.log('[자동 출제 스케줄러] 실행 시작:', new Date().toISOString());
+
+  try {
+    // 1. 활성화된 스케줄러 설정이 있는 학급 조회
+    const schedulersSnapshot = await db.collection('schedulers')
+      .where('enabled', '==', true)
+      .get();
+
+    if (schedulersSnapshot.empty) {
+      console.log('[자동 출제 스케줄러] 활성화된 스케줄러 없음');
+      return;
+    }
+
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = 일요일
+
+    // 한국 시간 기준 오늘 날짜
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const kstDate = new Date(now.getTime() + kstOffset);
+    const today = kstDate.toISOString().split('T')[0];
+    const todayStartUTC = new Date(`${today}T00:00:00+09:00`).toISOString();
+    const todayEndUTC = new Date(`${today}T23:59:59+09:00`).toISOString();
+
+    let processedCount = 0;
+    let successCount = 0;
+    let skipCount = 0;
+
+    for (const schedulerDoc of schedulersSnapshot.docs) {
+      const settings = schedulerDoc.data();
+      const classCode = schedulerDoc.id;
+
+      processedCount++;
+      console.log(`[자동 출제] 학급 ${classCode} 처리 중...`);
+
+      // 요일 확인
+      if (!settings.selectedDays || !settings.selectedDays.includes(currentDay)) {
+        console.log(`[자동 출제] ${classCode}: 오늘(${currentDay})은 출제 요일 아님`);
+        skipCount++;
+        continue;
+      }
+
+      // 오늘 이미 출제되었는지 확인
+      const logsQuery = await db.collection('autoAssignmentLogs')
+        .where('classCode', '==', classCode)
+        .where('createdAt', '>=', todayStartUTC)
+        .where('createdAt', '<=', todayEndUTC)
+        .get();
+
+      if (!logsQuery.empty) {
+        console.log(`[자동 출제] ${classCode}: 오늘 이미 출제됨`);
+        skipCount++;
+        continue;
+      }
+
+      // 학급 정보 조회 (gradeLevel, teacherId 필요)
+      const classDoc = await db.collection('classes').doc(classCode).get();
+      if (!classDoc.exists) {
+        console.log(`[자동 출제] ${classCode}: 학급 정보 없음`);
+        skipCount++;
+        continue;
+      }
+
+      const classData = classDoc.data();
+      const gradeLevel = classData.gradeLevel || 'elementary_3';
+      const teacherId = classData.teacherId;
+
+      if (!teacherId) {
+        console.log(`[자동 출제] ${classCode}: 담당 선생님 없음`);
+        skipCount++;
+        continue;
+      }
+
+      try {
+        // AI로 주제 생성
+        const assignment = await generateAutoAssignmentInternal(
+          classCode,
+          gradeLevel,
+          teacherId,
+          settings
+        );
+
+        console.log(`[자동 출제] ${classCode}: "${assignment.title}" 출제 완료`);
+        successCount++;
+      } catch (err) {
+        console.error(`[자동 출제] ${classCode}: 에러 -`, err.message);
+      }
+    }
+
+    console.log(`[자동 출제 스케줄러] 완료 - 처리: ${processedCount}, 성공: ${successCount}, 스킵: ${skipCount}`);
+  } catch (error) {
+    console.error('[자동 출제 스케줄러] 에러:', error);
+  }
+});
+
+// 내부용 자동 출제 함수 (스케줄러에서 사용)
+async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, settings) {
+  // 이전 과제 제목들 가져오기
+  const classDoc = await db.collection('classes').doc(classCode).get();
+  const classData = classDoc.data() || {};
+  const assignmentSummary = classData.assignmentSummary || [];
+  const previousTitles = assignmentSummary.map(a => a.title);
+
+  // 글쓰기 유형 목록
+  const writingTypes = [
+    '주장하는 글', '설명하는 글', '묘사하는 글', '서사/이야기',
+    '편지', '일기', '감상문', '상상글',
+    '기사문', '인터뷰', '비교/대조', '문제해결',
+    '광고/홍보', '보고서', '시/운문', '토론/논쟁'
+  ];
+
+  // 분야 목록
+  const categories = ['가족', '학교', '친구', '환경', '동물', '꿈/미래', '여행', '취미', '계절/날씨', '음식', '과학', '스포츠', '문화', '사회'];
+
+  // 랜덤 선택
+  const randomType = writingTypes[Math.floor(Math.random() * writingTypes.length)];
+  const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+  const combinedCategory = `${randomType} - ${randomCategory}`;
+
+  // AI로 주제 생성
+  const apiKey = geminiApiKey.value();
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+
+  const gradeLevelNames = {
+    'elementary_1': '초등학교 1학년',
+    'elementary_2': '초등학교 2학년',
+    'elementary_3': '초등학교 3학년',
+    'elementary_4': '초등학교 4학년',
+    'elementary_5': '초등학교 5학년',
+    'elementary_6': '초등학교 6학년',
+    'middle_1': '중학교 1학년',
+    'middle_2': '중학교 2학년',
+    'middle_3': '중학교 3학년',
+    'high_1': '고등학교 1학년',
+    'high_2': '고등학교 2학년',
+    'high_3': '고등학교 3학년'
+  };
+
+  const gradeName = gradeLevelNames[gradeLevel] || gradeLevel;
+
+  const prompt = `${gradeName} 학생을 위한 글쓰기 주제 5개를 생성해주세요.
+주제 카테고리: ${combinedCategory}
+
+각 주제는 다음 형식의 JSON 배열로 반환해주세요:
+[
+  {"title": "주제 제목", "description": "간단한 설명"},
+  ...
+]
+
+주의사항:
+- 해당 학년 수준에 맞는 어휘와 난이도
+- 학생이 흥미를 느낄 수 있는 주제
+- 글쓰기 유형(${randomType})에 적합한 주제
+- 분야(${randomCategory})와 관련된 내용`;
+
+  const result = await model.generateContent(prompt);
+  const responseText = result.response.text();
+  const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+
+  if (!jsonMatch) {
+    throw new Error('주제 생성 실패');
+  }
+
+  const topics = JSON.parse(jsonMatch[0]);
+
+  // 이전에 출제되지 않은 주제 찾기
+  let selectedTopic = null;
+  for (const topic of topics) {
+    const isSimilar = previousTitles.some(title =>
+      title.toLowerCase().includes(topic.title.toLowerCase()) ||
+      topic.title.toLowerCase().includes(title.toLowerCase())
+    );
+
+    if (!isSimilar) {
+      selectedTopic = topic;
+      break;
+    }
+  }
+
+  if (!selectedTopic) {
+    selectedTopic = topics[0];
+  }
+
+  // 과제 생성 (assignments 컬렉션 + classes.assignmentSummary)
+  const minScore = settings.minScore || 70;
+  const maxAiProbability = settings.maxAiProbability || 50;
+
+  const assignmentData = {
+    teacherId,
+    classCode,
+    title: selectedTopic.title,
+    description: `[자동 출제] ${selectedTopic.description || ''}\n유형: ${randomType} | 분야: ${randomCategory}`,
+    dueDate: null,
+    minScore,
+    maxAiProbability,
+    createdAt: new Date().toISOString()
+  };
+
+  const assignmentRef = await db.collection('assignments').add(assignmentData);
+
+  // classes.assignmentSummary에도 추가
+  const newSummary = {
+    id: assignmentRef.id,
+    title: selectedTopic.title,
+    description: assignmentData.description,
+    minScore,
+    createdAt: assignmentData.createdAt
+  };
+
+  await db.collection('classes').doc(classCode).update({
+    assignmentSummary: admin.firestore.FieldValue.arrayUnion(newSummary)
+  });
+
+  // 자동 출제 로그 저장
+  await db.collection('autoAssignmentLogs').add({
+    classCode,
+    assignmentId: assignmentRef.id,
+    title: selectedTopic.title,
+    writingType: randomType,
+    category: randomCategory,
+    createdAt: new Date().toISOString()
+  });
+
+  return { id: assignmentRef.id, title: selectedTopic.title };
+}
