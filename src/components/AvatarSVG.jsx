@@ -1033,7 +1033,7 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
         <path d="M 35 5 Q 55 -15 75 0" stroke="#FF6B6B" strokeWidth="3" opacity="0.4" fill="none" />
       </svg>
     ),
-    // 우주비행사 - 헬멧 (위로 올려서 눈썹 안 가림)
+    // 우주비행사 - 헬멧 + 머리카락
     astronaut: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         <defs>
@@ -1043,20 +1043,24 @@ export const HairSVG = ({ style = 'default', color = '#1a1a1a', size = 120, gend
             <stop offset="100%" stopColor="#C0C0C0" />
           </linearGradient>
         </defs>
-        {/* 헬멧 외부 프레임 - 위로 올림 */}
-        <path d="M 12 25 Q 12 -15 60 -18 Q 108 -15 108 25" fill="url(#helmetGrad)" />
+        {/* 머리카락 베이스 */}
+        <ellipse cx="60" cy="18" rx="46" ry="16" fill={fillColor} />
+        <path d="M 14 22 Q 14 8 60 5 Q 106 8 106 22" fill={fillColor} />
+        {/* 옆머리 */}
+        <path d="M 14 25 Q 8 38 10 52 L 18 50 Q 16 40 18 28 Z" fill={fillColor} />
+        <path d="M 106 25 Q 112 38 110 52 L 102 50 Q 104 40 102 28 Z" fill={fillColor} />
+        {/* 헬멧 외부 프레임 - 머리 위에 */}
+        <path d="M 15 22 Q 15 -12 60 -15 Q 105 -12 105 22" fill="url(#helmetGrad)" />
         {/* 헬멧 아래 테두리 */}
-        <path d="M 12 25 Q 60 32 108 25" stroke="#808080" strokeWidth="3" fill="none" />
+        <path d="M 15 22 Q 60 28 105 22" stroke="#808080" strokeWidth="3" fill="none" />
         {/* 바이저 반사광 */}
-        <ellipse cx="40" cy="8" rx="15" ry="8" fill="white" opacity="0.3" />
-        {/* 귀 부분 - 위쪽에 */}
-        <circle cx="10" cy="20" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
-        <circle cx="110" cy="20" r="6" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <ellipse cx="40" cy="5" rx="12" ry="6" fill="white" opacity="0.3" />
+        {/* 귀 부분 */}
+        <circle cx="13" cy="18" r="5" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
+        <circle cx="107" cy="18" r="5" fill="url(#helmetGrad)" stroke="#808080" strokeWidth="2" />
         {/* 안테나 */}
-        <rect x="57" y="-25" width="4" height="12" fill="#808080" />
-        <circle cx="59" cy="-25" r="4" fill="#FF0000" />
-        {/* 헬멧 라인 디테일 */}
-        <path d="M 25 22 Q 60 28 95 22" stroke="#A0A0A0" strokeWidth="1.5" fill="none" opacity="0.5" />
+        <rect x="57" y="-22" width="4" height="10" fill="#808080" />
+        <circle cx="59" cy="-22" r="3" fill="#FF0000" />
       </svg>
     )
   };
@@ -1167,22 +1171,34 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
     hanbok: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 목 */}
-        <rect x="50" y="0" width="20" height="12" fill={skinColor} />
-        {/* 어깨와 팔 */}
-        <ellipse cx="12" cy="45" rx="10" ry="15" fill={skinColor} />
-        <ellipse cx="108" cy="45" rx="10" ry="15" fill={skinColor} />
-        {/* 저고리 (상의) */}
-        <path d="M 35 12 L 5 45 L 5 65 L 22 65 L 30 55 Q 60 60 90 55 L 98 65 L 115 65 L 115 45 L 85 12 Z" fill="#FFEB3B" />
-        {/* 소매 */}
-        <path d="M 35 12 L 5 45 L 5 65 L 22 65 L 22 50 Z" fill="#FFEB3B" opacity="0.9" />
-        <path d="M 85 12 L 115 45 L 115 65 L 98 65 L 98 50 Z" fill="#FFEB3B" opacity="0.9" />
-        {/* 치마 */}
-        <path d="M 25 55 L 10 120 L 110 120 L 95 55 Z" fill="#E91E63" />
-        {/* 고름 (옷고름) */}
-        <rect x="55" y="35" width="10" height="25" fill="#4CAF50" />
-        <circle cx="60" cy="60" r="8" fill="#4CAF50" />
-        <path d="M 60 68 Q 55 90 40 110" stroke="#4CAF50" strokeWidth="4" fill="none" />
-        <path d="M 60 68 Q 65 90 80 110" stroke="#4CAF50" strokeWidth="4" fill="none" />
+        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        {/* 팔 */}
+        <ellipse cx="8" cy="50" rx="10" ry="14" fill={skinColor} />
+        <ellipse cx="112" cy="50" rx="10" ry="14" fill={skinColor} />
+        {/* 치마 (긴 치마가 먼저) */}
+        <path d="M 30 48 Q 20 70 15 120 L 105 120 Q 100 70 90 48 Z" fill="#DC143C" />
+        {/* 치마 주름 */}
+        <path d="M 35 55 Q 30 85 25 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
+        <path d="M 50 52 Q 45 85 40 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
+        <path d="M 70 52 Q 75 85 80 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
+        <path d="M 85 55 Q 90 85 95 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
+        {/* 저고리 (짧은 상의) */}
+        <path d="M 38 15 L 18 35 L 18 55 L 30 55 L 30 48 Q 60 52 90 48 L 90 55 L 102 55 L 102 35 L 82 15 Z" fill="#FFD700" />
+        {/* 저고리 소매 - 색동 */}
+        <path d="M 38 15 L 18 35 L 18 55 L 30 55 L 30 40 Z" fill="#FF6B6B" />
+        <path d="M 82 15 L 102 35 L 102 55 L 90 55 L 90 40 Z" fill="#4169E1" />
+        {/* 동정 (흰 깃) - V자 형태 */}
+        <path d="M 48 15 L 60 45 L 72 15" fill="white" />
+        <path d="M 50 18 L 60 42 L 70 18" fill="#FFD700" />
+        {/* 옷고름 (리본 매듭) */}
+        <ellipse cx="52" cy="48" rx="6" ry="3" fill="#DC143C" />
+        <ellipse cx="68" cy="48" rx="6" ry="3" fill="#DC143C" />
+        <circle cx="60" cy="48" r="4" fill="#DC143C" />
+        {/* 고름 끈 */}
+        <path d="M 52 51 Q 45 70 35 95" stroke="#DC143C" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M 68 51 Q 75 70 85 95" stroke="#DC143C" strokeWidth="5" fill="none" strokeLinecap="round" />
+        {/* 치마 허리띠 */}
+        <rect x="28" y="46" width="64" height="6" fill="#FFD700" />
       </svg>
     ),
     armor: (
