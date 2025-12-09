@@ -1347,11 +1347,12 @@ exports.migrateWritingsClassCode = onCall(async (request) => {
   }
 });
 
-// 🚀 1시간 지난 미달성 글 자동 삭제 (매 시간마다 실행)
+// 🚀 1시간 지난 미달성 글 자동 삭제 (하루 1회 - 비용 최적화)
+// 클라이언트에서 로그인 시에도 cleanup 호출하므로 하루 1회로 충분
 const {onSchedule} = require('firebase-functions/v2/scheduler');
 
-exports.autoCleanupFailedWritings = onSchedule('0 * * * *', async (event) => {
-  // 매 시간 정각 (UTC 기준)
+exports.autoCleanupFailedWritings = onSchedule('0 3 * * *', async (event) => {
+  // 매일 새벽 3시 UTC (한국 시간 낮 12시)
   try {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1시간 전
