@@ -198,20 +198,20 @@ export async function deleteDraft(studentId, topic) {
   }
 }
 
-// 🚀 24시간 지난 미달성 글 자동 삭제 (대시보드 로드 시 호출)
+// 🚀 1시간 지난 미달성 글 자동 삭제 (대시보드 로드 시 호출)
 export async function cleanupOldFailedWritings(studentId, writings, passingScore = 70) {
   try {
     if (!studentId || !writings || writings.length === 0) {
       return { deleted: 0 };
     }
 
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1시간 전
 
-    // 24시간 지난 미달성 글 필터링
+    // 1시간 지난 미달성 글 필터링
     const oldFailedWritings = writings.filter(w =>
       !w.isDraft &&
       w.submittedAt &&
-      new Date(w.submittedAt) < oneDayAgo &&
+      new Date(w.submittedAt) < oneHourAgo &&
       (w.score < (w.minScore !== undefined ? w.minScore : passingScore))
     );
 
@@ -224,14 +224,14 @@ export async function cleanupOldFailedWritings(studentId, writings, passingScore
       oldFailedWritings.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
     );
 
-    console.log(`[자동 정리] 24시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
+    console.log(`[자동 정리] 1시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
 
     // 캐시 무효화
     invalidateStudentWritingsCache(studentId);
 
     return { deleted: oldFailedWritings.length };
   } catch (error) {
-    console.error('24시간 미달성 글 삭제 에러:', error);
+    console.error('1시간 미달성 글 삭제 에러:', error);
     return { deleted: 0, error };
   }
 }

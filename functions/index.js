@@ -1347,23 +1347,23 @@ exports.migrateWritingsClassCode = onCall(async (request) => {
   }
 });
 
-// 🚀 24시간 지난 미달성 글 자동 삭제 (매일 새벽 3시 실행 - 비용 최적화)
+// 🚀 1시간 지난 미달성 글 자동 삭제 (매 시간마다 실행)
 const {onSchedule} = require('firebase-functions/v2/scheduler');
 
-exports.autoCleanupFailedWritings = onSchedule('0 3 * * *', async (event) => {
-  // 매일 새벽 3시 (UTC 기준, 한국 시간 낮 12시)
+exports.autoCleanupFailedWritings = onSchedule('0 * * * *', async (event) => {
+  // 매 시간 정각 (UTC 기준)
   try {
     const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24시간 전
+    const oneHourAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1시간 전
     const PASSING_SCORE = 70;
 
     console.log(`[자동 삭제] 시작 - ${now.toISOString()}`);
 
-    // 24시간 지난 미달성 글 조회
+    // 1시간 지난 미달성 글 조회
     const writingsRef = db.collection('writings');
     const snapshot = await writingsRef
       .where('isDraft', '==', false)
-      .where('submittedAt', '<', oneDayAgo.toISOString())
+      .where('submittedAt', '<', oneHourAgo.toISOString())
       .get();
 
     if (snapshot.empty) {
