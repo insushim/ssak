@@ -3088,7 +3088,7 @@ export default function StudentDashboard({ user, userData }) {
                     {/* 버튼 */}
                     <div className="flex flex-wrap gap-3">
                       {isPassed ? (
-                        // 기준 점수 달성 시 - 다시 쓰기 + 새 글쓰기
+                        // 기준 점수 달성 시 - 고쳐쓰기 + 새 글쓰기
                         <>
                           <button
                             onClick={() => {
@@ -3101,7 +3101,16 @@ export default function StudentDashboard({ user, userData }) {
                                 gradeLevel: userData.gradeLevel,
                                 studentName: userData.name,
                                 minScore: requiredScore,
-                                isAssignment: submittedWriting.isAssignment
+                                isAssignment: submittedWriting.isAssignment,
+                                previousScore: feedback.score  // 이전 점수 저장 (고쳐쓰기 보너스용)
+                              });
+                              // 고쳐쓰기 모드 - AI 제안 저장 (minScore + 원본 내용 포함)
+                              setRewriteMode({
+                                detailedFeedback: feedback.detailedFeedback || [],
+                                improvements: feedback.improvements || [],
+                                score: feedback.score,
+                                minScore: requiredScore,
+                                originalContent: submittedWriting.content // 원본 내용 저장 (고쳐쓰기 검증용)
                               });
                               // 피드백 닫기
                               setFeedback(null);
@@ -3109,7 +3118,7 @@ export default function StudentDashboard({ user, userData }) {
                             }}
                             className="flex-1 min-w-[140px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-200"
                           >
-                            다시 쓰기
+                            고쳐쓰기
                           </button>
                           <button
                             onClick={() => {
