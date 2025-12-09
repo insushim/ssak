@@ -13,7 +13,8 @@ import {
   deleteDraft,
   getClassRanking,
   getWritingSummaryFromUserData,
-  getWritingDetail
+  getWritingDetail,
+  migrateWritingsMinScore
 } from "../services/writingService";
 import { getAssignmentsFromClassInfo, migrateAssignmentSummary } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
@@ -945,6 +946,21 @@ export default function StudentDashboard({ user, userData }) {
             localStorage.setItem(migrationKey, 'true');
           } catch (e) {
             console.warn('assignmentSummary 마이그레이션 실패:', e);
+          }
+        }
+
+        // 🚀 v6: 기존 글의 minScore 마이그레이션 (한 번만 실행)
+        const minScoreMigrationKey = `writings_minScore_v1_${userData.classCode}`;
+        if (!localStorage.getItem(minScoreMigrationKey)) {
+          try {
+            console.log('[마이그레이션 v6] writings minScore 추가');
+            const result = await migrateWritingsMinScore(userData.classCode);
+            if (result.migratedCount > 0 || result.summaryUpdatedCount > 0) {
+              console.log(`[마이그레이션 v6] writings: ${result.migratedCount}개, writingSummary: ${result.summaryUpdatedCount}명 업데이트`);
+            }
+            localStorage.setItem(minScoreMigrationKey, 'true');
+          } catch (e) {
+            console.warn('writings minScore 마이그레이션 실패:', e);
           }
         }
 

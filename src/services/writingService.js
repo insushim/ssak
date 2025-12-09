@@ -10,7 +10,8 @@ import {
   updateDoc,
   deleteDoc,
   documentId,
-  runTransaction
+  runTransaction,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { analyzeWriting, detectPlagiarism, detectAIUsage } from '../utils/geminiAPI';
@@ -1445,6 +1446,113 @@ export async function migrateWritingSummary(studentId) {
     return { success: true, migrated: true, count: summary.length };
   } catch (error) {
     console.error('writingSummary 마이그레이션 에러:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// 🚀 기존 글의 minScore 마이그레이션
+// 과제로 제출된 글 중 minScore가 없는 글에 과제의 minScore를 추가
+export async function migrateWritingsMinScore(classCode) {
+  try {
+    console.log(`[minScore 마이그레이션] 시작 - classCode: ${classCode}`);
+
+    // 1. 해당 클래스의 모든 과제 가져오기 (minScore 정보 포함)
+    const assignmentsQuery = query(
+      collection(db, 'assignments'),
+      where('classCode', '==', classCode)
+    );
+    const assignmentsSnapshot = await getDocs(assignmentsQuery);
+
+    if (assignmentsSnapshot.empty) {
+      console.log('[minScore 마이그레이션] 과제가 없습니다.');
+      return { success: true, migratedCount: 0 };
+    }
+
+    // 과제별 minScore 맵 생성 (title -> minScore)
+    const assignmentMinScores = new Map();
+    assignmentsSnapshot.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      assignmentMinScores.set(data.title, data.minScore || 70);
+    });
+    console.log(`[minScore 마이그레이션] ${assignmentMinScores.size}개 과제 로드`);
+
+    // 2. 해당 클래스의 모든 글 가져오기
+    const writingsQuery = query(
+      collection(db, 'writings'),
+      where('classCode', '==', classCode)
+    );
+    const writingsSnapshot = await getDocs(writingsQuery);
+
+    // 3. minScore가 없는 글 찾아서 업데이트
+    let migratedCount = 0;
+    const batch = writeBatch(db);
+    let batchCount = 0;
+
+    for (const docSnap of writingsSnapshot.docs) {
+      const data = docSnap.data();
+
+      // 이미 minScore가 있으면 스킵
+      if (data.minScore !== undefined && data.minScore !== null) {
+        continue;
+      }
+
+      // 과제 제목으로 minScore 찾기
+      const assignmentMinScore = assignmentMinScores.get(data.topic);
+      if (assignmentMinScore !== undefined) {
+        batch.update(docSnap.ref, { minScore: assignmentMinScore });
+        migratedCount++;
+        batchCount++;
+        console.log(`[minScore 마이그레이션] "${data.topic}" -> minScore: ${assignmentMinScore}`);
+
+        // Firestore batch 제한 (500개)
+        if (batchCount >= 450) {
+          await batch.commit();
+          console.log(`[minScore 마이그레이션] 중간 커밋: ${migratedCount}개`);
+          batchCount = 0;
+        }
+      }
+    }
+
+    // 남은 배치 커밋
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+
+    // 4. 해당 클래스 학생들의 writingSummary도 업데이트
+    const studentsQuery = query(
+      collection(db, 'users'),
+      where('classCode', '==', classCode),
+      where('role', '==', 'student')
+    );
+    const studentsSnapshot = await getDocs(studentsQuery);
+
+    let summaryUpdatedCount = 0;
+    for (const studentDoc of studentsSnapshot.docs) {
+      const studentData = studentDoc.data();
+      const summary = studentData.writingSummary || [];
+
+      let updated = false;
+      const newSummary = summary.map(w => {
+        if (w.minScore === undefined || w.minScore === null) {
+          const assignmentMinScore = assignmentMinScores.get(w.topic);
+          if (assignmentMinScore !== undefined) {
+            updated = true;
+            return { ...w, minScore: assignmentMinScore };
+          }
+        }
+        return w;
+      });
+
+      if (updated) {
+        await updateDoc(doc(db, 'users', studentDoc.id), { writingSummary: newSummary });
+        summaryUpdatedCount++;
+      }
+    }
+
+    console.log(`[minScore 마이그레이션] 완료 - writings: ${migratedCount}개, writingSummary: ${summaryUpdatedCount}명`);
+    return { success: true, migratedCount, summaryUpdatedCount };
+  } catch (error) {
+    console.error('[minScore 마이그레이션] 에러:', error);
     return { success: false, error: error.message };
   }
 }
