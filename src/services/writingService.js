@@ -403,7 +403,8 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       analysis: analysisResult,
       plagiarismCheck: null, // 🚀 자기 표절 검사 제거
       aiUsageCheck: aiUsageResult,
-      score: newScore
+      score: newScore,
+      minScore: minScore // 🚀 과제 기준점수 명시적 저장 (선생님 설정값 유지)
     };
 
     await setDoc(doc(db, 'writings', writingId), submissionData);
