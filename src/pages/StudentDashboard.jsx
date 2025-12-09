@@ -462,6 +462,79 @@ export default function StudentDashboard({ user, userData }) {
     }
   }, []);
 
+  // 🚀 페이지 로드 시 임시저장 자동 복구
+  useEffect(() => {
+    const recoverDraft = async () => {
+      try {
+        // 1. 로컬 스토리지에서 모든 임시저장 찾기
+        const allDrafts = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(`writing_draft_${user.uid}_`)) {
+            try {
+              const data = JSON.parse(localStorage.getItem(key));
+              const topic = key.replace(`writing_draft_${user.uid}_`, '');
+              if (data && data.content && data.content.trim().length > 0) {
+                const savedTime = new Date(data.savedAt).getTime();
+                const now = Date.now();
+                // 24시간 이내 저장된 것만
+                if (now - savedTime < 24 * 60 * 60 * 1000) {
+                  allDrafts.push({
+                    topic,
+                    content: data.content,
+                    wordCount: data.wordCount || data.content.replace(/\s/g, '').length,
+                    savedAt: data.savedAt,
+                    savedTime
+                  });
+                }
+              }
+            } catch (e) {
+              // 파싱 에러 무시
+            }
+          }
+        }
+
+        // 2. 가장 최근에 저장된 글 찾기
+        if (allDrafts.length > 0) {
+          allDrafts.sort((a, b) => b.savedTime - a.savedTime);
+          const latestDraft = allDrafts[0];
+
+          // 최근 10분 이내에 작성하던 글이 있으면 자동 복구
+          const minutesAgo = Math.floor((Date.now() - latestDraft.savedTime) / 60000);
+          if (minutesAgo < 10 && latestDraft.wordCount >= 10) {
+            // 바로 복구하지 않고 사용자에게 확인
+            const confirmRecover = window.confirm(
+              `📝 작성 중이던 글이 있습니다!\n\n` +
+              `주제: "${latestDraft.topic}"\n` +
+              `글자 수: ${latestDraft.wordCount}자\n` +
+              `저장 시간: ${minutesAgo}분 전\n\n` +
+              `이어서 작성하시겠습니까?`
+            );
+
+            if (confirmRecover) {
+              // 글쓰기 탭으로 이동하고 글 복구
+              setActiveTab('write');
+              setSelectedTopic({ title: latestDraft.topic });
+              setCurrentWriting({
+                topic: latestDraft.topic,
+                content: latestDraft.content,
+                wordCount: latestDraft.wordCount,
+                isAssignment: false
+              });
+              console.log(`[자동복구] "${latestDraft.topic}" 복구 완료 (${latestDraft.wordCount}자)`);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('임시저장 복구 실패:', e);
+      }
+    };
+
+    // 페이지 로드 후 1초 뒤에 복구 시도 (다른 초기화 완료 후)
+    const timer = setTimeout(recoverDraft, 1000);
+    return () => clearTimeout(timer);
+  }, [user.uid]);
+
   // 모바일 뒤로가기 처리 - 글쓰기 중 뒤로가기 시 로그인 풀림 방지
   useEffect(() => {
     // history에 상태 추가
@@ -544,7 +617,27 @@ export default function StudentDashboard({ user, userData }) {
     };
   }, [currentWriting.content]);
 
-  // 🚀 자동저장 useEffect 제거 - Firestore 비용 최적화
+  // 🚀 서버 자동저장 (30초마다) - 글쓰기 안정성 강화
+  useEffect(() => {
+    // 주제와 내용이 있고, 최소 20자 이상일 때만 자동저장
+    if (!currentWriting.topic || !currentWriting.content || currentWriting.wordCount < 20) {
+      return;
+    }
+
+    const autoSaveInterval = setInterval(async () => {
+      try {
+        // 피드백 화면이면 저장하지 않음
+        if (feedback) return;
+
+        await saveDraftByTopic(user.uid, currentWriting.topic, currentWriting);
+        console.log(`[자동저장] "${currentWriting.topic}" 서버 저장 완료 (${currentWriting.wordCount}자)`);
+      } catch (e) {
+        console.warn('자동저장 실패:', e);
+      }
+    }, 30000); // 30초마다
+
+    return () => clearInterval(autoSaveInterval);
+  }, [currentWriting.topic, currentWriting.content, currentWriting.wordCount, feedback, user.uid]);
 
   // userData 변경시 프로필 정보 업데이트
   useEffect(() => {
