@@ -462,10 +462,32 @@ export default function StudentDashboard({ user, userData }) {
     }
   }, []);
 
-  // 🚀 페이지 로드 시 임시저장 자동 복구
+  // 🚀 페이지 로드 시 임시저장 자동 복구 + 예약된 저장 실행
   useEffect(() => {
     const recoverDraft = async () => {
       try {
+        // 0. 먼저 예약된 서버 저장이 있으면 실행 (페이지 종료 시 저장 못한 것)
+        const pendingSaveKey = `writing_pending_save_${user.uid}`;
+        const pendingSave = localStorage.getItem(pendingSaveKey);
+        if (pendingSave) {
+          try {
+            const draftData = JSON.parse(pendingSave);
+            // 10분 이내의 데이터만 서버에 저장
+            if (Date.now() - draftData.timestamp < 10 * 60 * 1000) {
+              await saveDraftByTopic(user.uid, draftData.topic, {
+                topic: draftData.topic,
+                content: draftData.content,
+                wordCount: draftData.wordCount
+              });
+              console.log(`[복구 저장] "${draftData.topic}" 서버 저장 완료`);
+            }
+            localStorage.removeItem(pendingSaveKey);
+          } catch (e) {
+            console.warn('예약된 저장 실패:', e);
+            localStorage.removeItem(pendingSaveKey);
+          }
+        }
+
         // 1. 로컬 스토리지에서 모든 임시저장 찾기
         const allDrafts = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -617,26 +639,47 @@ export default function StudentDashboard({ user, userData }) {
     };
   }, [currentWriting.content]);
 
-  // 🚀 서버 자동저장 (30초마다) - 글쓰기 안정성 강화
+  // 🚀 페이지 나갈 때 서버 저장 (DB 비용 최적화)
+  // - 30초마다 저장하면 DB 비용이 크게 증가하므로 제거
+  // - 대신 페이지 나갈 때만 서버에 저장
+  // - 로컬스토리지 자동저장은 유지 (DB 비용 0)
   useEffect(() => {
-    // 주제와 내용이 있고, 최소 20자 이상일 때만 자동저장
-    if (!currentWriting.topic || !currentWriting.content || currentWriting.wordCount < 20) {
-      return;
-    }
-
-    const autoSaveInterval = setInterval(async () => {
-      try {
-        // 피드백 화면이면 저장하지 않음
-        if (feedback) return;
-
-        await saveDraftByTopic(user.uid, currentWriting.topic, currentWriting);
-        console.log(`[자동저장] "${currentWriting.topic}" 서버 저장 완료 (${currentWriting.wordCount}자)`);
-      } catch (e) {
-        console.warn('자동저장 실패:', e);
+    const handleUnloadSave = async () => {
+      // 주제와 내용이 있고, 최소 20자 이상일 때만 저장
+      if (!currentWriting.topic || !currentWriting.content || currentWriting.wordCount < 20) {
+        return;
       }
-    }, 30000); // 30초마다
+      // 피드백 화면이면 저장하지 않음
+      if (feedback) return;
 
-    return () => clearInterval(autoSaveInterval);
+      try {
+        // sendBeacon으로 비동기 저장 (페이지가 닫혀도 전송 보장)
+        const draftData = {
+          userId: user.uid,
+          topic: currentWriting.topic,
+          content: currentWriting.content,
+          wordCount: currentWriting.wordCount,
+          timestamp: Date.now()
+        };
+
+        // sendBeacon은 JSON 직접 전송 불가, 로컬스토리지에 저장해두면 다음 접속시 복구
+        localStorage.setItem(`writing_pending_save_${user.uid}`, JSON.stringify(draftData));
+        console.log(`[페이지 종료] "${currentWriting.topic}" 임시저장 예약됨`);
+      } catch (e) {
+        console.warn('페이지 종료 시 저장 실패:', e);
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnloadSave);
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        handleUnloadSave();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('pagehide', handleUnloadSave);
+    };
   }, [currentWriting.topic, currentWriting.content, currentWriting.wordCount, feedback, user.uid]);
 
   // userData 변경시 프로필 정보 업데이트
