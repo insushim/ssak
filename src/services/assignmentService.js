@@ -7,6 +7,7 @@ import { db } from '../config/firebase';
 const assignmentsCache = new Map(); // classCode -> { data, timestamp }
 const studentAssignmentsCache = new Map(); // classCode -> { data, timestamp } (submissions 제외)
 const submissionsCache = new Map(); // key -> { data, timestamp }
+const pendingRequests = new Map(); // 🚀 진행 중인 요청 추적 (중복 호출 방지)
 
 // 🚀 캐시 TTL 극대화 (100,000명 대응)
 const CACHE_TTL = {
@@ -72,29 +73,40 @@ export async function createAssignment(teacherId, classCode, title, description,
       });
 
       // 🚀 해당 학급의 모든 학생 classInfo.assignmentSummary도 업데이트
-      try {
-        const studentsQuery = query(
-          collection(db, 'users'),
-          where('classCode', '==', classCode),
-          where('role', '==', 'student')
-        );
-        const studentsSnapshot = await getDocs(studentsQuery);
+      // (비동기로 처리하여 메인 플로우 차단 방지)
+      (async () => {
+        try {
+          const studentsQuery = query(
+            collection(db, 'users'),
+            where('classCode', '==', classCode),
+            where('role', '==', 'student')
+          );
+          const studentsSnapshot = await getDocs(studentsQuery);
 
-        const batch = writeBatch(db);
-        studentsSnapshot.forEach((studentDoc) => {
-          const studentData = studentDoc.data();
-          if (studentData.classInfo) {
-            const currentSummary = studentData.classInfo.assignmentSummary || [];
-            batch.update(studentDoc.ref, {
-              'classInfo.assignmentSummary': [...currentSummary, newAssignmentSummary]
+          // 🚀 batch 크기 제한 (Firestore 500개 제한)
+          const batchSize = 400;
+          const students = [];
+          studentsSnapshot.forEach(doc => students.push(doc));
+
+          for (let i = 0; i < students.length; i += batchSize) {
+            const batch = writeBatch(db);
+            const chunk = students.slice(i, i + batchSize);
+            chunk.forEach((studentDoc) => {
+              const studentData = studentDoc.data();
+              if (studentData.classInfo) {
+                const currentSummary = studentData.classInfo.assignmentSummary || [];
+                batch.update(studentDoc.ref, {
+                  'classInfo.assignmentSummary': [...currentSummary, newAssignmentSummary]
+                });
+              }
             });
+            await batch.commit();
           }
-        });
-        await batch.commit();
-        console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
-      } catch (syncError) {
-        console.warn('학생 classInfo 동기화 실패:', syncError);
-      }
+          console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+        } catch (syncError) {
+          console.warn('학생 classInfo 동기화 실패:', syncError);
+        }
+      })().catch(() => {});
     } catch (e) {
       console.warn('과제 요약 추가 실패 (classes 문서):', e);
     }
@@ -108,7 +120,7 @@ export async function createAssignment(teacherId, classCode, title, description,
   }
 }
 
-// 🚀 최적화: 캐싱 + 정렬을 Firestore에서 처리
+// 🚀 최적화: 캐싱 + 정렬을 Firestore에서 처리 + 중복 요청 방지
 // 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
 export async function getAssignmentsByClass(classCode, forceRefresh = false) {
   try {
@@ -125,28 +137,49 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
       return cached.data;
     }
 
-    console.log(`[📊 DB읽기] getAssignmentsByClass DB 조회 - classCode: ${classCode}`);
-    const q = query(
-      collection(db, 'assignments'),
-      where('classCode', '==', classCode),
-      orderBy('createdAt', 'desc'),
-      limit(100) // 🚀 최대 100개로 증가 (50개 → 100개)
-    );
-    const snapshot = await getDocs(q);
-    const assignments = [];
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      assignments.push({ id: docSnap.id, ...data });
-    });
-    console.log(`[📊 DB읽기] getAssignmentsByClass - ${assignments.length}개 과제 로드`);
+    // 🚀 진행 중인 요청이 있으면 그 결과를 기다림 (중복 호출 방지)
+    const pendingKey = `assignments_${classCode}`;
+    if (pendingRequests.has(pendingKey)) {
+      console.log(`[📊 DB읽기] getAssignmentsByClass 진행 중인 요청 대기 - classCode: ${classCode}`);
+      return pendingRequests.get(pendingKey);
+    }
 
-    // 캐시 저장
-    assignmentsCache.set(classCode, {
-      data: assignments,
-      timestamp: Date.now()
-    });
+    // 새 요청 시작
+    const requestPromise = (async () => {
+      console.log(`[📊 DB읽기] getAssignmentsByClass DB 조회 - classCode: ${classCode}`);
+      const q = query(
+        collection(db, 'assignments'),
+        where('classCode', '==', classCode),
+        orderBy('createdAt', 'desc'),
+        limit(100) // 🚀 최대 100개로 증가 (50개 → 100개)
+      );
+      const snapshot = await getDocs(q);
+      const assignments = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        assignments.push({ id: docSnap.id, ...data });
+      });
+      console.log(`[📊 DB읽기] getAssignmentsByClass - ${assignments.length}개 과제 로드`);
 
-    return assignments;
+      // 캐시 저장
+      assignmentsCache.set(classCode, {
+        data: assignments,
+        timestamp: Date.now()
+      });
+
+      return assignments;
+    })();
+
+    // 진행 중인 요청 등록
+    pendingRequests.set(pendingKey, requestPromise);
+
+    try {
+      const result = await requestPromise;
+      return result;
+    } finally {
+      // 요청 완료 후 제거
+      pendingRequests.delete(pendingKey);
+    }
   } catch (error) {
     console.error('과제 목록 로드 에러:', error);
     // 🔧 에러 시 빈 배열 반환 (앱 중단 방지)
@@ -242,28 +275,39 @@ export async function deleteAssignment(assignmentId, classCode = null, assignmen
             });
 
             // 🚀 해당 학급의 모든 학생 classInfo.assignmentSummary도 업데이트
-            try {
-              const studentsQuery = query(
-                collection(db, 'users'),
-                where('classCode', '==', classCode),
-                where('role', '==', 'student')
-              );
-              const studentsSnapshot = await getDocs(studentsQuery);
+            // (비동기로 처리하여 메인 플로우 차단 방지)
+            (async () => {
+              try {
+                const studentsQuery = query(
+                  collection(db, 'users'),
+                  where('classCode', '==', classCode),
+                  where('role', '==', 'student')
+                );
+                const studentsSnapshot = await getDocs(studentsQuery);
 
-              const batch = writeBatch(db);
-              studentsSnapshot.forEach((studentDoc) => {
-                const studentData = studentDoc.data();
-                if (studentData.classInfo) {
-                  batch.update(studentDoc.ref, {
-                    'classInfo.assignmentSummary': filtered
+                // 🚀 batch 크기 제한 (Firestore 500개 제한)
+                const batchSize = 400;
+                const students = [];
+                studentsSnapshot.forEach(doc => students.push(doc));
+
+                for (let i = 0; i < students.length; i += batchSize) {
+                  const batch = writeBatch(db);
+                  const chunk = students.slice(i, i + batchSize);
+                  chunk.forEach((studentDoc) => {
+                    const studentData = studentDoc.data();
+                    if (studentData.classInfo) {
+                      batch.update(studentDoc.ref, {
+                        'classInfo.assignmentSummary': filtered
+                      });
+                    }
                   });
+                  await batch.commit();
                 }
-              });
-              await batch.commit();
-              console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
-            } catch (syncError) {
-              console.warn('학생 classInfo 동기화 실패:', syncError);
-            }
+                console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+              } catch (syncError) {
+                console.warn('학생 classInfo 동기화 실패:', syncError);
+              }
+            })().catch(() => {});
           }
         }
       } catch (e) {

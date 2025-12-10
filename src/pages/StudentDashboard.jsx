@@ -14,8 +14,7 @@ import {
   getClassRanking,
   getWritingSummaryFromUserData,
   getWritingDetail,
-  migrateWritingsMinScore,
-  cleanupOldFailedWritings
+  migrateWritingsMinScore
 } from "../services/writingService";
 import { getAssignmentsFromClassInfo, migrateAssignmentSummary } from "../services/assignmentService";
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
@@ -1031,23 +1030,19 @@ export default function StudentDashboard({ user, userData }) {
       studentWritings = getWritingSummaryFromUserData(currentUserData);
       console.log(`[📊 캐시] 글 ${studentWritings.length}개 - userData에서 로드`);
 
-      // 🚀 1시간 지난 미달성 글 자동 삭제
-      const cleanupResult = await cleanupOldFailedWritings(user.uid, studentWritings, PASSING_SCORE);
-      if (cleanupResult.deleted > 0) {
-        console.log(`[자동 정리] ${cleanupResult.deleted}개 미달성 글 삭제됨`);
-        // 삭제된 글 제외하고 다시 필터링
-        const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
-        studentWritings = studentWritings.filter(w => {
-          // 임시저장이면 유지
-          if (w.isDraft) return true;
-          // 제출된 글 중 미달성이고 1시간 지난 것은 제외
-          const minScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
-          if (w.score < minScore && w.submittedAt && new Date(w.submittedAt) < oneHourAgo) {
-            return false;
-          }
-          return true;
-        });
-      }
+      // 🚀 1시간 지난 미달성 글은 Cloud Function(autoCleanupFailedWritings)에서 자동 삭제됨
+      // 클라이언트에서는 화면에서만 필터링 (권한 문제 없이 처리)
+      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
+      studentWritings = studentWritings.filter(w => {
+        // 임시저장이면 유지
+        if (w.isDraft) return true;
+        // 제출된 글 중 미달성이고 1시간 지난 것은 화면에서 제외
+        const minScore = w.minScore !== undefined ? w.minScore : PASSING_SCORE;
+        if (w.score < minScore && w.submittedAt && new Date(w.submittedAt) < oneHourAgo) {
+          return false;
+        }
+        return true;
+      });
 
       // 2. 🚀 통계는 userData에서 계산 (writingSummary 기반 - DB 읽기 0회!)
       // studentStats 컬렉션은 제출 시에만 업데이트하고, 로그인 시에는 writingSummary에서 계산
