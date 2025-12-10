@@ -293,8 +293,9 @@ export async function getWritingById(writingId) {
 
 // isRewrite: 고쳐쓰기 모드 여부 (포인트 지급 조건에 영향)
 // 🚀 최적화: classCode와 userData를 파라미터로 받아 getDoc 호출 최소화 (100,000명 대응)
-// 🧪 testScoreMode: null(일반), 'pass'(도달점수), 'fail'(미달점수) - 테스트 학생용
-export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null) {
+// 🧪 testScoreMode: null(일반), 'pass'(도달점수), 'fail'(미달점수), 'custom'(직접입력) - 테스트 학생용
+// 🧪 customTestScore: 직접 입력 점수 (testScoreMode === 'custom' 일 때 사용)
+export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null, customTestScore = null) {
   try {
     // 글자 수 기준 가져오기
     const standard = WORD_COUNT_STANDARDS[writingData.gradeLevel];
@@ -344,6 +345,10 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       newScore = minScore - Math.floor(Math.random() * 20) - 1;
       if (newScore < 30) newScore = 30;
       console.log(`[🧪 테스트] 미달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+    } else if (testScoreMode === 'custom' && customTestScore !== null) {
+      // 직접 입력 점수: 0~100 사이로 제한
+      newScore = Math.min(100, Math.max(0, customTestScore));
+      console.log(`[🧪 테스트] 직접 입력 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
     }
 
     // 🚀 동일 주제 미제출글 비교 로직 (DB 사용량 최소화)

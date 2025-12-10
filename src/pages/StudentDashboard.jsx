@@ -367,10 +367,12 @@ export default function StudentDashboard({ user, userData }) {
   const [submittedWriting, setSubmittedWriting] = useState(null);
   const [completedAssignmentsCount, setCompletedAssignmentsCount] = useState(0);
   const [rewriteMode, setRewriteMode] = useState(null); // 고쳐쓰기 모드 - AI 제안 저장
+  const [isProcessingAction, setIsProcessingAction] = useState(false); // 🚀 버튼 중복 클릭 방지
 
   // 🧪 테스트 모드 관련 state
   const isTestStudent = userData.isTestStudent || false;
-  const [testScoreMode, setTestScoreMode] = useState(null); // null: 일반, 'pass': 도달점수, 'fail': 미달점수
+  const [testScoreMode, setTestScoreMode] = useState(null); // null: 일반, 'pass': 도달점수, 'fail': 미달점수, 'custom': 직접입력
+  const [customTestScore, setCustomTestScore] = useState(75); // 직접 입력 점수
 
   // 실시간 조언 관련 state
   const [quickAdvice, setQuickAdvice] = useState(null);
@@ -1399,7 +1401,8 @@ export default function StudentDashboard({ user, userData }) {
         !!rewriteMode,
         classCode,
         userData,
-        testScoreMode // 🧪 테스트 모드 점수 (null, 'pass', 'fail')
+        testScoreMode, // 🧪 테스트 모드 점수 (null, 'pass', 'fail', 'custom')
+        testScoreMode === 'custom' ? customTestScore : null // 🧪 직접 입력 점수
       );
 
       // 과제별 기준점수 (과제가 아니면 기본 PASSING_SCORE 사용)
@@ -2700,39 +2703,77 @@ export default function StudentDashboard({ user, userData }) {
                           <span className="text-lg">🧪</span>
                           <span className="font-bold text-yellow-700">테스트 모드</span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => setTestScoreMode(null)}
-                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                            className={`px-3 py-2 rounded font-medium transition-all ${
                               testScoreMode === null
                                 ? 'bg-gray-700 text-white'
                                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                             }`}
                           >
-                            일반 제출
+                            일반
                           </button>
                           <button
                             onClick={() => setTestScoreMode('pass')}
-                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                            className={`px-3 py-2 rounded font-medium transition-all ${
                               testScoreMode === 'pass'
                                 ? 'bg-green-600 text-white'
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
                             }`}
                           >
-                            ✅ 도달 점수
+                            ✅ 도달
                           </button>
                           <button
                             onClick={() => setTestScoreMode('fail')}
-                            className={`flex-1 px-3 py-2 rounded font-medium transition-all ${
+                            className={`px-3 py-2 rounded font-medium transition-all ${
                               testScoreMode === 'fail'
                                 ? 'bg-red-600 text-white'
                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
                             }`}
                           >
-                            ❌ 미달 점수
+                            ❌ 미달
+                          </button>
+                          <button
+                            onClick={() => setTestScoreMode('custom')}
+                            className={`px-3 py-2 rounded font-medium transition-all ${
+                              testScoreMode === 'custom'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                            }`}
+                          >
+                            🎯 직접입력
                           </button>
                         </div>
-                        {testScoreMode && (
+                        {testScoreMode === 'custom' && (
+                          <div className="mt-3 flex items-center gap-3">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={customTestScore}
+                              onChange={(e) => setCustomTestScore(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                              className="w-20 px-3 py-2 border-2 border-purple-300 rounded-lg text-center font-bold text-lg focus:outline-none focus:border-purple-500"
+                            />
+                            <span className="text-purple-700 font-medium">점으로 제출</span>
+                            <div className="flex gap-1 ml-2">
+                              {[50, 65, 75, 85, 95].map(score => (
+                                <button
+                                  key={score}
+                                  onClick={() => setCustomTestScore(score)}
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    customTestScore === score
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                                  }`}
+                                >
+                                  {score}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {testScoreMode && testScoreMode !== 'custom' && (
                           <p className="mt-2 text-sm text-yellow-600">
                             {testScoreMode === 'pass'
                               ? '📌 제출 시 기준점수 이상의 점수로 저장됩니다.'
@@ -2749,7 +2790,9 @@ export default function StudentDashboard({ user, userData }) {
                         disabled={isSubmitting || !currentWriting.content}
                         className="flex-1 bg-indigo-500 text-white px-6 py-3 rounded font-semibold hover:bg-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
-                        {isSubmitting ? "AI 분석 중..." : (isTestStudent && testScoreMode ? `🧪 테스트 제출 (${testScoreMode === 'pass' ? '도달' : '미달'})` : "제출하기")}
+                        {isSubmitting ? "AI 분석 중..." : (isTestStudent && testScoreMode
+                          ? `🧪 테스트 제출 (${testScoreMode === 'pass' ? '도달' : testScoreMode === 'fail' ? '미달' : `${customTestScore}점`})`
+                          : "제출하기")}
                       </button>
                       <button
                         onClick={() => {
@@ -3091,7 +3134,10 @@ export default function StudentDashboard({ user, userData }) {
                         // 기준 점수 달성 시 - 고쳐쓰기 + 새 글쓰기
                         <>
                           <button
+                            disabled={isProcessingAction}
                             onClick={() => {
+                              if (isProcessingAction) return;
+                              setIsProcessingAction(true);
                               // 제출했던 글 내용을 다시 복원
                               setSelectedTopic({ id: 'rewrite', title: submittedWriting.topic });
                               setCurrentWriting({
@@ -3115,13 +3161,17 @@ export default function StudentDashboard({ user, userData }) {
                               // 피드백 닫기
                               setFeedback(null);
                               setSubmittedWriting(null);
+                              setTimeout(() => setIsProcessingAction(false), 500);
                             }}
-                            className="flex-1 min-w-[140px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-200"
+                            className="flex-1 min-w-[140px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             고쳐쓰기
                           </button>
                           <button
+                            disabled={isProcessingAction}
                             onClick={() => {
+                              if (isProcessingAction) return;
+                              setIsProcessingAction(true);
                               setFeedback(null);
                               setSubmittedWriting(null);
                               setSelectedTopic(null);
@@ -3133,8 +3183,9 @@ export default function StudentDashboard({ user, userData }) {
                                 studentName: userData.name
                               });
                               setRewriteMode(null);
+                              setTimeout(() => setIsProcessingAction(false), 500);
                             }}
-                            className="flex-1 min-w-[140px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg shadow-indigo-200"
+                            className="flex-1 min-w-[140px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             새 글 쓰기
                           </button>
@@ -3142,7 +3193,10 @@ export default function StudentDashboard({ user, userData }) {
                       ) : (
                         // 기준 점수 미달 시 - 고쳐쓰기
                         <button
+                          disabled={isProcessingAction}
                           onClick={() => {
+                            if (isProcessingAction) return;
+                            setIsProcessingAction(true);
                             // 제출했던 글 내용을 다시 복원
                             setSelectedTopic({ id: 'rewrite', title: submittedWriting.topic });
                             setCurrentWriting({
@@ -3151,6 +3205,8 @@ export default function StudentDashboard({ user, userData }) {
                               wordCount: submittedWriting.wordCount,
                               gradeLevel: userData.gradeLevel,
                               studentName: userData.name,
+                              minScore: requiredScore,  // 🚀 기준점수 전달 (누락 버그 수정)
+                              isAssignment: submittedWriting.isAssignment,
                               previousScore: feedback.score  // 🚀 이전 점수 저장 (AI 고쳐쓰기 보너스용)
                             });
                             // 고쳐쓰기 모드 - AI 제안 저장 (minScore + 원본 내용 포함)
@@ -3158,14 +3214,15 @@ export default function StudentDashboard({ user, userData }) {
                               detailedFeedback: feedback.detailedFeedback || [],
                               improvements: feedback.improvements || [],
                               score: feedback.score,
-                              minScore: submittedWriting.minScore || PASSING_SCORE,
+                              minScore: requiredScore,
                               originalContent: submittedWriting.content // 🚀 원본 내용 저장 (고쳐쓰기 검증용)
                             });
                             // 피드백 닫기
                             setFeedback(null);
                             setSubmittedWriting(null);
+                            setTimeout(() => setIsProcessingAction(false), 500);
                           }}
-                          className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-lg shadow-orange-200"
+                          className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-6 py-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           고쳐쓰기
                         </button>

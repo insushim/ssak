@@ -53,6 +53,8 @@ export default function TeacherDashboard({ user, userData }) {
     maxAiProbability: 50
   });
   const [selectedTopicForAssignment, setSelectedTopicForAssignment] = useState(null);
+  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false); // 🚀 과제 출제 중복 클릭 방지
+  const [isDeletingAssignment, setIsDeletingAssignment] = useState(false); // 🚀 과제 삭제 중복 클릭 방지
 
   // AI 주제 생성 관련 state
   const [aiTopics, setAiTopics] = useState([]);
@@ -443,6 +445,12 @@ export default function TeacherDashboard({ user, userData }) {
       return;
     }
 
+    // 🚀 중복 클릭 방지
+    if (isCreatingAssignment) {
+      return;
+    }
+
+    setIsCreatingAssignment(true);
     try {
       await createAssignment(
         user.uid,
@@ -461,11 +469,20 @@ export default function TeacherDashboard({ user, userData }) {
     } catch (error) {
       console.error("과제 출제 에러:", error);
       alert("과제 출제에 실패했습니다.");
+    } finally {
+      setIsCreatingAssignment(false);
     }
   };
 
   const handleDeleteAssignment = async (assignmentId, assignmentTitle = null) => {
     if (!confirm("이 과제를 삭제하시겠습니까?")) return;
+
+    // 🚀 중복 클릭 방지
+    if (isDeletingAssignment) {
+      return;
+    }
+
+    setIsDeletingAssignment(true);
     try {
       // 🚀 classCode와 title을 전달해야 classes 문서와 학생 classInfo에서도 삭제됨
       await deleteAssignment(assignmentId, selectedClass?.classCode, assignmentTitle);
@@ -474,6 +491,8 @@ export default function TeacherDashboard({ user, userData }) {
     } catch (error) {
       console.error("과제 삭제 에러:", error);
       alert("과제 삭제에 실패했습니다.");
+    } finally {
+      setIsDeletingAssignment(false);
     }
   };
 
@@ -2539,18 +2558,20 @@ export default function TeacherDashboard({ user, userData }) {
               <div className="flex space-x-2">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2.5 rounded-xl hover:from-blue-500 hover:to-cyan-400 font-medium"
+                  disabled={isCreatingAssignment}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2.5 rounded-xl hover:from-blue-500 hover:to-cyan-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  출제하기
+                  {isCreatingAssignment ? "출제 중..." : "출제하기"}
                 </button>
                 <button
                   type="button"
+                  disabled={isCreatingAssignment}
                   onClick={() => {
                     setShowAssignmentModal(false);
                     setNewAssignment({ title: "", description: "", dueDate: "", minScore: 70, maxAiProbability: 50 });
                     setSelectedTopicForAssignment(null);
                   }}
-                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-300 font-medium"
+                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-300 font-medium disabled:opacity-50"
                 >
                   취소
                 </button>

@@ -569,6 +569,11 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   const data = request.data;
   const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore} = data || {};
 
+  // 🚀 고쳐쓰기 모드 로깅 (디버깅용)
+  if (isRewrite) {
+    console.log(`[고쳐쓰기 모드] 주제: "${topic}", 이전점수: ${previousScore}, previousScore타입: ${typeof previousScore}`);
+  }
+
   if (!text || !topic) {
     throw new HttpsError('invalid-argument', '텍스트와 주제가 필요합니다.');
   }
@@ -805,29 +810,58 @@ ${text}
       }
     }
 
-    // 🚀 고쳐쓰기 모드: 점수가 떨어지면 강제로 올려줌!
-    if (isRewrite && previousScore !== null) {
+    // 🚀 고쳐쓰기 모드: 의미있는 개선이 있을 때만 점수 보정
+    // previousScore가 0이어도 유효한 값이므로 !== null && !== undefined 체크
+    if (isRewrite && previousScore !== null && previousScore !== undefined) {
       const originalAiScore = parsed.score;
-      const scoreDiff = parsed.score - previousScore;
+      const prevScore = Number(previousScore); // 숫자로 변환 (문자열 방지)
+      const scoreDiff = parsed.score - prevScore;
 
-      // 점수가 떨어졌거나 같으면 강제로 올려줌 (최소 +3점)
-      if (parsed.score <= previousScore) {
-        const minBonus = 3;
-        const maxBonus = 8;
-        // 이전 점수에 따라 보너스 조정 (높을수록 보너스 적게)
-        const bonus = previousScore >= 85 ? minBonus :
-                      previousScore >= 75 ? minBonus + 2 :
-                      previousScore >= 65 ? minBonus + 3 :
-                      maxBonus;
-        parsed.score = Math.min(100, previousScore + bonus);
-        console.log(`[고쳐쓰기 보정] AI점수(${originalAiScore}) <= 이전점수(${previousScore}) → 강제 상승: ${parsed.score}점 (+${bonus})`);
+      console.log(`[고쳐쓰기 분석] AI원점수: ${originalAiScore}, 이전점수: ${prevScore}, 차이: ${scoreDiff}`);
+      console.log(`[고쳐쓰기 분석] 주제일치도: ${parsed.topicRelevanceScore}/10, 어휘다양성: ${parsed.vocabularyScore}/20`);
+
+      // 🚀 의미없는 수정 감지 - 점수 보정하지 않음
+      const isLowQualityRewrite =
+        (parsed.topicRelevanceScore !== undefined && parsed.topicRelevanceScore <= 3) || // 주제 일치도 3점 이하
+        (parsed.vocabularyScore !== undefined && parsed.vocabularyScore <= 6) || // 어휘 다양성 매우 낮음
+        originalAiScore <= 30; // AI가 매우 낮게 평가 (무의미한 글로 판단)
+
+      // 점수가 떨어졌거나 같으면 보정 검토
+      if (parsed.score <= prevScore) {
+        if (isLowQualityRewrite) {
+          // 의미없는 수정 - 점수 유지 (떨어지지는 않게)
+          parsed.score = prevScore;
+          parsed.rewriteBlocked = true;
+          console.log(`[고쳐쓰기 차단] 의미없는 수정 감지 - 점수 유지: ${prevScore}점 (주제일치도: ${parsed.topicRelevanceScore}, AI원점수: ${originalAiScore})`);
+        } else {
+          // 정상적인 수정 - 점수 상승
+          const minBonus = 3;
+          const maxBonus = 8;
+          // 이전 점수에 따라 보너스 조정 (높을수록 보너스 적게)
+          const bonus = prevScore >= 85 ? minBonus :
+                        prevScore >= 75 ? minBonus + 2 :
+                        prevScore >= 65 ? minBonus + 3 :
+                        maxBonus;
+          parsed.score = Math.min(100, prevScore + bonus);
+          console.log(`[고쳐쓰기 보정] AI점수(${originalAiScore}) <= 이전점수(${prevScore}) → 강제 상승: ${parsed.score}점 (+${bonus})`);
+        }
       } else {
-        console.log(`[고쳐쓰기] 이전: ${previousScore}점 → 현재: ${parsed.score}점 (+${scoreDiff}점)`);
+        // AI가 점수를 올렸지만, 의미없는 수정이면 제한
+        if (isLowQualityRewrite && scoreDiff > 5) {
+          // 의미없는 수정인데 점수가 크게 올랐다면 제한
+          parsed.score = Math.min(parsed.score, prevScore + 3);
+          console.log(`[고쳐쓰기 제한] 의미없는 수정인데 점수 급상승 - 제한: ${parsed.score}점`);
+        } else {
+          console.log(`[고쳐쓰기] 자연 상승: 이전(${prevScore}점) → 현재(${parsed.score}점) +${scoreDiff}점`);
+        }
       }
 
       parsed.isRewrite = true;
-      parsed.previousScore = previousScore;
-      parsed.scoreDiff = parsed.score - previousScore;
+      parsed.previousScore = prevScore;
+      parsed.scoreDiff = parsed.score - prevScore;
+    } else if (isRewrite) {
+      // 고쳐쓰기 모드인데 previousScore가 없는 경우 (버그 가능성)
+      console.warn(`[고쳐쓰기 경고] isRewrite=true 인데 previousScore가 없음: ${previousScore}`);
     }
 
     return parsed;
