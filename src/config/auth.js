@@ -79,14 +79,29 @@ export function detectWritingType(topic) {
 
 // 학년과 글쓰기 유형에 따른 적정 글자 수 계산
 export function getAdjustedWordCount(gradeLevel, topic) {
-  const baseStandard = WORD_COUNT_STANDARDS[gradeLevel] || WORD_COUNT_STANDARDS['elementary-4'];
-  const writingType = detectWritingType(topic);
+  // 🚀 gradeLevel 형식 변환 (elementary_1_2 -> elementary-3 등)
+  let normalizedGrade = gradeLevel;
+  if (gradeLevel) {
+    // elementary_1_2, elementary_3_4, elementary_5_6, middle, high 형식 처리
+    if (gradeLevel === 'elementary_1_2') normalizedGrade = 'elementary-2';
+    else if (gradeLevel === 'elementary_3_4') normalizedGrade = 'elementary-4';
+    else if (gradeLevel === 'elementary_5_6') normalizedGrade = 'elementary-6';
+    else if (gradeLevel === 'middle') normalizedGrade = 'middle-2';
+    else if (gradeLevel === 'high') normalizedGrade = 'high-2';
+  }
+
+  const baseStandard = WORD_COUNT_STANDARDS[normalizedGrade] || WORD_COUNT_STANDARDS['elementary-4'];
+
+  // 🚀 baseStandard가 없을 경우 기본값 사용
+  const safeBaseStandard = baseStandard || { min: 200, ideal: 350, max: 500 };
+
+  const writingType = detectWritingType(topic || '');
   const multiplier = WRITING_TYPE_MULTIPLIERS[writingType] || WRITING_TYPE_MULTIPLIERS['기본'];
 
   return {
-    min: Math.round(baseStandard.min * multiplier.minMult),
-    ideal: Math.round(baseStandard.ideal * multiplier.idealMult),
-    max: Math.round(baseStandard.max * multiplier.maxMult),
+    min: Math.round(safeBaseStandard.min * multiplier.minMult),
+    ideal: Math.round(safeBaseStandard.ideal * multiplier.idealMult),
+    max: Math.round(safeBaseStandard.max * multiplier.maxMult),
     writingType
   };
 }

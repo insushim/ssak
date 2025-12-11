@@ -297,8 +297,17 @@ export async function getWritingById(writingId) {
 // 🧪 customTestScore: 직접 입력 점수 (testScoreMode === 'custom' 일 때 사용)
 export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null, customTestScore = null) {
   try {
-    // 글자 수 기준 가져오기
-    const standard = WORD_COUNT_STANDARDS[writingData.gradeLevel];
+    // 글자 수 기준 가져오기 (gradeLevel 형식 변환 포함)
+    let normalizedGrade = writingData.gradeLevel;
+    if (normalizedGrade) {
+      // elementary_1_2, elementary_3_4, elementary_5_6, middle, high 형식 처리
+      if (normalizedGrade === 'elementary_1_2') normalizedGrade = 'elementary-2';
+      else if (normalizedGrade === 'elementary_3_4') normalizedGrade = 'elementary-4';
+      else if (normalizedGrade === 'elementary_5_6') normalizedGrade = 'elementary-6';
+      else if (normalizedGrade === 'middle') normalizedGrade = 'middle-2';
+      else if (normalizedGrade === 'high') normalizedGrade = 'high-2';
+    }
+    const standard = WORD_COUNT_STANDARDS[normalizedGrade] || WORD_COUNT_STANDARDS['elementary-4'] || { min: 200, ideal: 350, max: 500 };
     const wordCount = writingData.wordCount;
 
     // 🚀 자기 표절 검사 완전 제거 - AI 표절 검사만 사용

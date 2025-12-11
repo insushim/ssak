@@ -490,7 +490,33 @@ export default function StudentDashboard({ user, userData }) {
           }
         }
 
-        // 1. 로컬 스토리지에서 모든 임시저장 찾기
+        // 🚀 1. sessionStorage에서 즉시 복구 (확대/축소, 새로고침 대비 - 확인창 없이!)
+        const sessionDraftKey = `writing_session_${user.uid}`;
+        const sessionDraft = sessionStorage.getItem(sessionDraftKey);
+        if (sessionDraft) {
+          try {
+            const draftData = JSON.parse(sessionDraft);
+            // 30분 이내의 데이터만 복구
+            if (Date.now() - draftData.timestamp < 30 * 60 * 1000 && draftData.content?.trim().length > 0) {
+              console.log(`[세션복구] "${draftData.topic}" 자동 복구 (${draftData.wordCount}자)`);
+              setActiveTab('write');
+              setSelectedTopic({ title: draftData.topic });
+              setCurrentWriting({
+                topic: draftData.topic,
+                content: draftData.content,
+                wordCount: draftData.wordCount,
+                isAssignment: draftData.isAssignment || false,
+                minScore: draftData.minScore
+              });
+              // 복구 후 세션 저장소는 유지 (다음 확대/축소 대비)
+              return; // 세션에서 복구되었으면 localStorage 복구 스킵
+            }
+          } catch (e) {
+            console.warn('세션 복구 실패:', e);
+          }
+        }
+
+        // 2. 로컬 스토리지에서 모든 임시저장 찾기
         const allDrafts = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -518,7 +544,7 @@ export default function StudentDashboard({ user, userData }) {
           }
         }
 
-        // 2. 가장 최근에 저장된 글 찾기
+        // 3. 가장 최근에 저장된 글 찾기
         if (allDrafts.length > 0) {
           allDrafts.sort((a, b) => b.savedTime - a.savedTime);
           const latestDraft = allDrafts[0];
@@ -554,10 +580,62 @@ export default function StudentDashboard({ user, userData }) {
       }
     };
 
-    // 페이지 로드 후 1초 뒤에 복구 시도 (다른 초기화 완료 후)
-    const timer = setTimeout(recoverDraft, 1000);
+    // 페이지 로드 후 100ms 뒤에 복구 시도 (더 빠르게!)
+    const timer = setTimeout(recoverDraft, 100);
     return () => clearTimeout(timer);
   }, [user.uid]);
+
+  // 🚀 확대/축소, 탭 전환 시 글 보존 (visibilitychange + resize 이벤트)
+  useEffect(() => {
+    // 현재 작성 중인 글을 sessionStorage에 저장
+    const saveToSession = () => {
+      if (currentWriting.topic && currentWriting.content?.trim().length > 0) {
+        try {
+          const sessionDraftKey = `writing_session_${user.uid}`;
+          sessionStorage.setItem(sessionDraftKey, JSON.stringify({
+            topic: currentWriting.topic,
+            content: currentWriting.content,
+            wordCount: currentWriting.wordCount,
+            isAssignment: currentWriting.isAssignment,
+            minScore: currentWriting.minScore,
+            timestamp: Date.now()
+          }));
+          console.log(`[세션저장] "${currentWriting.topic}" 저장됨 (${currentWriting.wordCount}자)`);
+        } catch (e) {
+          // 무시
+        }
+      }
+    };
+
+    // 탭이 숨겨질 때 (확대/축소, 탭 전환 등)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveToSession();
+      }
+    };
+
+    // 창 크기 변경 시 (웨일북 확대/축소)
+    const handleResize = () => {
+      saveToSession();
+    };
+
+    // 페이지 언로드 전
+    const handleBeforeUnload = () => {
+      saveToSession();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [user.uid, currentWriting]);
 
   // 모바일 뒤로가기 처리 - 글쓰기 중 뒤로가기 시 로그인 풀림 방지
   useEffect(() => {
@@ -1359,15 +1437,14 @@ export default function StudentDashboard({ user, userData }) {
       return;
     }
 
-    // 🚀 고쳐쓰기 모드: 최소 10글자 이상 변경해야 제출 가능
+    // 🚀 고쳐쓰기 모드: 최소 10글자 이상 변경해야 제출 가능 (특수문자 제외!)
     if (rewriteMode && rewriteMode.originalContent) {
-      const original = rewriteMode.originalContent.replace(/\s/g, '');
-      const current = currentWriting.content.replace(/\s/g, '');
+      // 특수문자, 공백 제거 (의미있는 글자만 카운트)
+      const meaninglessChars = /[\s.!?~,;:'"\-_=+*&^%$#@`<>(){}\[\]\/\\|ㅋㅎㅠㅜ]/g;
+      const original = rewriteMode.originalContent.replace(meaninglessChars, '');
+      const current = currentWriting.content.replace(meaninglessChars, '');
 
-      // 글자 수 차이 계산
-      const lengthDiff = Math.abs(current.length - original.length);
-
-      // 내용 변경량 계산 (간단한 방식: 다른 글자 수)
+      // 내용 변경량 계산 (의미있는 글자만)
       let changedChars = 0;
       const minLen = Math.min(original.length, current.length);
       for (let i = 0; i < minLen; i++) {
@@ -1376,7 +1453,7 @@ export default function StudentDashboard({ user, userData }) {
       changedChars += Math.abs(original.length - current.length);
 
       if (changedChars < 10) {
-        alert("고쳐쓰기 모드에서는 수정을 해야 제출할 수 있습니다.");
+        alert("고쳐쓰기 모드에서는 의미있는 내용을 수정해야 제출 가능합니다.");
         return;
       }
     }
@@ -1390,10 +1467,31 @@ export default function StudentDashboard({ user, userData }) {
       console.log(`[제출] classCode: ${classCode}, topic: "${currentWriting.topic}"`);
       console.log(`[제출] userData:`, userData);
 
+      // 🚀 자동 고쳐쓰기 모드: 같은 주제로 이전에 제출한 글이 있으면 자동 적용
+      let isAutoRewrite = !!rewriteMode;
+      let previousScoreForRewrite = currentWriting.previousScore || null;
+
+      if (!rewriteMode && userData.writingSummary) {
+        const previousSubmission = userData.writingSummary.find(w =>
+          w.topic === currentWriting.topic && !w.isDraft
+        );
+        if (previousSubmission) {
+          isAutoRewrite = true;
+          previousScoreForRewrite = previousSubmission.score;
+          console.log(`[자동 고쳐쓰기] 같은 주제 발견 - 이전 점수: ${previousScoreForRewrite}점`);
+        }
+      }
+
+      // previousScore를 currentWriting에 추가 (submitWriting에서 사용)
+      const writingDataWithPrevScore = {
+        ...currentWriting,
+        previousScore: previousScoreForRewrite
+      };
+
       const result = await submitWriting(
         user.uid,
-        currentWriting,
-        !!rewriteMode,
+        writingDataWithPrevScore,
+        isAutoRewrite,
         classCode,
         userData,
         testScoreMode, // 🧪 테스트 모드 점수 (null, 'pass', 'fail', 'custom')
@@ -1426,14 +1524,17 @@ export default function StudentDashboard({ user, userData }) {
         setTimeout(() => setShowConfetti(false), 5000);
       }
 
-      // 제출 성공 시 임시 저장 삭제 (서버 + 로컬)
+      // 제출 성공 시 임시 저장 삭제 (서버 + 로컬 + 세션)
       if (currentWriting.topic) {
         await deleteDraft(user.uid, currentWriting.topic);
         setHasDraft(false);
-        // 🚀 로컬 스토리지 임시 저장도 삭제
+        // 🚀 로컬 스토리지 + 세션 스토리지 임시 저장도 삭제
         try {
           const localDraftKey = `writing_draft_${user.uid}_${currentWriting.topic}`;
           localStorage.removeItem(localDraftKey);
+          // 🚀 세션 스토리지도 삭제 (제출 완료된 글이 다시 복구되지 않도록)
+          const sessionDraftKey = `writing_session_${user.uid}`;
+          sessionStorage.removeItem(sessionDraftKey);
         } catch (e) {
           // 무시
         }
@@ -1467,7 +1568,19 @@ export default function StudentDashboard({ user, userData }) {
 
       // 🚀 비용 최적화: 글 제출 후 랭킹 새로고침 제거 (랭킹 탭에서만 로드)
     } catch (error) {
-      alert(error.message || "제출에 실패했습니다.");
+      console.error('[제출 오류]', error);
+      // 🚀 모바일 오류 개선: 더 상세한 에러 메시지
+      let errorMessage = "제출에 실패했습니다.";
+      if (error.code === 'functions/deadline-exceeded' || error.message?.includes('timeout')) {
+        errorMessage = "⏱️ 서버 응답 시간이 초과되었습니다.\n\n잠시 후 다시 시도해주세요.\n(네트워크 연결을 확인해주세요)";
+      } else if (error.code === 'functions/unavailable' || error.message?.includes('network')) {
+        errorMessage = "📶 네트워크 연결이 불안정합니다.\n\nWi-Fi 또는 데이터 연결을 확인하고 다시 시도해주세요.";
+      } else if (error.code === 'functions/internal') {
+        errorMessage = "🔧 서버 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -3353,6 +3466,51 @@ export default function StudentDashboard({ user, userData }) {
                           <div className="text-xs text-blue-500 mt-1">{isSelected ? '▲ 접기' : '▼ 상세보기'}</div>
                         </div>
                       </div>
+                      {/* 🚀 미달성 글: 고쳐쓰기 버튼 (상세보기 안 열어도 바로 표시) */}
+                      {!isPassed && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+
+                            // 상세 정보가 없으면 먼저 로드
+                            let writingDetail = detail;
+                            if (!writingDetail) {
+                              try {
+                                writingDetail = await getWritingDetail(writing.writingId);
+                              } catch (err) {
+                                console.error('글 상세 로드 실패:', err);
+                                alert('글 내용을 불러오는데 실패했습니다. 다시 시도해주세요.');
+                                return;
+                              }
+                            }
+
+                            // 원본 글 내용으로 고쳐쓰기 시작
+                            setSelectedTopic({ id: 'rewrite', title: writing.topic });
+                            setCurrentWriting({
+                              topic: writing.topic,
+                              content: writingDetail.content || '',
+                              wordCount: writingDetail.wordCount || writing.wordCount,
+                              gradeLevel: userData.gradeLevel,
+                              studentName: userData.name,
+                              minScore: writingRequiredScore,
+                              isAssignment: writingDetail.isAssignment || false,
+                              previousScore: writing.score
+                            });
+                            setRewriteMode({
+                              detailedFeedback: writingDetail.analysis?.detailedFeedback || [],
+                              improvements: writingDetail.analysis?.improvements || [],
+                              score: writing.score,
+                              minScore: writingRequiredScore,
+                              originalContent: writingDetail.content || ''
+                            });
+                            setSelectedWritingDetail(null);
+                            handleTabChange('write');
+                          }}
+                          className="mt-3 w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-md"
+                        >
+                          ✏️ 고쳐쓰기
+                        </button>
+                      )}
                     </div>
 
                     {/* 🚀 상세 정보 (클릭 시에만 표시 - DB 읽기 1회) */}
