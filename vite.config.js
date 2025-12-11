@@ -7,23 +7,22 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // 🚀 서비스 워커 즉시 활성화 + 항상 최신 버전
+      // 🚀 최적화된 캐싱 전략
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        // 🚀 JS/CSS는 캐시하지 않음 (항상 최신 버전 로드)
-        globPatterns: ['**/*.{html,ico,png,svg}'],
+        // HTML은 캐시하지 않음 (항상 서버에서 최신 버전)
+        // JS/CSS는 해시가 포함되어 있어서 CacheFirst로 캐시 (파일명이 바뀌면 새로 다운로드)
+        globPatterns: ['**/*.{js,css,ico,png,svg}'],
+        // HTML은 항상 네트워크에서 가져옴
+        navigateFallback: null,
         runtimeCaching: [
           {
-            // 🚀 JS/CSS는 NetworkFirst - 항상 네트워크 먼저 시도
-            urlPattern: /\.(?:js|css)$/,
+            // HTML 파일은 NetworkFirst (항상 최신 버전)
+            urlPattern: /\/$/,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'app-assets',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1시간만 캐시
-              },
+              cacheName: 'html-cache',
               networkTimeoutSeconds: 3
             }
           },
