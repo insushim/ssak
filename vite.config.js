@@ -7,12 +7,26 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // 🚀 서비스 워커 즉시 활성화 (캐시 문제 해결)
+      // 🚀 서비스 워커 즉시 활성화 + 항상 최신 버전
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // 🚀 JS/CSS는 캐시하지 않음 (항상 최신 버전 로드)
+        globPatterns: ['**/*.{html,ico,png,svg}'],
         runtimeCaching: [
+          {
+            // 🚀 JS/CSS는 NetworkFirst - 항상 네트워크 먼저 시도
+            urlPattern: /\.(?:js|css)$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-assets',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 // 1시간만 캐시
+              },
+              networkTimeoutSeconds: 3
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
