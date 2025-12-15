@@ -362,6 +362,7 @@ export default function StudentDashboard({ user, userData }) {
   const [feedback, setFeedback] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [aiHelp, setAiHelp] = useState(null);
+  const [aiHelpHistory, setAiHelpHistory] = useState([]); // AI 도움 기록 (표절 검사용)
   const [loadingHelp, setLoadingHelp] = useState(false);
   const [submittedWriting, setSubmittedWriting] = useState(null);
   const [completedAssignmentsCount, setCompletedAssignmentsCount] = useState(0);
@@ -666,6 +667,7 @@ export default function StudentDashboard({ user, userData }) {
           }));
           setSelectedTopic(null);
           setAiHelp(null);
+          setAiHelpHistory([]); // AI 도움 기록 초기화
           setQuickAdvice(null);
           setRewriteMode(null);
         }
@@ -1249,8 +1251,18 @@ export default function StudentDashboard({ user, userData }) {
     try {
       const help = await getWritingHelp(currentWriting.content, currentWriting.topic, helpType);
       setAiHelp({ type: helpType, content: help });
+
+      // AI 도움 기록 저장 (표절 검사용) - hints, suggestions 등 텍스트 추출
+      const aiTexts = [];
+      if (help.hints) aiTexts.push(...help.hints);
+      if (help.suggestions) aiTexts.push(...help.suggestions.map(s => s.improved));
+      if (help.expandIdeas) aiTexts.push(...help.expandIdeas);
+      if (help.polished) aiTexts.push(help.polished); // 이전 버전 호환
+      if (aiTexts.length > 0) {
+        setAiHelpHistory(prev => [...prev, ...aiTexts]);
+      }
     } catch (error) {
-      alert('AI 도움 요청에 실패했습니다.');
+      alert(error.message || 'AI 도움 요청에 실패했습니다.');
     } finally {
       setLoadingHelp(false);
     }
@@ -1495,7 +1507,8 @@ export default function StudentDashboard({ user, userData }) {
         classCode,
         userData,
         testScoreMode, // 🧪 테스트 모드 점수 (null, 'pass', 'fail', 'custom')
-        testScoreMode === 'custom' ? customTestScore : null // 🧪 직접 입력 점수
+        testScoreMode === 'custom' ? customTestScore : null, // 🧪 직접 입력 점수
+        aiHelpHistory // 🚀 AI 도움 기록 (표절 검사용)
       );
 
       // 과제별 기준점수 (과제가 아니면 기본 PASSING_SCORE 사용)
@@ -1544,6 +1557,7 @@ export default function StudentDashboard({ user, userData }) {
       // 🚀 주의: setSelectedTopic(null)을 먼저 해야 피드백 화면이 표시됨
       setSelectedTopic(null);
       setAiHelp(null);
+      setAiHelpHistory([]); // AI 도움 기록 초기화
       setRewriteMode(null); // 고쳐쓰기 모드 종료
       setCurrentWriting({
         topic: "",
@@ -2565,25 +2579,29 @@ export default function StudentDashboard({ user, userData }) {
                             {/* 표현 다듬기 타입 */}
                             {aiHelp.type === 'polish' && aiHelp.content && (
                               <div className="space-y-2">
-                                {aiHelp.content.polished && (
-                                  <div className="bg-white p-2 rounded border border-yellow-200">
-                                    <p className="text-xs font-medium text-yellow-700 mb-1">✨ 다듬어진 글:</p>
-                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{aiHelp.content.polished}</p>
+                                {aiHelp.content.praise && (
+                                  <div className="bg-green-50 p-2 rounded border border-green-200">
+                                    <p className="text-sm text-green-700">👏 {aiHelp.content.praise}</p>
                                   </div>
                                 )}
-                                {aiHelp.content.changes && aiHelp.content.changes.length > 0 && (
+                                {aiHelp.content.suggestions && aiHelp.content.suggestions.length > 0 && (
                                   <div>
-                                    <p className="text-xs font-medium text-yellow-700 mb-1">🔄 변경 사항:</p>
-                                    <ul className="space-y-1">
-                                      {aiHelp.content.changes.map((change, idx) => (
-                                        <li key={idx} className="text-xs text-yellow-800 bg-white p-1.5 rounded">
-                                          <span className="line-through text-red-500">{change.before}</span>
-                                          <span className="mx-1">→</span>
-                                          <span className="text-green-600 font-medium">{change.after}</span>
-                                          {change.reason && <span className="text-gray-500 ml-1">({change.reason})</span>}
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">✏️ 표현 개선 제안:</p>
+                                    <ul className="space-y-1.5">
+                                      {aiHelp.content.suggestions.map((suggestion, idx) => (
+                                        <li key={idx} className="text-xs text-yellow-800 bg-white p-2 rounded border border-yellow-100">
+                                          <div className="flex flex-wrap items-start gap-1">
+                                            <span className="line-through text-red-500">"{suggestion.original}"</span>
+                                            <span className="mx-1">→</span>
+                                            <span className="text-green-600 font-medium">"{suggestion.improved}"</span>
+                                          </div>
+                                          {suggestion.reason && <p className="text-gray-500 mt-1 text-xs">💡 {suggestion.reason}</p>}
                                         </li>
                                       ))}
                                     </ul>
+                                    <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded">
+                                      ⚠️ 참고만 하고, 자신의 표현으로 직접 수정해보세요!
+                                    </p>
                                   </div>
                                 )}
                                 {aiHelp.content.tips && (
@@ -2914,6 +2932,7 @@ export default function StudentDashboard({ user, userData }) {
                           setSelectedTopic(null);
                           setFeedback(null);
                           setAiHelp(null);
+                          setAiHelpHistory([]); // AI 도움 기록 초기화
                           setRewriteMode(null);
                           setHasDraft(false);
                         }}
@@ -3044,10 +3063,11 @@ export default function StudentDashboard({ user, userData }) {
                     </div>
 
                     {/* 세부 점수 - 카드 그리드 */}
-                    <div className="grid grid-cols-5 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
                       {[
-                        { label: '내용', score: feedback.contentScore, max: 30, color: 'from-blue-500 to-blue-600', icon: '📝' },
-                        { label: '구성', score: feedback.structureScore, max: 25, color: 'from-purple-500 to-purple-600', icon: '🏗️' },
+                        { label: '내용', score: feedback.contentScore, max: 25, color: 'from-blue-500 to-blue-600', icon: '📝' },
+                        { label: '주제', score: feedback.topicRelevanceScore, max: 10, color: 'from-red-500 to-red-600', icon: '🎯' },
+                        { label: '구성', score: feedback.structureScore, max: 20, color: 'from-purple-500 to-purple-600', icon: '🏗️' },
                         { label: '어휘', score: feedback.vocabularyScore, max: 20, color: 'from-pink-500 to-pink-600', icon: '📚' },
                         { label: '문법', score: feedback.grammarScore, max: 15, color: 'from-amber-500 to-amber-600', icon: '✏️' },
                         { label: '창의성', score: feedback.creativityScore, max: 10, color: 'from-emerald-500 to-emerald-600', icon: '💡' }
@@ -3523,10 +3543,11 @@ export default function StudentDashboard({ user, userData }) {
                         </div>
                         {detail.analysis && (
                           <div className="px-6 pb-6 space-y-4">
-                            <div className="grid grid-cols-5 gap-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                               {[
-                                { label: '내용', score: detail.analysis.contentScore, max: 30, color: 'blue' },
-                                { label: '구성', score: detail.analysis.structureScore, max: 25, color: 'purple' },
+                                { label: '내용', score: detail.analysis.contentScore, max: 25, color: 'blue' },
+                                { label: '주제', score: detail.analysis.topicRelevanceScore, max: 10, color: 'red' },
+                                { label: '구성', score: detail.analysis.structureScore, max: 20, color: 'purple' },
                                 { label: '어휘', score: detail.analysis.vocabularyScore, max: 20, color: 'pink' },
                                 { label: '문법', score: detail.analysis.grammarScore, max: 15, color: 'amber' },
                                 { label: '창의성', score: detail.analysis.creativityScore, max: 10, color: 'emerald' }

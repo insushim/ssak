@@ -457,7 +457,30 @@ exports.resetStudentPassword = onCall(async (request) => {
 });
 
 // 🚀 글쓰기 품질 검사 함수 (반복문장, 무의미한 글 감지)
-function checkWritingQuality(text) {
+function checkWritingQuality(text, idealWordCount = 100) {
+  // 0. 최소 글자 수 체크 (너무 짧은 글은 바로 0점)
+  const cleanText = text.replace(/s/g, '');
+  const minLength = 20; // 최소 20자
+
+  if (cleanText.length < minLength) {
+    return {
+      isInvalid: true,
+      reason: `글자 수 부족 (${cleanText.length}자/${minLength}자 미만)`,
+      feedback: `글이 너무 짧아요. 최소 ${minLength}자 이상 작성해주세요.`,
+      improvement: '주제에 대해 더 자세히 생각하고 내용을 풍부하게 써보세요.'
+    };
+  }
+
+  // 0-1. 권장 글자 수의 15% 미만이면 0점 처리
+  if (idealWordCount && cleanText.length < idealWordCount * 0.15) {
+    return {
+      isInvalid: true,
+      reason: `글자 수 심각하게 부족 (${cleanText.length}자, 권장의 ${Math.round(cleanText.length / idealWordCount * 100)}%)`,
+      feedback: `글이 너무 짧아요. 권장 글자 수(${idealWordCount}자)의 최소 15% 이상은 작성해주세요.`,
+      improvement: '서론, 본론, 결론을 갖춘 완성된 글을 써보세요.'
+    };
+  }
+
   // 1. 한글 자음/모음만 있는 무의미한 글 감지
   const koreanJamoPattern = /[ㄱ-ㅎㅏ-ㅣ]{5,}/g;
   const jamoMatches = text.match(koreanJamoPattern) || [];
@@ -579,7 +602,7 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   // 🚀 서버 측 무의미한 글 감지 (AI 호출 전에 체크)
-  const qualityCheck = checkWritingQuality(text);
+  const qualityCheck = checkWritingQuality(text, idealWordCount);
   if (qualityCheck.isInvalid) {
     console.log(`[무의미한 글 감지] 사유: ${qualityCheck.reason}`);
     return {
@@ -762,20 +785,24 @@ ${text}
     const parsed = JSON.parse(jsonMatch[0]);
 
     // 점수 유효성 검사 및 보정
-    parsed.score = Math.max(0, Math.min(100, parsed.score || 0));
     parsed.contentScore = Math.max(0, Math.min(25, parsed.contentScore || 0));
     parsed.topicRelevanceScore = Math.max(0, Math.min(10, parsed.topicRelevanceScore || 0));
     parsed.structureScore = Math.max(0, Math.min(20, parsed.structureScore || 0));
     parsed.vocabularyScore = Math.max(0, Math.min(20, parsed.vocabularyScore || 0));
     parsed.grammarScore = Math.max(0, Math.min(15, parsed.grammarScore || 0));
     parsed.creativityScore = Math.max(0, Math.min(10, parsed.creativityScore || 0));
+    
+    // 🚀 총점 = 각 항목 점수의 합계로 강제 계산 (AI가 준 score 무시)
+    parsed.score = parsed.contentScore + parsed.topicRelevanceScore + parsed.structureScore + 
+                   parsed.vocabularyScore + parsed.grammarScore + parsed.creativityScore;
 
-    // 🚀 주제 일치도 3점 이하 시 추가 감점 (AI가 안 했을 경우 대비)
+    // 🚀 주제 일치도 3점 이하 시 0점 처리 (주제와 관련 없는 글)
     if (parsed.topicRelevanceScore <= 3) {
-      const beforePenalty = parsed.score;
-      parsed.score = Math.max(0, parsed.score - 20);
-      parsed.topicPenalty = 20;
-      console.log(`[주제이탈 감점] 주제일치도 ${parsed.topicRelevanceScore}점 → -20점 (${beforePenalty}→${parsed.score})`);
+      console.log(`[주제이탈 0점] 주제일치도 ${parsed.topicRelevanceScore}점 → 총점 0점 처리`);
+      parsed.score = 0;
+      parsed.topicPenalty = 'zero';
+      parsed.feedback = '주제와 관련 없는 내용입니다. 주제에 맞는 글을 작성해주세요.';
+      parsed.overallFeedback = `이 글은 주제("${topic}")와 관련이 없어요. 주제를 다시 확인하고, 주제에 맞는 내용으로 글을 써보세요.`;
     }
 
     // 🚀 글자 수 강제 감점 (완화된 기준)
@@ -1055,6 +1082,12 @@ exports.getWritingHelp = onCall({secrets: [geminiApiKey]}, async (request) => {
     throw new HttpsError('invalid-argument', '주제가 필요합니다.');
   }
 
+  // 🚀 polish/expand는 최소 50자 이상 작성해야 사용 가능
+  const cleanText = (text || '').replace(/\s/g, '');
+  if ((helpType === 'polish' || helpType === 'expand') && cleanText.length < 50) {
+    throw new HttpsError('invalid-argument', '표현 다듬기와 확장 기능은 최소 50자 이상 작성해야 사용할 수 있습니다.');
+  }
+
   try {
     const apiKey = geminiApiKey.value();
     if (!apiKey) {
@@ -1093,20 +1126,25 @@ JSON 형식으로 응답:
 ${text}
 """
 
-위 글의 표현을 더 아름답고 풍부하게 다듬어주세요.
-- 단조로운 표현을 생동감 있게
-- 반복되는 단어를 다양한 어휘로
-- 문장을 더 매끄럽게
+**중요한 규칙 (반드시 지켜주세요!):**
+1. 절대로 새로운 내용을 추가하지 마세요
+2. 절대로 글의 길이를 늘리지 마세요
+3. 학생이 쓴 문장 구조와 아이디어를 그대로 유지하세요
+4. 오직 표현만 개선하세요 (어휘, 문법, 맞춤법)
+5. 학생이 직접 글을 수정할 수 있도록 "제안"만 하세요
 
-원래 의미는 유지하면서 표현만 개선해주세요.
+위 글에서 개선할 수 있는 표현 3-5개만 찾아서 제안해주세요.
+- 어색한 표현 → 자연스러운 표현
+- 반복되는 단어 → 다양한 어휘
+- 문법 오류 수정
 
 JSON 형식으로 응답:
 {
-  "polished": "다듬어진 전체 글",
-  "changes": [
-    {"before": "원래 표현", "after": "개선된 표현", "reason": "변경 이유"}
+  "suggestions": [
+    {"original": "학생이 쓴 원래 표현", "improved": "개선된 표현", "reason": "왜 바꾸면 좋은지 설명"}
   ],
-  "tips": ["표현 개선 팁1", "표현 개선 팁2"]
+  "tips": ["표현 개선 팁1", "표현 개선 팁2"],
+  "praise": "잘 쓴 부분 칭찬 (1문장)"
 }`;
     } else if (helpType === 'expand') {
       prompt = `학생이 "${topic}"이라는 주제로 글을 쓰고 있습니다.
@@ -2264,11 +2302,11 @@ exports.autoAssignmentScheduler = onSchedule({
     }
 
     const now = new Date();
-    const currentDay = now.getDay(); // 0 = 일요일
 
-    // 한국 시간 기준 오늘 날짜
+    // 한국 시간 기준으로 계산 (Cloud Functions는 UTC로 실행됨)
     const kstOffset = 9 * 60 * 60 * 1000;
     const kstDate = new Date(now.getTime() + kstOffset);
+    const currentDay = kstDate.getUTCDay(); // 0 = 일요일 (KST 기준)
     const today = kstDate.toISOString().split('T')[0];
     const todayStartUTC = new Date(`${today}T00:00:00+09:00`).toISOString();
     const todayEndUTC = new Date(`${today}T23:59:59+09:00`).toISOString();

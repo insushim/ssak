@@ -295,7 +295,8 @@ export async function getWritingById(writingId) {
 // 🚀 최적화: classCode와 userData를 파라미터로 받아 getDoc 호출 최소화 (100,000명 대응)
 // 🧪 testScoreMode: null(일반), 'pass'(도달점수), 'fail'(미달점수), 'custom'(직접입력) - 테스트 학생용
 // 🧪 customTestScore: 직접 입력 점수 (testScoreMode === 'custom' 일 때 사용)
-export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null, customTestScore = null) {
+// 🚀 aiHelpHistory: AI 도움 기록 (표절 검사용)
+export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null, customTestScore = null, aiHelpHistory = []) {
   try {
     // 글자 수 기준 가져오기 (gradeLevel 형식 변환 포함)
     let normalizedGrade = writingData.gradeLevel;
@@ -312,6 +313,24 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
 
     // 🚀 자기 표절 검사 완전 제거 - AI 표절 검사만 사용
     // (이전 글 조회 제거 = DB 읽기 76회 절약!)
+
+    // 🚀 AI 도움 복사 표절 검사 (클라이언트에서 받은 AI 도움 기록과 비교)
+    if (aiHelpHistory && aiHelpHistory.length > 0) {
+      const submittedText = writingData.content.replace(/\s/g, '').toLowerCase();
+      for (const aiText of aiHelpHistory) {
+        if (!aiText || typeof aiText !== 'string') continue;
+        const cleanAiText = aiText.replace(/\s/g, '').toLowerCase();
+        if (cleanAiText.length < 10) continue; // 너무 짧은 텍스트는 무시
+
+        // 제출된 글에 AI 도움 텍스트가 50% 이상 포함되어 있으면 표절
+        if (submittedText.includes(cleanAiText) || cleanAiText.length > 20 && submittedText.includes(cleanAiText.substring(0, 20))) {
+          const similarity = cleanAiText.length / submittedText.length;
+          if (similarity > 0.3) { // AI 텍스트가 제출글의 30% 이상 차지하면
+            throw new Error('AI 도움을 그대로 복사하면 안 됩니다. 참고만 하고 자신의 표현으로 다시 써주세요!');
+          }
+        }
+      }
+    }
 
     // AI 사용 감지 (참고사항으로만 - 제출 차단하지 않음)
     const aiUsageResult = await detectAIUsage(writingData.content, writingData.topic);
