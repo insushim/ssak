@@ -246,10 +246,10 @@ export default function TeacherDashboard({ user, userData }) {
       loadAssignments(currentClassCode);
       // 🚀 스케줄러 설정 로드 후 체크 (순차 실행으로 캐시 활용)
       console.log(`[📊 TeacherDashboard] loadSchedulerSettings 호출`);
-      loadSchedulerSettings(currentClassCode).then(() => {
-        // 자동 출제 스케줄러 체크 (설정 로드 후 - 캐시 활용)
-        console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출 (캐시 활용)`);
-        runSchedulerCheck(currentClassCode, selectedClass.gradeLevel);
+      loadSchedulerSettings(currentClassCode).then((loadedSettings) => {
+        // 자동 출제 스케줄러 체크 (설정 로드 후 - 캐시된 설정 전달로 DB 재조회 방지)
+        console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출 (설정 전달 - DB 읽기 0회)`);
+        runSchedulerCheck(currentClassCode, selectedClass.gradeLevel, loadedSettings);
 
         // 🚀 로그인 완료 요약
         const hasClassCache = userData.teacherClasses && userData.teacherClasses.length > 0;
@@ -274,10 +274,11 @@ export default function TeacherDashboard({ user, userData }) {
   }, [selectedClass?.classCode]);
 
   // 자동 출제 스케줄러 실행
-  const runSchedulerCheck = async (classCode, gradeLevel) => {
+  // 🚀 최적화: cachedSettings 파라미터 추가 - DB 재조회 방지
+  const runSchedulerCheck = async (classCode, gradeLevel, cachedSettings = null) => {
     console.log(`[스케줄러] runSchedulerCheck 호출됨 - classCode: ${classCode}, gradeLevel: ${gradeLevel}`);
     try {
-      const result = await checkAndRunScheduler(classCode, gradeLevel, user.uid);
+      const result = await checkAndRunScheduler(classCode, gradeLevel, user.uid, cachedSettings);
       console.log(`[스케줄러] 결과:`, result);
       if (result.executed) {
         alert(result.message);
@@ -352,7 +353,7 @@ export default function TeacherDashboard({ user, userData }) {
           const cachedSettings = JSON.parse(cached);
           setSchedulerSettings(cachedSettings);
           console.log(`[📊 캐시] 스케줄러 설정 - LocalStorage에서 로드 (DB 읽기 0회)`);
-          return;
+          return cachedSettings; // 🚀 설정 반환
         } catch (e) {}
       }
 
@@ -363,6 +364,7 @@ export default function TeacherDashboard({ user, userData }) {
         setSchedulerSettings(settings);
         // 캐시 저장
         localStorage.setItem(cacheKey, JSON.stringify(settings));
+        return settings; // 🚀 설정 반환
       } else {
         const defaultSettings = {
           enabled: false,
@@ -373,9 +375,11 @@ export default function TeacherDashboard({ user, userData }) {
         };
         setSchedulerSettings(defaultSettings);
         localStorage.setItem(cacheKey, JSON.stringify(defaultSettings));
+        return defaultSettings; // 🚀 설정 반환
       }
     } catch (error) {
       console.error("스케줄러 설정 로드 에러:", error);
+      return null;
     }
   };
 

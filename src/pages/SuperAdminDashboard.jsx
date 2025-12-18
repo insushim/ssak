@@ -626,45 +626,41 @@ ${result.data.message}`);
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+        <div className="mb-6">
+          <nav className="flex space-x-1 sm:space-x-2 bg-white/80 backdrop-blur p-1 sm:p-1.5 rounded-2xl shadow-sm border border-indigo-100 overflow-x-auto">
             <button
               onClick={() => handleTabChange("pending")}
-              className={`${
-                activeTab === "pending"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              className={`${activeTab === "pending"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-indigo-50"
+                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               승인 대기 ({pendingTeachers.length})
             </button>
             <button
               onClick={() => handleTabChange("classes")}
-              className={`${
-                activeTab === "classes"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              className={`${activeTab === "classes"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-indigo-50"
+                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               학급 관리 ({classSummaries.length})
             </button>
             <button
               onClick={() => handleTabChange("teachers")}
-              className={`${
-                activeTab === "teachers"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              className={`${activeTab === "teachers"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-indigo-50"
+                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               선생님 관리
             </button>
             <button
               onClick={() => handleTabChange("system")}
-              className={`${
-                activeTab === "system"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              className={`${activeTab === "system"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
+                  : "text-gray-600 hover:bg-indigo-50"
+                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               시스템 관리
             </button>

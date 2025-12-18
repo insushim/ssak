@@ -6,23 +6,22 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { SUPER_ADMIN_UID, ROLES } from '../config/auth';
+import { CacheManager, DEFAULT_TTL, LS_PREFIX } from '../utils/cacheUtils';
 
 // ============================================
-// 🚀 캐싱 시스템 - Firestore 읽기 최적화
+// 캐시 관리자 - 공통 유틸리티 사용
 // ============================================
-const userDataCache = new Map(); // uid -> { data, timestamp }
-const CACHE_TTL = 300000; // 5분
+const userCache = new CacheManager(LS_PREFIX.USER, DEFAULT_TTL.USER_DATA);
 
-function isCacheValid(timestamp) {
-  return timestamp && (Date.now() - timestamp) < CACHE_TTL;
-}
-
-// 사용자 데이터 캐시 무효화
+/**
+ * 사용자 데이터 캐시 무효화
+ * @param {string} uid - 사용자 ID (없으면 전체 무효화)
+ */
 export function invalidateUserCache(uid) {
   if (uid) {
-    userDataCache.delete(uid);
+    userCache.invalidate(uid);
   } else {
-    userDataCache.clear();
+    userCache.clear();
   }
 }
 
@@ -141,7 +140,12 @@ export async function signOut() {
   }
 }
 
-// 🚀 최적화: 캐싱 적용된 사용자 데이터 조회
+/**
+ * 사용자 데이터 조회 (메모리 + LocalStorage 이중 캐시)
+ * @param {string} uid - 사용자 ID
+ * @param {boolean} forceRefresh - 강제 새로고침 여부
+ * @returns {Promise<object|null>}
+ */
 export async function getUserData(uid, forceRefresh = false) {
   try {
     // 슈퍼 관리자는 캐싱하지 않음 (권한 변경 즉시 반영 필요)
@@ -155,22 +159,21 @@ export async function getUserData(uid, forceRefresh = false) {
       return ensuredProfile;
     }
 
-    // 캐시 확인
-    const cached = userDataCache.get(uid);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp)) {
-      return cached.data;
+    // 캐시 확인 (공통 유틸리티 사용)
+    if (!forceRefresh) {
+      const cached = userCache.get(uid);
+      if (cached) {
+        return cached;
+      }
     }
 
+    // DB에서 조회 (캐시 미스 시에만)
     const userRef = doc(db, 'users', uid);
     const userDoc = await getDoc(userRef);
 
     if (userDoc.exists()) {
       const userData = userDoc.data();
-      // 캐시 저장
-      userDataCache.set(uid, {
-        data: userData,
-        timestamp: Date.now()
-      });
+      userCache.set(uid, userData);
       return userData;
     }
 

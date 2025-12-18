@@ -9,11 +9,13 @@ const studentAssignmentsCache = new Map(); // classCode -> { data, timestamp } (
 const submissionsCache = new Map(); // key -> { data, timestamp }
 const pendingRequests = new Map(); // 🚀 진행 중인 요청 추적 (중복 호출 방지)
 
-// 🚀 캐시 TTL 극대화 (100,000명 대응)
+// 🚀 캐시 TTL 극대화 (100,000명 대응) - 비용 최적화
 const CACHE_TTL = {
-  assignments: 1800000,  // 30분 (학생용 과제는 자주 변경 안됨)
-  submissions: 300000    // 5분
+  assignments: 7200000,  // 🔥 2시간 - 과제는 자주 변경 안됨 (생성/삭제 시 무효화)
+  submissions: 600000    // 🔥 10분 - 제출물은 새 제출 확인 필요
 };
+
+const LS_PREFIX = 'ssak_assign_';
 
 function isCacheValid(timestamp, ttl) {
   if (!timestamp) return false;
@@ -22,11 +24,36 @@ function isCacheValid(timestamp, ttl) {
   return (Date.now() - timestamp) < (ttl + jitter);
 }
 
+// 🔥 LocalStorage에 과제 데이터 저장
+function saveToLocalStorage(key, data) {
+  try {
+    const item = { data, timestamp: Date.now() };
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(item));
+  } catch (e) {}
+}
+
+// 🔥 LocalStorage에서 과제 데이터 로드
+function loadFromLocalStorage(key, ttl) {
+  try {
+    const item = localStorage.getItem(LS_PREFIX + key);
+    if (!item) return null;
+    const parsed = JSON.parse(item);
+    if (isCacheValid(parsed.timestamp, ttl)) {
+      return parsed.data;
+    }
+    localStorage.removeItem(LS_PREFIX + key);
+  } catch (e) {}
+  return null;
+}
+
 // 과제 캐시 무효화 (학생용 캐시 포함)
 export function invalidateAssignmentsCache(classCode) {
   if (classCode) {
     assignmentsCache.delete(classCode);
     studentAssignmentsCache.delete(classCode);
+    try {
+      localStorage.removeItem(LS_PREFIX + classCode);
+    } catch (e) {}
   } else {
     assignmentsCache.clear();
     studentAssignmentsCache.clear();
@@ -120,7 +147,7 @@ export async function createAssignment(teacherId, classCode, title, description,
   }
 }
 
-// 🚀 최적화: 캐싱 + 정렬을 Firestore에서 처리 + 중복 요청 방지
+// 🚀 최적화: 캐싱 + 정렬을 Firestore에서 처리 + 중복 요청 방지 (메모리 + LocalStorage 이중 캐시)
 // 🔧 에러 핸들링 강화 - 에러 발생해도 앱이 중단되지 않도록
 export async function getAssignmentsByClass(classCode, forceRefresh = false) {
   try {
@@ -130,11 +157,21 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
       return [];
     }
 
-    // 캐시 확인
-    const cached = assignmentsCache.get(classCode);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.assignments)) {
-      console.log(`[📊 DB읽기] getAssignmentsByClass 캐시 히트 - ${cached.data.length}개 과제`);
-      return cached.data;
+    // 🔥 1. 메모리 캐시 확인
+    if (!forceRefresh) {
+      const cached = assignmentsCache.get(classCode);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.assignments)) {
+        console.log(`[📊 DB읽기] getAssignmentsByClass 메모리 캐시 히트 - ${cached.data.length}개 과제`);
+        return cached.data;
+      }
+
+      // 🔥 2. LocalStorage 캐시 확인
+      const lsData = loadFromLocalStorage(classCode, CACHE_TTL.assignments);
+      if (lsData) {
+        console.log(`[📊 DB읽기] getAssignmentsByClass LocalStorage 캐시 히트 - ${lsData.length}개 과제`);
+        assignmentsCache.set(classCode, { data: lsData, timestamp: Date.now() });
+        return lsData;
+      }
     }
 
     // 🚀 진행 중인 요청이 있으면 그 결과를 기다림 (중복 호출 방지)
@@ -144,7 +181,7 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
       return pendingRequests.get(pendingKey);
     }
 
-    // 새 요청 시작
+    // 🔥 3. DB에서 조회 (캐시 미스 시에만)
     const requestPromise = (async () => {
       console.log(`[📊 DB읽기] getAssignmentsByClass DB 조회 - classCode: ${classCode}`);
       const q = query(
@@ -161,11 +198,12 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
       });
       console.log(`[📊 DB읽기] getAssignmentsByClass - ${assignments.length}개 과제 로드`);
 
-      // 캐시 저장
+      // 메모리 + LocalStorage 이중 캐시 저장
       assignmentsCache.set(classCode, {
         data: assignments,
         timestamp: Date.now()
       });
+      saveToLocalStorage(classCode, assignments);
 
       return assignments;
     })();

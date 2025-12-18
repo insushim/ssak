@@ -33,6 +33,7 @@ const cache = {
   studentStats: new Map(),    // studentId -> { data, timestamp }
   classRanking: new Map(),    // classCode_period -> { data, timestamp }
   classWritings: new Map(),   // 🚀 classCode -> { data, timestamp } - 선생님용 제출글 캐시
+  writingDetail: new Map(),   // 🚀 writingId -> { data, timestamp } - 제출기록 상세 캐시
 };
 
 const rankingCache = new Map(); // classCode_period -> { data, timestamp }
@@ -49,12 +50,13 @@ export function invalidateRankingCache(classCode) {
 
 // 🚀 캐시 유효 시간 극대화 (100,000명 대응) - 비용 최적화를 위해 대폭 증가
 const CACHE_TTL = {
-  studentWritings: 3600000,  // 60분 - 본인 글 (이전 5분) - 제출 시에만 무효화
-  classData: 3600000,        // 60분 - 반 정보 (이전 10분)
-  userNicknames: 7200000,    // 2시간 - 닉네임 (이전 30분)
-  studentStats: 3600000,     // 60분 - 학생 통계 (이전 10분)
-  classRanking: 3600000,     // 60분 - 랭킹 (이전 30분)
-  classWritings: 300000,     // 🚀 5분 - 선생님용 제출글 (새 제출물 확인 위해 짧게)
+  studentWritings: 7200000,  // 🔥 2시간 - 본인 글 (제출 시에만 무효화되므로 길어도 안전)
+  classData: 7200000,        // 🔥 2시간 - 반 정보 (거의 변경 안됨)
+  userNicknames: 14400000,   // 🔥 4시간 - 닉네임 (거의 변경 안됨)
+  studentStats: 7200000,     // 🔥 2시간 - 학생 통계 (제출 시에만 무효화)
+  classRanking: 7200000,     // 🔥 2시간 - 랭킹 (제출 시 증분 업데이트되므로 안전)
+  classWritings: 600000,     // 🔥 10분 - 선생님용 제출글 (새 제출물 확인 필요)
+  writingDetail: 14400000,   // 🔥 4시간 - 제출기록 상세 (글 내용은 불변)
 };
 
 // 캐시 유효성 확인 (jitter 추가로 thundering herd 방지)
@@ -122,6 +124,9 @@ export function invalidateCache(type, key = null) {
 // 특정 학생의 글 캐시 무효화
 export function invalidateStudentWritingsCache(studentId) {
   cache.studentWritings.delete(studentId);
+  try {
+    localStorage.removeItem(LS_PREFIX + `writings_${studentId}`);
+  } catch (e) {}
 }
 
 // 특정 반의 캐시 무효화
@@ -244,13 +249,24 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
       return [];
     }
 
-    // 캐시 확인 (forceRefresh가 아니고 캐시가 유효하면 캐시 사용)
-    const cached = cache.studentWritings.get(studentId);
-    if (!forceRefresh && cached && isCacheValid(cached.timestamp, CACHE_TTL.studentWritings)) {
-      console.log(`[📊 DB읽기] getStudentWritings 캐시 히트 - ${cached.data.length}개 글`);
-      return cached.data;
+    // 🔥 1. 메모리 캐시 확인 (forceRefresh가 아니고 캐시가 유효하면 캐시 사용)
+    if (!forceRefresh) {
+      const cached = cache.studentWritings.get(studentId);
+      if (cached && isCacheValid(cached.timestamp, CACHE_TTL.studentWritings)) {
+        console.log(`[📊 DB읽기] getStudentWritings 메모리 캐시 히트 - ${cached.data.length}개 글`);
+        return cached.data;
+      }
+
+      // 🔥 2. LocalStorage 캐시 확인 (페이지 새로고침 후에도 유지)
+      const lsData = loadFromLocalStorage(`writings_${studentId}`, CACHE_TTL.studentWritings);
+      if (lsData) {
+        console.log(`[📊 DB읽기] getStudentWritings LocalStorage 캐시 히트 - ${lsData.length}개 글`);
+        cache.studentWritings.set(studentId, { data: lsData, timestamp: Date.now() });
+        return lsData;
+      }
     }
 
+    // 🔥 3. DB에서 조회 (캐시 미스 시에만)
     console.log(`[📊 DB읽기] getStudentWritings DB 조회 - studentId: ${studentId}`);
     const q = query(
       collection(db, 'writings'),
@@ -264,11 +280,12 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
     });
     console.log(`[📊 DB읽기] getStudentWritings 결과 - ${writings.length}개 글 로드됨`);
 
-    // 캐시 저장
+    // 메모리 + LocalStorage 이중 캐시 저장
     cache.studentWritings.set(studentId, {
       data: writings,
       timestamp: Date.now()
     });
+    saveToLocalStorage(`writings_${studentId}`, writings);
 
     return writings;
   } catch (error) {
@@ -933,9 +950,12 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
     }
 
     const newPoints = currentPoints + earnedPoints;
+    const currentTotalPoints = userData.totalPoints || currentPoints; // 누적 포인트 (없으면 현재 포인트로 초기화)
+    const newTotalPoints = currentTotalPoints + earnedPoints; // 누적 포인트는 항상 증가
 
     await updateDoc(userRef, {
       points: newPoints,
+      totalPoints: newTotalPoints, // 누적 포인트 저장 (레벨 계산용)
       lastSubmitDate: today,
       streakDays: streakDays
     });
@@ -1161,6 +1181,7 @@ async function recalculateClassRanking(classCode, period, classData = null) {
 }
 
 // 🚀 글 제출 시 랭킹 업데이트 (증분 업데이트)
+// 🚀 최적화: 주간/월간 한 번에 업데이트 (쓰기 2회 → 1회)
 export async function updateStudentRankingOnSubmit(classCode, studentId, score, userData) {
   try {
     if (!classCode) return;
@@ -1170,8 +1191,11 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
 
     const classData = classDoc.data();
     const nickname = userData?.nickname || userData?.name || '익명';
+    const updatedAt = new Date().toISOString();
 
-    // 주간/월간 둘 다 업데이트
+    // 🚀 주간/월간 랭킹을 미리 계산
+    const updateData = {};
+
     for (const period of ['weekly', 'monthly']) {
       const periodKey = getRankingPeriodKey(period);
       const rankingField = period === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
@@ -1180,7 +1204,7 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
       // 🚀 새 기간이면 빈 랭킹으로 시작 (재계산 없음! = 읽기 0회)
       let rankingData = [];
       if (savedRanking && savedRanking.periodKey === periodKey) {
-        rankingData = savedRanking.data || [];
+        rankingData = [...(savedRanking.data || [])]; // 복사본 사용
       } else {
         console.log(`[랭킹] 새 기간 시작 (${periodKey}) - 빈 랭킹으로 초기화`);
       }
@@ -1190,7 +1214,7 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
 
       if (studentIndex >= 0) {
         // 기존 학생 업데이트
-        const student = rankingData[studentIndex];
+        const student = { ...rankingData[studentIndex] }; // 복사본 사용
         student.submissionCount += 1;
         const newTotalScore = student.averageScore * (student.submissionCount - 1) + score;
         student.averageScore = Math.round(newTotalScore / student.submissionCount);
@@ -1200,6 +1224,7 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
         student.rankingScore = student.averageScore * 3 + student.passCount * 20;
         student.points = userData?.points || student.points;
         student.nickname = nickname;
+        rankingData[studentIndex] = student;
       } else {
         // 새 학생 추가
         const isPassed = score >= 70;  // 🚀 통과 기준 70점
@@ -1224,21 +1249,22 @@ export async function updateStudentRankingOnSubmit(classCode, studentId, score, 
         rank: index + 1
       }));
 
-      // 저장
-      await updateDoc(doc(db, 'classes', classCode), {
-        [rankingField]: {
-          periodKey,
-          data: rankingData,
-          updatedAt: new Date().toISOString()
-        }
-      });
+      // 업데이트 데이터에 추가
+      updateData[rankingField] = {
+        periodKey,
+        data: rankingData,
+        updatedAt
+      };
     }
+
+    // 🚀 한 번의 updateDoc으로 주간/월간 동시 저장 (쓰기 2회 → 1회!)
+    await updateDoc(doc(db, 'classes', classCode), updateData);
 
     // 캐시 무효화
     invalidateRankingCache(classCode);
     invalidateClassDataCache(classCode);
 
-    console.log(`[📊 랭킹] ${studentId} 랭킹 업데이트 완료`);
+    console.log(`[📊 랭킹] ${studentId} 랭킹 업데이트 완료 (쓰기 1회)`);
   } catch (error) {
     console.error('랭킹 업데이트 에러:', error);
     // 에러 시에도 앱은 계속 동작
@@ -1399,13 +1425,23 @@ export async function updateWritingSummary(studentId, writingData, action = 'add
   }
 }
 
-// 🚀 개별 글 조회 (제출기록에서 클릭 시)
+// 🚀 개별 글 조회 (제출기록에서 클릭 시) - 캐싱 적용
 export async function getWritingDetail(writingId) {
   try {
+    // 🚀 캐시 확인
+    const cached = cache.writingDetail.get(writingId);
+    if (cached && isCacheValid(cached.timestamp, CACHE_TTL.writingDetail)) {
+      console.log(`[📊 캐시] getWritingDetail 캐시 히트 - writingId: ${writingId}`);
+      return cached.data;
+    }
+
     console.log(`[📊 DB읽기] getWritingDetail - writingId: ${writingId}`);
     const writingDoc = await getDoc(doc(db, 'writings', writingId));
     if (writingDoc.exists()) {
-      return writingDoc.data();
+      const data = writingDoc.data();
+      // 🚀 캐시 저장
+      cache.writingDetail.set(writingId, { data, timestamp: Date.now() });
+      return data;
     }
     return null;
   } catch (error) {

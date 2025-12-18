@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 🚀 성능 최적화 빌드 설정
 export default defineConfig({
   plugins: [
     react(),
@@ -72,12 +73,31 @@ export default defineConfig({
     port: 3000
   },
   build: {
+    // 🔥 소스맵 제거 (프로덕션 빌드 사이즈 감소)
+    sourcemap: false,
+    // 🔥 esbuild minify (기본값, terser보다 빠름)
+    minify: 'esbuild',
     rollupOptions: {
       output: {
-        manualChunks: undefined
+        // 🚀 코드 스플리팅 - 대형 라이브러리 분리
+        manualChunks: {
+          // Firebase 모듈 분리 (가장 큰 청크)
+          'vendor-firebase-app': ['firebase/app'],
+          'vendor-firebase-auth': ['firebase/auth'],
+          'vendor-firebase-firestore': ['firebase/firestore'],
+          'vendor-firebase-functions': ['firebase/functions'],
+          // 차트 라이브러리 분리 (선생님 대시보드에서만 사용)
+          'vendor-charts': ['recharts'],
+          // 애니메이션 라이브러리 분리
+          'vendor-motion': ['framer-motion'],
+          // React 코어
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+        }
       }
     },
-    assetsInlineLimit: 0,
-    cssCodeSplit: true
+    assetsInlineLimit: 4096, // 4KB 이하 인라인 (네트워크 요청 감소)
+    cssCodeSplit: true,
+    // 🔥 청크 사이즈 경고 임계값 조정
+    chunkSizeWarningLimit: 600
   }
 })

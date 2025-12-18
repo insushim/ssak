@@ -389,6 +389,7 @@ export default function StudentDashboard({ user, userData }) {
   const [editingNickname, setEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
   const [points, setPoints] = useState(userData.points || 0);
+  const [totalPoints, setTotalPoints] = useState(userData.totalPoints || userData.points || 0); // 누적 포인트 (레벨 계산용)
   const [ownedItems, setOwnedItems] = useState(userData.ownedItems || ['face1', 'bg1', 'frame1', 'hair1', 'hc1', 'cloth1', 'acc1', 'furn1', 'elec1', 'wall1']);
   const [equippedItems, setEquippedItems] = useState(userData.equippedItems || {
     face: 'face1',
@@ -768,6 +769,7 @@ export default function StudentDashboard({ user, userData }) {
   useEffect(() => {
     setNickname(userData.nickname || userData.name);
     setPoints(userData.points || 0);
+    setTotalPoints(userData.totalPoints || userData.points || 0); // 누적 포인트 동기화
     setOwnedItems(userData.ownedItems || ['face1', 'bg1', 'frame1', 'hair1', 'hc1', 'cloth1', 'acc1', 'furn1', 'elec1', 'wall1']);
     setEquippedItems(userData.equippedItems || {
       face: 'face1',
@@ -2010,9 +2012,9 @@ export default function StudentDashboard({ user, userData }) {
                             <HairSVG style={hair.svgStyle} color={actualHairColor} size={avatarSize * 0.85} />
                           </div>
                         )}
-                        {/* 악세서리 (맨 앞) */}
+                        {/* 악세서리 (맨 앞) - 모자가 눈썹 안 가리도록 위치 조정 */}
                         {accessory.svgType && accessory.svgType !== 'none' && (
-                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                          <div className="absolute" style={{ top: -avatarSize * 0.28, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
                             <AccessorySVG type={accessory.svgType} size={avatarSize * 0.85} />
                           </div>
                         )}
@@ -2041,9 +2043,9 @@ export default function StudentDashboard({ user, userData }) {
                             <HairSVG style={hair.svgStyle} color={actualHairColor} size={avatarSize * 0.85} />
                           </div>
                         )}
-                        {/* 악세서리 (맨 앞) */}
+                        {/* 악세서리 (맨 앞) - 모자가 눈썹 안 가리도록 위치 조정 */}
                         {accessory.svgType && accessory.svgType !== 'none' && (
-                          <div className="absolute" style={{ top: -avatarSize * 0.15, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                          <div className="absolute" style={{ top: -avatarSize * 0.28, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
                             <AccessorySVG type={accessory.svgType} size={avatarSize * 0.85} />
                           </div>
                         )}
@@ -2057,7 +2059,7 @@ export default function StudentDashboard({ user, userData }) {
 
               {/* 레벨 표시 */}
               {(() => {
-                const levelInfo = getLevelInfo(points);
+                const levelInfo = getLevelInfo(totalPoints); // 누적 포인트로 레벨 계산
                 return (
                   <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
                     <span className="text-xs sm:text-sm">{levelInfo.emoji}</span>
@@ -2076,7 +2078,7 @@ export default function StudentDashboard({ user, userData }) {
                 const earnedAchievements = checkAchievements({
                   totalSubmissions: writings.length,
                   highestScore: scores.length > 0 ? Math.max(...scores) : 0,
-                  totalPoints: points,
+                  totalPoints: totalPoints, // 누적 포인트 사용
                   maxWordCount: wordCounts.length > 0 ? Math.max(...wordCounts) : 0
                 });
 
@@ -3838,8 +3840,8 @@ export default function StudentDashboard({ user, userData }) {
                   내 레벨
                 </h3>
                 {(() => {
-                  const levelInfo = getLevelInfo(points);
-                  const nextLevelInfo = getNextLevelInfo(points);
+                  const levelInfo = getLevelInfo(totalPoints); // 누적 포인트로 레벨 계산
+                  const nextLevelInfo = getNextLevelInfo(totalPoints); // 누적 포인트로 다음 레벨 계산
                   return (
                     <div className="text-center">
                       {/* 레벨 뱃지 */}
@@ -3928,9 +3930,9 @@ export default function StudentDashboard({ user, userData }) {
                                   />
                                 </div>
                               )}
-                              {/* 악세서리 */}
+                              {/* 악세서리 - 모자가 눈썹 안 가리도록 위치 조정 */}
                               {getPreviewAccessory().id !== 'acc1' && getPreviewAccessory().svgType && getPreviewAccessory().svgType !== 'none' && (
-                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                                <div className="absolute" style={{ top: -25, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
                                   <AccessorySVG type={getPreviewAccessory().svgType} size={95} />
                                 </div>
                               )}
@@ -3961,9 +3963,9 @@ export default function StudentDashboard({ user, userData }) {
                                   />
                                 </div>
                               )}
-                              {/* 악세서리 */}
+                              {/* 악세서리 - 모자가 눈썹 안 가리도록 위치 조정 */}
                               {getPreviewAccessory().id !== 'acc1' && getPreviewAccessory().svgType && getPreviewAccessory().svgType !== 'none' && (
-                                <div className="absolute" style={{ top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+                                <div className="absolute" style={{ top: -25, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
                                   <AccessorySVG type={getPreviewAccessory().svgType} size={95} />
                                 </div>
                               )}
@@ -4113,7 +4115,7 @@ export default function StudentDashboard({ user, userData }) {
                   const userStats = {
                     totalSubmissions: stats?.totalSubmissions || 0,
                     highestScore: Math.max(...(stats?.scores || [0])),
-                    totalPoints: points,
+                    totalPoints: totalPoints, // 누적 포인트 사용
                     streakDays: userData.streakDays || 0,
                     maxWordCount: Math.max(...writings.map(w => w.wordCount || 0), 0),
                     hasPassedOnce: (stats?.scores || []).some(s => s >= 80)

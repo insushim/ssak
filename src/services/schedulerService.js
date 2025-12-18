@@ -9,7 +9,8 @@ import { createAssignment, getAssignmentsByClass } from './assignmentService';
 const schedulerCache = new Map(); // classCode -> { data, timestamp }
 const autoAssignmentTodayCache = new Map(); // classCode -> { result, date }
 
-const CACHE_TTL = 1800000; // 30분 - 스케줄러 설정은 거의 변경 안됨 (이전 10분)
+const CACHE_TTL = 7200000; // 🔥 2시간 - 스케줄러 설정은 거의 변경 안됨 (변경 시 무효화됨)
+const LS_PREFIX = 'ssak_sched_';
 
 function isCacheValid(timestamp) {
   if (!timestamp) return false;
@@ -17,9 +18,34 @@ function isCacheValid(timestamp) {
   return (Date.now() - timestamp) < (CACHE_TTL + jitter);
 }
 
+// 🔥 LocalStorage에 스케줄러 설정 저장
+function saveToLocalStorage(key, data) {
+  try {
+    const item = { data, timestamp: Date.now() };
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(item));
+  } catch (e) {}
+}
+
+// 🔥 LocalStorage에서 스케줄러 설정 로드
+function loadFromLocalStorage(key) {
+  try {
+    const item = localStorage.getItem(LS_PREFIX + key);
+    if (!item) return null;
+    const parsed = JSON.parse(item);
+    if (isCacheValid(parsed.timestamp)) {
+      return parsed.data;
+    }
+    localStorage.removeItem(LS_PREFIX + key);
+  } catch (e) {}
+  return null;
+}
+
 // 스케줄러 캐시 무효화
 export function invalidateSchedulerCache(classCode) {
   schedulerCache.delete(classCode);
+  try {
+    localStorage.removeItem(LS_PREFIX + classCode);
+  } catch (e) {}
 }
 
 // 스케줄러 설정 저장
@@ -42,7 +68,7 @@ export async function saveSchedulerSettings(classCode, settings) {
   }
 }
 
-// 🚀 최적화: 캐싱 추가 (10,000명 대응)
+// 🚀 최적화: 캐싱 추가 (메모리 + LocalStorage 이중 캐시)
 export async function getSchedulerSettings(classCode, forceRefresh = false) {
   try {
     // classCode 유효성 검사
@@ -51,21 +77,33 @@ export async function getSchedulerSettings(classCode, forceRefresh = false) {
       return null;
     }
 
-    // 캐시 확인
+    // 🔥 1. 메모리 캐시 확인
     if (!forceRefresh) {
       const cached = schedulerCache.get(classCode);
       if (cached && isCacheValid(cached.timestamp)) {
-        console.log(`[📊 DB읽기] getSchedulerSettings 캐시 히트`);
+        console.log(`[📊 DB읽기] getSchedulerSettings 메모리 캐시 히트`);
         return cached.data;
+      }
+
+      // 🔥 2. LocalStorage 캐시 확인
+      const lsData = loadFromLocalStorage(classCode);
+      if (lsData) {
+        console.log(`[📊 DB읽기] getSchedulerSettings LocalStorage 캐시 히트`);
+        schedulerCache.set(classCode, { data: lsData, timestamp: Date.now() });
+        return lsData;
       }
     }
 
+    // 🔥 3. DB에서 조회 (캐시 미스 시에만)
     console.log(`[📊 DB읽기] getSchedulerSettings DB 조회 - classCode: ${classCode}`);
     const schedulerDoc = await getDoc(doc(db, 'schedulers', classCode));
     const result = schedulerDoc.exists() ? schedulerDoc.data() : null;
 
-    // 캐시 저장
+    // 메모리 + LocalStorage 이중 캐시 저장
     schedulerCache.set(classCode, { data: result, timestamp: Date.now() });
+    if (result) {
+      saveToLocalStorage(classCode, result);
+    }
 
     return result;
   } catch (error) {
@@ -263,9 +301,11 @@ export function invalidateAutoAssignmentCache(classCode) {
 }
 
 // 스케줄 실행 (클라이언트에서 호출 - 페이지 로드시 체크)
-export async function checkAndRunScheduler(classCode, gradeLevel, teacherId) {
+// 🚀 최적화: cachedSettings 파라미터 추가 - 이미 로드된 설정 전달 시 DB 조회 절약
+export async function checkAndRunScheduler(classCode, gradeLevel, teacherId, cachedSettings = null) {
   try {
-    const settings = await getSchedulerSettings(classCode);
+    // 🚀 캐시된 설정이 있으면 사용, 없으면 DB 조회
+    const settings = cachedSettings || await getSchedulerSettings(classCode);
 
     console.log(`[스케줄러] 체크 시작 - classCode: ${classCode}`);
     console.log(`[스케줄러] 설정:`, settings);

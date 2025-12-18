@@ -87,9 +87,11 @@ service cloud.firestore {
       allow create: if isStudent() &&
                        request.resource.data.studentId == request.auth.uid;
 
-      // Only the student who wrote it can update
-      allow update: if isStudent() &&
-                       resource.data.studentId == request.auth.uid;
+      // Student who wrote it can update, OR
+      // Approved teacher can update only reviewed/reviewedAt fields
+      allow update: if (isStudent() && resource.data.studentId == request.auth.uid) ||
+                       (isApprovedTeacher() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed', 'reviewedAt']));
 
       // Student, their teacher, or super admin can delete
       allow delete: if isAuthenticated() &&

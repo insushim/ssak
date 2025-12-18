@@ -1,17 +1,27 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './config/firebase';
 import { getUserData } from './services/authService';
 import { ROLES, SUPER_ADMIN_UID } from './config/auth';
 
-// Pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import RoleSelection from './pages/RoleSelection';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
-import StudentDashboard from './pages/StudentDashboard';
+// 🚀 Lazy Loading - 대시보드는 필요할 때만 로드 (초기 로딩 속도 향상)
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const RoleSelection = lazy(() => import('./pages/RoleSelection'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+
+// 🔥 로딩 컴포넌트 (Suspense fallback)
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-cyan-50">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-gray-600 font-medium">페이지 로딩 중...</p>
+    </div>
+  </div>
+);
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -54,6 +64,7 @@ function App() {
 
   return (
     <Router>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route
           path="/"
@@ -153,6 +164,7 @@ function App() {
           }
         />
       </Routes>
+      </Suspense>
     </Router>
   );
 }
