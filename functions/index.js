@@ -751,25 +751,28 @@ ${text}
 4. "글쓰기 팁"은 이 학생이 다음에 글을 쓸 때 바로 적용할 수 있는 실용적인 조언 2-3개
 5. "상세 피드백"에서는 실제로 고쳐야 할 문장을 글에서 찾아 구체적으로 수정 제안해주세요
 
+**🤖 AI 작성 여부 판단 (함께 분석):**
+- 글을 잘 쓰는 것 ≠ AI가 쓴 것 (글 잘 쓰는 학생도 많음)
+- AI 징후: "~입니다" 반복, "첫째/둘째/셋째" 나열, 감정/경험 없는 백과사전식, 모든 문장 비슷한 길이
+- 사람 징후: 개인 경험, 감정 표현, 문장 길이 변화, 약간의 오류
+- 의심스러우면 낮은 확률(15-25%)로!
+
 반드시 다음 JSON 형식으로만 응답하세요:
 {
-  "score": 총점(0-100, 추가감점 포함),
-  "contentScore": 내용점수(0-25),
-  "topicRelevanceScore": 주제일치도점수(0-10),
-  "structureScore": 구성점수(0-20),
-  "vocabularyScore": 어휘및문장다양성점수(0-20),
-  "grammarScore": 문법점수(0-15),
-  "creativityScore": 창의성점수(0-10),
-  "feedback": "전체적인 평가 한 줄 요약",
-  "strengths": ["구체적으로 잘한 점 1 (해당 문장이나 표현 인용)", "잘한 점 2", "잘한 점 3", "잘한 점 4"],
-  "improvements": ["구체적인 개선점 1 + 어떻게 고치면 좋을지", "개선점 2 + 수정 방법", "개선점 3 + 수정 방법"],
-  "overallFeedback": "학생에게 직접 말하듯이 작성하는 종합 의견. 잘한 부분을 먼저 인정하고, 앞으로 어떻게 발전하면 좋을지 구체적으로 조언해주세요. 4-5문장으로 따뜻하면서도 도움이 되게 작성.",
-  "writingTips": ["다음 글쓰기에 바로 적용할 수 있는 실용적인 팁 1", "팁 2"],
-  "detailedFeedback": [
-    {"type": "grammar", "original": "글에서 발견한 실제 틀린 문장", "suggestion": "올바르게 수정한 문장", "reason": "왜 이렇게 고쳐야 하는지 설명"},
-    {"type": "vocabulary", "original": "개선할 수 있는 실제 표현", "suggestion": "더 좋은 표현", "reason": "이 표현이 더 좋은 이유"},
-    {"type": "structure", "original": "구조적으로 개선할 부분", "suggestion": "개선된 형태", "reason": "구조 개선 이유"}
-  ]
+  "score": 총점(0-100),
+  "contentScore": 내용(0-25),
+  "topicRelevanceScore": 주제일치(0-10),
+  "structureScore": 구성(0-20),
+  "vocabularyScore": 어휘다양성(0-20),
+  "grammarScore": 문법(0-15),
+  "creativityScore": 창의성(0-10),
+  "feedback": "평가 한 줄 요약",
+  "strengths": ["잘한 점 1", "잘한 점 2", "잘한 점 3"],
+  "improvements": ["개선점 1", "개선점 2"],
+  "overallFeedback": "종합 의견 3-4문장",
+  "writingTips": ["팁 1", "팁 2"],
+  "detailedFeedback": [{"type": "grammar/vocabulary/structure", "original": "원문", "suggestion": "수정", "reason": "이유"}],
+  "aiCheck": {"probability": 0-100, "verdict": "LOW/MEDIUM/HIGH", "reason": "판정 이유 1문장"}
 }`;
 
     const result = await model.generateContent(prompt);
@@ -910,6 +913,27 @@ ${text}
     } else if (isRewrite) {
       // 고쳐쓰기 모드인데 previousScore가 없는 경우 (버그 가능성)
       console.warn(`[고쳐쓰기 경고] isRewrite=true 인데 previousScore가 없음: ${previousScore}`);
+    }
+
+    // 🚀 AI 감지 결과 정리 (통합 분석)
+    if (parsed.aiCheck) {
+      parsed.aiUsageCheck = {
+        aiProbability: parsed.aiCheck.probability || 15,
+        verdict: parsed.aiCheck.verdict || 'LOW',
+        explanation: parsed.aiCheck.reason || '직접 작성한 글로 판단됩니다.'
+      };
+      // 확률이 너무 높으면 조정
+      if (parsed.aiUsageCheck.aiProbability > 60 && parsed.creativityScore >= 5) {
+        parsed.aiUsageCheck.aiProbability = Math.min(parsed.aiUsageCheck.aiProbability, 40);
+        parsed.aiUsageCheck.verdict = 'LOW';
+      }
+    } else {
+      // aiCheck가 없으면 기본값
+      parsed.aiUsageCheck = {
+        aiProbability: 15,
+        verdict: 'LOW',
+        explanation: '직접 작성한 글로 판단됩니다.'
+      };
     }
 
     return parsed;

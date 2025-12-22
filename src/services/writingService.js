@@ -14,7 +14,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { analyzeWriting, detectPlagiarism, detectAIUsage } from '../utils/geminiAPI';
+import { analyzeWriting, detectPlagiarism } from '../utils/geminiAPI'; // 🚀 detectAIUsage 제거 (analyzeWriting에 통합)
 import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS } from '../config/auth';
 import { updateAssignmentSubmission } from './assignmentService';
 
@@ -349,9 +349,6 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       }
     }
 
-    // AI 사용 감지 (참고사항으로만 - 제출 차단하지 않음)
-    const aiUsageResult = await detectAIUsage(writingData.content, writingData.topic);
-
     // 🚀 고쳐쓰기 시 이전 점수 전달 (AI가 개선 여부 판단)
     const previousScore = isRewrite ? (writingData.previousScore || null) : null;
 
@@ -435,7 +432,7 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
         ...writingData,
         score: newScore,
         analysis: analysisResult,
-        aiUsageCheck: aiUsageResult,
+        aiUsageCheck: analysisResult.aiUsageCheck,
         notSaved: true,
         reason: '동일 주제의 기존 글보다 점수가 낮아 저장되지 않았습니다.'
       };
@@ -453,7 +450,7 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       submittedAt: now,
       analysis: analysisResult,
       plagiarismCheck: null, // 🚀 자기 표절 검사 제거
-      aiUsageCheck: aiUsageResult,
+      aiUsageCheck: analysisResult.aiUsageCheck, // 🚀 통합 분석 결과 사용
       score: newScore,
       minScore: minScore // 🚀 과제 기준점수 명시적 저장 (선생님 설정값 유지)
     };
@@ -466,7 +463,7 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
     invalidateStudentStatsCache(studentId);
 
     // 7. 포인트 지급 (고쳐쓰기 여부, AI 가능성, userData 전달)
-    const aiProbability = aiUsageResult?.aiProbability || 0;
+    const aiProbability = analysisResult.aiUsageCheck?.aiProbability || 0;
     // 🔧 newScore 사용 (테스트 모드에서 점수가 변경될 수 있음)
     const earnedPoints = await awardPoints(studentId, newScore, isRewrite, aiProbability, userData);
     submissionData.earnedPoints = earnedPoints; // 지급된 포인트 정보 추가
