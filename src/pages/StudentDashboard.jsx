@@ -103,7 +103,7 @@ const AVATAR_ITEMS = {
     { id: 'cloth4', emoji: '👗', name: '원피스', price: 80, svgType: 'dress', color: '#FF69B4' },
     { id: 'cloth5', emoji: '🧥', name: '코트', price: 100, svgType: 'coat', color: '#8B4513' },
     { id: 'cloth6', emoji: '🥋', name: '도복', price: 120, svgType: 'taekwondo', color: '#FFFFFF' },
-    { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'kimono', color: '#E91E63' },
+    { id: 'cloth7', emoji: '👘', name: '한복', price: 200, svgType: 'hanbok', color: '#E91E63' },
     { id: 'cloth8', emoji: '🦸', name: '히어로 슈트', price: 300, svgType: 'superhero', color: '#1E3A8A' },
     { id: 'cloth9', emoji: '👑', name: '왕족 의상', price: 500, svgType: 'princess', color: '#FFD700' },
     { id: 'cloth10', emoji: '🧙', name: '마법사 로브', price: 400, svgType: 'wizard', color: '#4B0082' },

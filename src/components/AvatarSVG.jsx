@@ -1109,34 +1109,39 @@ export const ClothesSVG = ({ type = 'tshirt', color = '#4A90D9', size = 120, ski
     hanbok: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         {/* 목 */}
-        <rect x="50" y="0" width="20" height="15" fill={skinColor} />
+        <rect x="50" y="0" width="20" height="12" fill={skinColor} />
         {/* 팔 */}
-        <ellipse cx="8" cy="50" rx="10" ry="14" fill={skinColor} />
-        <ellipse cx="112" cy="50" rx="10" ry="14" fill={skinColor} />
-        {/* 치마 (긴 치마가 먼저) */}
-        <path d="M 30 48 Q 20 70 15 120 L 105 120 Q 100 70 90 48 Z" fill="#DC143C" />
-        {/* 치마 주름 */}
-        <path d="M 35 55 Q 30 85 25 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
-        <path d="M 50 52 Q 45 85 40 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
-        <path d="M 70 52 Q 75 85 80 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
-        <path d="M 85 55 Q 90 85 95 120" stroke="#B01030" strokeWidth="2" fill="none" opacity="0.5" />
-        {/* 저고리 (짧은 상의) */}
-        <path d="M 38 15 L 18 35 L 18 55 L 30 55 L 30 48 Q 60 52 90 48 L 90 55 L 102 55 L 102 35 L 82 15 Z" fill="#FFD700" />
-        {/* 저고리 소매 - 색동 */}
-        <path d="M 38 15 L 18 35 L 18 55 L 30 55 L 30 40 Z" fill="#FF6B6B" />
-        <path d="M 82 15 L 102 35 L 102 55 L 90 55 L 90 40 Z" fill="#4169E1" />
-        {/* 동정 (흰 깃) - V자 형태 */}
-        <path d="M 48 15 L 60 45 L 72 15" fill="white" />
-        <path d="M 50 18 L 60 42 L 70 18" fill="#FFD700" />
-        {/* 옷고름 (리본 매듭) */}
-        <ellipse cx="52" cy="48" rx="6" ry="3" fill="#DC143C" />
-        <ellipse cx="68" cy="48" rx="6" ry="3" fill="#DC143C" />
-        <circle cx="60" cy="48" r="4" fill="#DC143C" />
-        {/* 고름 끈 */}
-        <path d="M 52 51 Q 45 70 35 95" stroke="#DC143C" strokeWidth="5" fill="none" strokeLinecap="round" />
-        <path d="M 68 51 Q 75 70 85 95" stroke="#DC143C" strokeWidth="5" fill="none" strokeLinecap="round" />
-        {/* 치마 허리띠 */}
-        <rect x="28" y="46" width="64" height="6" fill="#FFD700" />
+        <ellipse cx="12" cy="38" rx="10" ry="12" fill={skinColor} />
+        <ellipse cx="108" cy="38" rx="10" ry="12" fill={skinColor} />
+        {/* 치마 - 높은 허리에서 시작하는 풍성한 A라인 */}
+        <path d="M 25 38 Q 10 75 5 120 L 115 120 Q 110 75 95 38 Z" fill="#DC143C" />
+        {/* 치마 주름선 */}
+        <path d="M 30 45 Q 22 80 18 120" stroke="#A01028" strokeWidth="1.5" fill="none" opacity="0.4" />
+        <path d="M 45 42 Q 38 80 32 120" stroke="#A01028" strokeWidth="1.5" fill="none" opacity="0.4" />
+        <path d="M 60 40 Q 60 80 60 120" stroke="#A01028" strokeWidth="1.5" fill="none" opacity="0.4" />
+        <path d="M 75 42 Q 82 80 88 120" stroke="#A01028" strokeWidth="1.5" fill="none" opacity="0.4" />
+        <path d="M 90 45 Q 98 80 102 120" stroke="#A01028" strokeWidth="1.5" fill="none" opacity="0.4" />
+        {/* 저고리 (짧은 상의) - 한복 특유의 짧은 형태 */}
+        <path d="M 42 12 L 22 28 L 22 48 L 32 48 L 32 38 L 88 38 L 88 48 L 98 48 L 98 28 L 78 12 Z" fill="#FFC0CB" />
+        {/* 색동 소매 - 한복 특유의 다색 줄무늬 */}
+        <path d="M 42 12 L 22 28 L 22 35 L 32 38 L 35 25 Z" fill="#FFD700" />
+        <path d="M 22 35 L 22 42 L 28 42 L 32 38 Z" fill="#FF6B6B" />
+        <path d="M 22 42 L 22 48 L 32 48 L 28 42 Z" fill="#4169E1" />
+        <path d="M 78 12 L 98 28 L 98 35 L 88 38 L 85 25 Z" fill="#FFD700" />
+        <path d="M 98 35 L 98 42 L 92 42 L 88 38 Z" fill="#FF6B6B" />
+        <path d="M 98 42 L 98 48 L 88 48 L 92 42 Z" fill="#4169E1" />
+        {/* 동정 (흰 깃) - 한복의 특징적인 V자 흰 깃 */}
+        <path d="M 48 12 L 60 38 L 72 12" fill="white" stroke="white" strokeWidth="1" />
+        <path d="M 51 14 L 60 34 L 69 14" fill="#FFC0CB" />
+        {/* 옷고름 - 한복 특유의 리본 */}
+        <ellipse cx="48" cy="40" rx="8" ry="4" fill="#DC143C" />
+        <ellipse cx="72" cy="40" rx="8" ry="4" fill="#DC143C" />
+        <circle cx="60" cy="40" r="5" fill="#DC143C" />
+        {/* 고름 끈 - 길게 늘어뜨린 리본 */}
+        <path d="M 48 44 Q 40 60 30 85" stroke="#DC143C" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <path d="M 72 44 Q 80 60 90 85" stroke="#DC143C" strokeWidth="6" fill="none" strokeLinecap="round" />
+        {/* 치마 허리선 - 저고리 아래 */}
+        <rect x="24" y="36" width="72" height="5" fill="#FFD700" rx="1" />
       </svg>
     ),
     armor: (

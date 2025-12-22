@@ -791,7 +791,28 @@ ${text}
     parsed.vocabularyScore = Math.max(0, Math.min(20, parsed.vocabularyScore || 0));
     parsed.grammarScore = Math.max(0, Math.min(15, parsed.grammarScore || 0));
     parsed.creativityScore = Math.max(0, Math.min(10, parsed.creativityScore || 0));
-    
+
+    // 🚀 detailedFeedback 필터링: original과 suggestion이 동일한 항목 제거
+    if (parsed.detailedFeedback && Array.isArray(parsed.detailedFeedback)) {
+      const normalizeText = (text) => {
+        if (!text) return '';
+        return text.replace(/[\s\.,!?'"()[\]{}:;·~\-_]/g, '').toLowerCase();
+      };
+
+      const originalCount = parsed.detailedFeedback.length;
+      parsed.detailedFeedback = parsed.detailedFeedback.filter(item => {
+        if (!item.original || !item.suggestion) return false;
+        const normalizedOriginal = normalizeText(item.original);
+        const normalizedSuggestion = normalizeText(item.suggestion);
+        // 정규화된 텍스트가 동일하면 필터링
+        return normalizedOriginal !== normalizedSuggestion;
+      });
+
+      if (originalCount !== parsed.detailedFeedback.length) {
+        console.log(`[detailedFeedback 필터링] ${originalCount}개 → ${parsed.detailedFeedback.length}개 (중복 제거: ${originalCount - parsed.detailedFeedback.length}개)`);
+      }
+    }
+
     // 🚀 총점 = 각 항목 점수의 합계로 강제 계산 (AI가 준 score 무시)
     parsed.score = parsed.contentScore + parsed.topicRelevanceScore + parsed.structureScore + 
                    parsed.vocabularyScore + parsed.grammarScore + parsed.creativityScore;
