@@ -1582,6 +1582,12 @@ export default function StudentDashboard({ user, userData }) {
         }]);
       }
 
+      // 🚀 포인트 즉시 업데이트 (레벨 유지를 위해 totalPoints도 업데이트)
+      if (result.earnedPoints > 0) {
+        setPoints(prev => prev + result.earnedPoints);
+        setTotalPoints(prev => prev + result.earnedPoints); // 누적 포인트 증가 (레벨 계산용)
+      }
+
       // 🚀 비용 최적화: 글 제출 후 랭킹 새로고침 제거 (랭킹 탭에서만 로드)
     } catch (error) {
       console.error('[제출 오류]', error);
