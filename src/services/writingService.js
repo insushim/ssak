@@ -432,7 +432,11 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
         ...writingData,
         score: newScore,
         analysis: analysisResult,
-        aiUsageCheck: analysisResult.aiUsageCheck,
+        aiUsageCheck: analysisResult.aiUsageCheck || {
+          aiProbability: 15,
+          verdict: 'LOW',
+          explanation: '직접 작성한 글로 판단됩니다.'
+        },
         notSaved: true,
         reason: '동일 주제의 기존 글보다 점수가 낮아 저장되지 않았습니다.'
       };
@@ -450,7 +454,11 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       submittedAt: now,
       analysis: analysisResult,
       plagiarismCheck: null, // 🚀 자기 표절 검사 제거
-      aiUsageCheck: analysisResult.aiUsageCheck, // 🚀 통합 분석 결과 사용
+      aiUsageCheck: analysisResult.aiUsageCheck || {
+        aiProbability: 15,
+        verdict: 'LOW',
+        explanation: '직접 작성한 글로 판단됩니다.'
+      }, // 🚀 통합 분석 결과 사용 (undefined 방지)
       score: newScore,
       minScore: minScore // 🚀 과제 기준점수 명시적 저장 (선생님 설정값 유지)
     };
