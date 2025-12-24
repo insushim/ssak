@@ -914,14 +914,13 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
 
     const userRef = doc(db, 'users', studentId);
 
-    // 🚀 userData가 제공되지 않은 경우에만 Firestore에서 조회
-    if (!userData) {
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) return 0;
-      userData = userDoc.data();
-    }
+    // 🔧 항상 Firestore에서 최신 포인트 조회 (stale userData 방지)
+    // userData가 전달되어도 포인트는 DB에서 최신값 사용
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) return 0;
+    const freshUserData = userDoc.data();
 
-    const currentPoints = userData.points || 0;
+    const currentPoints = freshUserData.points || 0;
 
     // 기본 포인트: 10P (50점 초과 시)
     let earnedPoints = 10;
@@ -937,11 +936,11 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
     }
 
     // 연속 제출 보너스 체크
-    const lastSubmitDate = userData.lastSubmitDate;
+    const lastSubmitDate = freshUserData.lastSubmitDate;
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-    let streakDays = userData.streakDays || 0;
+    let streakDays = freshUserData.streakDays || 0;
     if (lastSubmitDate === yesterday) {
       streakDays += 1;
       earnedPoints += 5; // 연속 제출 보너스
@@ -955,7 +954,7 @@ export async function awardPoints(studentId, score, isRewrite = false, aiProbabi
     }
 
     const newPoints = currentPoints + earnedPoints;
-    const currentTotalPoints = userData.totalPoints || currentPoints; // 누적 포인트 (없으면 현재 포인트로 초기화)
+    const currentTotalPoints = freshUserData.totalPoints || currentPoints; // 누적 포인트 (없으면 현재 포인트로 초기화)
     const newTotalPoints = currentTotalPoints + earnedPoints; // 누적 포인트는 항상 증가
 
     await updateDoc(userRef, {
