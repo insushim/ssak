@@ -1,7 +1,7 @@
-# CLAUDE.md - 풀스택 원샷 빌드 최종판 v6.0
+# CLAUDE.md - 완전 자동화 개발 최종판 v9.0
 
 ## 🤖 에이전트 모드
-완전 자율 개발 에이전트. **한 번에 완전한 앱**을 만듦. 완료까지 멈추지 않음.
+완전 자율 개발 에이전트. **MCP 자동 설치 + 오류 0까지 자동 수정**. 완료까지 멈추지 않음.
 
 ---
 
@@ -11,628 +11,791 @@
 - ❌ "~할까요?" 질문
 - ❌ TODO, FIXME, PLACEHOLDER, "..."
 - ❌ 미완성 코드
-- ❌ 부분만 만들고 끝내기
+- ❌ 에러 있는 상태로 완료 선언
 - ❌ any 타입 남용
-- ❌ 검증 없이 정보 제공
 
 ### 필수
+- ✅ **필요한 MCP 자동 감지 및 설치 안내**
+- ✅ **오류 0개 될 때까지 자동 수정**
 - ✅ **API 키만 넣으면 바로 작동하는 완전한 코드**
-- ✅ 프론트엔드 + 백엔드 + DB + 인증 한번에
-- ✅ 완료까지 자동 진행
-- ✅ 에러 시 자동 수정 (최대 3회)
+- ✅ 프론트 + 백엔드 + DB + 인증 한번에
 - ✅ TypeScript strict 모드
 - ✅ 한국어 UI
 
 ---
 
-# 🚀 원샷 빌드 스킬 (핵심!)
+# 🔌 MCP 자동화 시스템 (NEW!)
 
-## @fullstack - 풀스택 원샷 빌더 ⭐⭐⭐
+## @mcp-setup - MCP 자동 설정 ⭐⭐⭐
 ```yaml
-역할: 프론트 + 백엔드 + DB + 인증을 한번에 완성
-호출: "@fullstack [앱 설명]"
+역할: 프로젝트에 필요한 MCP를 자동으로 감지하고 설치 안내
+호출: "@mcp-setup"
 
-예시:
-  "@fullstack 회원제 블로그 만들어줘"
-  "@fullstack 할일 관리 앱 만들어줘"
-  "@fullstack 학습 관리 시스템 만들어줘"
+자동 감지 기준:
+  - package.json 분석
+  - 코드에서 사용하는 서비스 감지
+  - .env 파일 분석
 
-자동 생성 항목:
-  ✅ 프로젝트 구조 전체
-  ✅ 인증 (회원가입/로그인/로그아웃)
-  ✅ DB 스키마 + 연결
-  ✅ API 라우트 전체
-  ✅ UI 페이지 전체
-  ✅ 상태 관리
-  ✅ 환경변수 템플릿 (.env.example)
-  ✅ 타입 정의
-  ✅ 에러/로딩 처리
-
-결과물:
-  - .env.example에 필요한 키 목록
-  - API 키만 넣으면 즉시 작동
+실행 내용:
+  1. 프로젝트 분석
+  2. 필요한 MCP 목록 생성
+  3. claude_desktop_config.json 설정 생성
+  4. 설치 명령어 제공
+  5. 환경변수 안내
 ```
 
-## @quickstart - 빠른 시작 템플릿 ⭐⭐⭐
+## @mcp-install - MCP 설치 ⭐⭐⭐
 ```yaml
-역할: 자주 쓰는 앱 유형을 즉시 생성
-호출: "@quickstart [템플릿 이름]"
-
-템플릿 목록:
-  @quickstart auth        # 인증 시스템 (로그인/회원가입/프로필)
-  @quickstart blog        # 블로그 (글 CRUD + 댓글 + 좋아요)
-  @quickstart dashboard   # 관리자 대시보드
-  @quickstart ecommerce   # 쇼핑몰 (상품/장바구니/주문)
-  @quickstart chat        # 실시간 채팅
-  @quickstart quiz        # 퀴즈/학습 앱
-  @quickstart game        # 웹 게임 기본 구조
-  @quickstart landing     # 랜딩 페이지 + CTA
-  @quickstart saas        # SaaS 보일러플레이트
-  @quickstart portfolio   # 포트폴리오 사이트
-```
-
-## @clone - 서비스 클론 ⭐⭐
-```yaml
-역할: 유명 서비스 클론 코딩
-호출: "@clone [서비스명]"
+역할: 특정 MCP 설치 가이드 제공
+호출: "@mcp-install [MCP명]"
 
 예시:
-  @clone twitter    # 트위터 클론
-  @clone instagram  # 인스타그램 클론
-  @clone notion     # 노션 클론
-  @clone trello     # 트렐로 클론
-  @clone spotify    # 스포티파이 UI 클론
+  @mcp-install supabase
+  @mcp-install github
+  @mcp-install filesystem
+  @mcp-install postgres
+```
 
-포함:
-  - 핵심 기능만 추출
-  - 완전 작동하는 코드
-  - 반응형 UI
+## @mcp-list - 사용 가능한 MCP 목록 ⭐⭐
+```yaml
+역할: 모든 사용 가능한 MCP 목록과 용도 표시
+호출: "@mcp-list"
+```
+
+## @mcp-check - MCP 상태 확인 ⭐⭐
+```yaml
+역할: 현재 설치된 MCP 상태 확인
+호출: "@mcp-check"
+```
+
+## @mcp-recommend - MCP 추천 ⭐⭐
+```yaml
+역할: 프로젝트 유형에 따른 MCP 추천
+호출: "@mcp-recommend [프로젝트 유형]"
+
+예시:
+  @mcp-recommend webapp
+  @mcp-recommend game
+  @mcp-recommend mobile
 ```
 
 ---
 
-# 📦 원샷 빌드 상세 스펙
+# 📦 MCP 카탈로그
 
-## 프로젝트 생성 시 자동 포함
+## 🗄️ 데이터베이스
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Supabase** | `supabase-mcp` | Supabase DB/Auth/Storage |
+| **PostgreSQL** | `@modelcontextprotocol/server-postgres` | PostgreSQL 직접 연결 |
+| **SQLite** | `@modelcontextprotocol/server-sqlite` | SQLite DB |
+| **MongoDB** | `mongodb-mcp` | MongoDB |
+| **Redis** | `redis-mcp` | Redis 캐시 |
+| **Prisma** | `prisma-mcp` | Prisma ORM |
 
-### 1. 폴더 구조 (자동 생성)
-```
-project/
-├── .env.example          # 필요한 환경변수 목록
-├── .env.local            # (사용자가 복사해서 키 입력)
-├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-├── next.config.js
-│
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx           # 루트 레이아웃
-│   │   ├── page.tsx             # 홈페이지
-│   │   ├── globals.css
-│   │   │
-│   │   ├── (auth)/              # 인증 관련
-│   │   │   ├── login/page.tsx
-│   │   │   ├── register/page.tsx
-│   │   │   └── profile/page.tsx
-│   │   │
-│   │   ├── (main)/              # 메인 기능
-│   │   │   ├── dashboard/page.tsx
-│   │   │   └── [feature]/page.tsx
-│   │   │
-│   │   └── api/                 # API 라우트
-│   │       ├── auth/
-│   │       │   ├── login/route.ts
-│   │       │   ├── register/route.ts
-│   │       │   └── logout/route.ts
-│   │       └── [resource]/
-│   │           └── route.ts
-│   │
-│   ├── components/
-│   │   ├── ui/                  # 공통 UI
-│   │   │   ├── Button.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── Modal.tsx
-│   │   │   ├── Toast.tsx
-│   │   │   ├── Skeleton.tsx
-│   │   │   └── index.ts
-│   │   ├── layout/
-│   │   │   ├── Header.tsx
-│   │   │   ├── Sidebar.tsx
-│   │   │   └── Footer.tsx
-│   │   └── features/            # 기능별 컴포넌트
-│   │
-│   ├── lib/
-│   │   ├── supabase.ts          # DB 클라이언트
-│   │   ├── auth.ts              # 인증 유틸
-│   │   ├── api.ts               # API 클라이언트
-│   │   └── utils.ts             # 유틸리티
-│   │
-│   ├── hooks/
-│   │   ├── useAuth.ts
-│   │   ├── useToast.ts
-│   │   └── use[Feature].ts
-│   │
-│   ├── stores/
-│   │   ├── useAuthStore.ts
-│   │   └── use[Feature]Store.ts
-│   │
-│   └── types/
-│       └── index.ts
-│
-└── public/
-    └── icons/
-```
+## 📁 파일/스토리지
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Filesystem** | `@modelcontextprotocol/server-filesystem` | 로컬 파일 시스템 |
+| **Google Drive** | `gdrive-mcp` | Google Drive |
+| **S3** | `s3-mcp` | AWS S3 |
+| **Cloudinary** | `cloudinary-mcp` | 이미지 호스팅 |
 
-### 2. 환경변수 템플릿 (자동 생성)
-```env
-# .env.example - 복사해서 .env.local로 사용
+## 🔧 개발 도구
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **GitHub** | `@modelcontextprotocol/server-github` | GitHub 저장소 |
+| **Git** | `@modelcontextprotocol/server-git` | Git 명령어 |
+| **NPM** | `npm-mcp` | NPM 패키지 검색 |
+| **Docker** | `docker-mcp` | Docker 관리 |
 
-# === 필수 ===
-# Supabase (https://supabase.com)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_key
+## 🌐 브라우저/자동화
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Puppeteer** | `@modelcontextprotocol/server-puppeteer` | 브라우저 자동화 |
+| **Playwright** | `playwright-mcp` | E2E 테스트 |
+| **Fetch** | `@modelcontextprotocol/server-fetch` | HTTP 요청 |
 
-# === 선택 (사용하는 것만) ===
-# AI API
-GEMINI_API_KEY=your_gemini_key
-OPENAI_API_KEY=your_openai_key
+## 💬 커뮤니케이션
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Slack** | `@modelcontextprotocol/server-slack` | Slack 연동 |
+| **Discord** | `discord-mcp` | Discord 봇 |
+| **Email** | `email-mcp` | 이메일 발송 |
 
-# OAuth (소셜 로그인)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-KAKAO_CLIENT_ID=
-KAKAO_CLIENT_SECRET=
+## 📊 분석/모니터링
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Sentry** | `sentry-mcp` | 에러 추적 |
+| **Vercel** | `vercel-mcp` | Vercel 배포/분석 |
 
-# 결제
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
+## 🔍 검색/AI
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Brave Search** | `@anthropic/server-brave-search` | 웹 검색 |
+| **Exa** | `exa-mcp` | AI 검색 |
 
-# 이메일
-RESEND_API_KEY=
-```
+## 📝 노트/문서
+| MCP | 패키지명 | 용도 |
+|-----|---------|------|
+| **Notion** | `notion-mcp` | Notion 연동 |
+| **Obsidian** | `obsidian-mcp` | Obsidian 연동 |
 
-### 3. 인증 시스템 (자동 포함)
+---
+
+# 🎯 프로젝트별 권장 MCP
+
+## 웹앱 개발
 ```yaml
-기능:
-  - 이메일/비밀번호 회원가입
-  - 로그인/로그아웃
-  - 비밀번호 재설정
-  - 프로필 관리
-  - 소셜 로그인 (선택)
+필수:
+  - supabase-mcp          # DB/Auth
+  - @modelcontextprotocol/server-filesystem  # 파일
+  - @modelcontextprotocol/server-github      # 버전관리
 
-보안:
-  - 비밀번호 해싱
-  - JWT 세션
-  - CSRF 보호
-  - Rate limiting
-
-UI:
-  - 로그인 폼 (유효성 검사)
-  - 회원가입 폼
-  - 비밀번호 토글
-  - 에러 메시지
-  - 로딩 상태
+권장:
+  - @modelcontextprotocol/server-puppeteer   # E2E 테스트
+  - sentry-mcp            # 에러 추적
+  - vercel-mcp            # 배포
 ```
 
-### 4. 공통 컴포넌트 (자동 포함)
+## 게임 개발
 ```yaml
-UI 컴포넌트:
-  - Button (variant, size, loading)
-  - Input (label, error, icon)
-  - Modal (open, close, animation)
-  - Toast (success, error, info)
-  - Skeleton (다양한 형태)
-  - Card, Badge, Avatar
-  - Dropdown, Tabs
-  - Table (정렬, 페이지네이션)
+필수:
+  - supabase-mcp          # 리더보드/저장
+  - @modelcontextprotocol/server-filesystem  # 에셋 관리
 
-레이아웃:
-  - Header (로고, 네비, 유저메뉴)
-  - Sidebar (메뉴, 접기)
-  - Footer
-  - MobileNav
-
-기능:
-  - ErrorBoundary
-  - LoadingSpinner
-  - EmptyState
-  - ConfirmDialog
+권장:
+  - cloudinary-mcp        # 이미지 호스팅
+  - @modelcontextprotocol/server-github      # 버전관리
 ```
 
-### 5. API 패턴 (자동 적용)
-```typescript
-// 모든 API는 이 패턴으로 생성됨
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+## 모바일 앱
+```yaml
+필수:
+  - supabase-mcp          # 백엔드
+  - @modelcontextprotocol/server-filesystem  # 파일
 
-const schema = z.object({
-  // 입력 검증
-});
+권장:
+  - sentry-mcp            # 크래시 리포팅
+  - @modelcontextprotocol/server-github      # 버전관리
+```
 
-export async function POST(request: Request) {
-  try {
-    const supabase = await createClient();
-    
-    // 인증 확인
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+## 관리자 대시보드
+```yaml
+필수:
+  - supabase-mcp          # DB
+  - @modelcontextprotocol/server-postgres    # 직접 쿼리
+
+권장:
+  - slack-mcp             # 알림
+  - sentry-mcp            # 모니터링
+```
+
+---
+
+# 🔧 MCP 설치 가이드
+
+## Claude Desktop 설정 위치
+```yaml
+macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+Windows: %APPDATA%\Claude\claude_desktop_config.json
+Linux: ~/.config/Claude/claude_desktop_config.json
+```
+
+## claude_desktop_config.json 예시
+```json
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "supabase-mcp"],
+      "env": {
+        "SUPABASE_URL": "your_url",
+        "SUPABASE_SERVICE_ROLE_KEY": "your_key"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/project"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "your_token"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "postgresql://..."
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your_key"
+      }
     }
-
-    // 입력 검증
-    const body = await request.json();
-    const result = schema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
-    }
-
-    // 비즈니스 로직
-    const { data, error } = await supabase
-      .from('table')
-      .insert(result.data)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('API Error:', error);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다' }, { status: 500 });
   }
 }
 ```
 
+## 빠른 설치 (복사해서 사용)
+```bash
+# Supabase MCP
+npx supabase-mcp
+
+# GitHub MCP
+npx @modelcontextprotocol/server-github
+
+# Filesystem MCP
+npx @modelcontextprotocol/server-filesystem /path/to/project
+
+# PostgreSQL MCP
+npx @modelcontextprotocol/server-postgres
+
+# Puppeteer MCP
+npx @modelcontextprotocol/server-puppeteer
+```
+
 ---
 
-# 👥 서브에이전트 (30개)
+# 🔧 자동 수정/검증 시스템
 
-## 🔥 원샷 빌드 (최우선)
+## @autofix - 완전 자동 수정 ⭐⭐⭐
+```yaml
+역할: 모든 에러를 0개가 될 때까지 자동으로 찾아서 수정
+호출: "@autofix"
 
-### @fullstack - 풀스택 원샷 빌더
+자동 실행 순서:
+  1. TypeScript 타입 에러 검사
+  2. ESLint 에러 검사
+  3. 빌드 테스트
+  4. 런타임 에러 검사
+  5. 발견된 에러 자동 수정
+  6. 1-5 반복 (에러 0개 될 때까지)
+  7. 최종 검증 보고서
+```
+
+## @validate - 전체 코드 검증 ⭐⭐⭐
+```yaml
+호출: "@validate"
+검증: 타입, 린트, 보안, 빌드, 환경변수, 데드코드, 번들 사이즈
+```
+
+## @healthcheck - 프로젝트 건강 체크 ⭐⭐
+```yaml
+호출: "@healthcheck"
+진단: 코드 품질 점수, 테스트 커버리지, 보안, 성능
+```
+
+## @fix-all - 모든 문제 일괄 수정 ⭐⭐⭐
+```yaml
+호출: "@fix-all"
+```
+
+## @auto-test - 자동 테스트 생성 ⭐⭐
+```yaml
+호출: "@auto-test [대상]"
+생성: 단위/통합/E2E 테스트, 커버리지 리포트
+```
+
+## @auto-doc - 자동 문서화 ⭐⭐
+```yaml
+호출: "@auto-doc"
+생성: README, API 문서, 컴포넌트 문서, CHANGELOG
+```
+
+## @auto-refactor - 자동 리팩토링 ⭐⭐
+```yaml
+호출: "@auto-refactor [대상]"
+수행: 중복 제거, 함수 분리, 패턴 적용
+```
+
+## @auto-optimize - 자동 최적화 ⭐⭐
+```yaml
+호출: "@auto-optimize"
+최적화: 이미지, 코드 스플리팅, 번들, 캐싱
+```
+
+## @auto-secure - 자동 보안 스캔 ⭐⭐
+```yaml
+호출: "@auto-secure"
+스캔: npm audit, OWASP Top 10, XSS, CSRF
+```
+
+## @auto-a11y - 자동 접근성 검사 ⭐⭐
+```yaml
+호출: "@auto-a11y"
+검사: WCAG 2.1, aria, 키보드, 색상 대비
+```
+
+## @auto-seo - 자동 SEO 분석 ⭐⭐
+```yaml
+호출: "@auto-seo"
+분석: 메타태그, OG, sitemap, Core Web Vitals
+```
+
+---
+
+# 🚀 원샷 빌드
+
+## @fullstack - 풀스택 원샷 빌더 ⭐⭐⭐
 ```yaml
 호출: "@fullstack [앱 설명]"
-결과: 완전한 풀스택 앱 (API 키만 넣으면 작동)
+
+자동 포함:
+  ✅ 필요한 MCP 안내 (@mcp-setup 자동 실행)
+  ✅ 프로젝트 구조 전체
+  ✅ 인증 시스템
+  ✅ DB 스키마 + 연결
+  ✅ API 라우트 전체
+  ✅ UI 페이지 전체
+  ✅ 공통 컴포넌트
+  ✅ 자동 검증 (@autofix 실행)
 ```
 
-### @quickstart - 템플릿 생성기
+## @quickstart - 템플릿 빠른 시작
 ```yaml
-호출: "@quickstart [auth|blog|dashboard|ecommerce|chat|quiz|game|landing|saas|portfolio]"
-결과: 해당 유형의 완전한 앱
+호출: "@quickstart [템플릿]"
+
+템플릿:
+  auth, blog, dashboard, ecommerce, chat,
+  quiz, game, landing, saas, portfolio,
+  admin, social, booking, marketplace, lms
 ```
 
-### @clone - 서비스 클론
+## @clone - 서비스 클론
 ```yaml
 호출: "@clone [서비스명]"
-결과: 핵심 기능이 작동하는 클론
+예시: twitter, instagram, notion, trello, spotify
 ```
 
-### @feature - 기능 추가기
+## @feature - 기능 추가
 ```yaml
 호출: "@feature [기능명]"
-결과: 기존 프로젝트에 완전한 기능 추가
-
-예시:
-  @feature 댓글 기능
-  @feature 좋아요 기능
-  @feature 검색 기능
-  @feature 알림 기능
-  @feature 결제 기능
 ```
 
-### @page - 페이지 생성기
+## @page - 페이지 생성
 ```yaml
 호출: "@page [페이지명]"
-결과: 완전한 페이지 (API + UI + 상태)
+```
 
-예시:
-  @page 설정 페이지
-  @page 프로필 페이지
-  @page 대시보드 페이지
+## @component - 컴포넌트 생성
+```yaml
+호출: "@component [컴포넌트명]"
+```
+
+## @api - API 엔드포인트 생성
+```yaml
+호출: "@api [리소스명]"
+→ CRUD 전체 자동 생성
 ```
 
 ---
 
-## 🛠️ 개발
+# 🎮 게임 개발 자동화
 
-### @debugger - 에러 해결
+## @game-init - 게임 프로젝트 초기화 ⭐⭐
+```yaml
+호출: "@game-init [게임 유형]"
+
+유형: platformer, puzzle, rpg, shooter, racing,
+      card, idle, match3, tower-defense
+
+자동 포함:
+  - 권장 MCP 안내
+  - 게임 루프, 물리, 입력, 씬 관리
+```
+
+## @game-system - 게임 시스템 추가 ⭐⭐
+```yaml
+호출: "@game-system [시스템]"
+
+시스템: physics, collision, particle, sound,
+        save-load, achievement, inventory, dialogue,
+        quest, crafting, skill-tree, ai
+```
+
+## @game-ui - 게임 UI 생성 ⭐⭐
+```yaml
+호출: "@game-ui [UI 유형]"
+
+UI: hud, menu, pause, settings, inventory,
+    shop, dialog, minimap, healthbar, score
+```
+
+## @game-monetize - 수익화 시스템 ⭐
+```yaml
+호출: "@game-monetize [유형]"
+유형: iap, ads, subscription, battlepass
+```
+
+## @game-social - 소셜 시스템 ⭐
+```yaml
+호출: "@game-social [기능]"
+기능: leaderboard, friend, guild, chat, gift, pvp
+```
+
+## @game-balance - 게임 밸런싱 ⭐
+```yaml
+호출: "@game-balance"
+```
+
+---
+
+# 📱 앱 개발 자동화
+
+## @app-init - 앱 프로젝트 초기화 ⭐⭐
+```yaml
+호출: "@app-init [유형]"
+유형: pwa, expo, tauri, electron
+
+자동 포함: 권장 MCP 안내
+```
+
+## @app-feature - 앱 기능 추가 ⭐⭐
+```yaml
+호출: "@app-feature [기능]"
+기능: offline, push, deeplink, biometric,
+      camera, location, storage, share, qr, nfc
+```
+
+## @app-analytics - 분석 통합 ⭐
+```yaml
+호출: "@app-analytics [서비스]"
+서비스: ga4, mixpanel, amplitude, posthog
+```
+
+## @app-crash - 크래시 리포팅 ⭐
+```yaml
+호출: "@app-crash [서비스]"
+서비스: sentry, bugsnag, crashlytics
+```
+
+---
+
+# 🔄 유지보수/관리 자동화
+
+## @maintain - 정기 유지보수 ⭐⭐
+```yaml
+호출: "@maintain"
+```
+
+## @upgrade - 버전 업그레이드 ⭐⭐
+```yaml
+호출: "@upgrade [대상]"
+```
+
+## @migrate - 마이그레이션 ⭐⭐
+```yaml
+호출: "@migrate [대상]"
+```
+
+## @cleanup - 코드 정리 ⭐
+```yaml
+호출: "@cleanup"
+```
+
+## @dependency - 의존성 관리 ⭐
+```yaml
+호출: "@dependency [작업]"
+작업: check, update, audit, fix, clean
+```
+
+## @monitor - 모니터링 설정 ⭐⭐
+```yaml
+호출: "@monitor [설정]"
+설정: uptime, performance, error, log, alert
+```
+
+## @hotfix - 긴급 수정 ⭐
+```yaml
+호출: "@hotfix [문제]"
+```
+
+---
+
+# 🐛 오류 수정 자동화
+
+## @debugger - 에러 분석/해결 ⭐⭐⭐
 ```yaml
 호출: "@debugger [에러]"
 ```
 
-### @frontend - UI 개발
+## @error-hunt - 에러 헌팅 ⭐⭐
 ```yaml
-호출: "@frontend [UI 작업]"
+호출: "@error-hunt"
+탐지: null/undefined, 타입 불일치, 비동기 문제, 메모리 누수
 ```
 
-### @backend - API 개발
+## @fix-type - 타입 에러 수정 ⭐
 ```yaml
-호출: "@backend [API 작업]"
+호출: "@fix-type"
 ```
 
-### @database - DB 작업
+## @fix-lint - 린트 에러 수정 ⭐
 ```yaml
-호출: "@database [DB 작업]"
+호출: "@fix-lint"
 ```
 
-### @api-designer - API 설계
+## @fix-build - 빌드 에러 수정 ⭐
 ```yaml
-호출: "@api-designer [설계]"
+호출: "@fix-build"
 ```
 
----
-
-## 📐 설계
-
-### @architect - 시스템 설계
+## @fix-runtime - 런타임 에러 수정 ⭐
 ```yaml
-호출: "@architect [설계 요청]"
+호출: "@fix-runtime [에러]"
 ```
 
-### @ux-designer - UX 설계
+## @fix-hydration - Hydration 에러 수정 ⭐
 ```yaml
-호출: "@ux-designer [UX 작업]"
+호출: "@fix-hydration"
 ```
 
-### @ui-designer - UI 디자인
+## @fix-cors - CORS 에러 수정 ⭐
 ```yaml
-호출: "@ui-designer [디자인]"
+호출: "@fix-cors"
 ```
 
-### @animator - 애니메이션
+## @fix-memory - 메모리 누수 수정 ⭐
 ```yaml
-호출: "@animator [애니메이션]"
+호출: "@fix-memory"
 ```
 
 ---
 
-## ✅ 품질
+# 👥 서브에이전트 전체 (70개)
 
-### @reviewer - 코드 리뷰
-```yaml
-호출: "@reviewer [코드]"
-```
+## 🔌 MCP (5개) - NEW!
+| 명령어 | 설명 |
+|--------|------|
+| `@mcp-setup` | **MCP 자동 설정** |
+| `@mcp-install [MCP]` | MCP 설치 가이드 |
+| `@mcp-list` | 사용 가능한 MCP 목록 |
+| `@mcp-check` | MCP 상태 확인 |
+| `@mcp-recommend [유형]` | 프로젝트별 MCP 추천 |
 
-### @tester - 테스트
-```yaml
-호출: "@tester [테스트 대상]"
-```
+## 🔧 자동 수정/검증 (12개)
+| 명령어 | 설명 |
+|--------|------|
+| `@autofix` | **에러 0개까지 자동 수정** |
+| `@validate` | 전체 코드 검증 |
+| `@healthcheck` | 프로젝트 건강 체크 |
+| `@fix-all` | 모든 문제 일괄 수정 |
+| `@auto-test` | 테스트 자동 생성 |
+| `@auto-doc` | 문서 자동 생성 |
+| `@auto-refactor` | 자동 리팩토링 |
+| `@auto-optimize` | 자동 최적화 |
+| `@auto-secure` | 자동 보안 스캔 |
+| `@auto-a11y` | 자동 접근성 검사 |
+| `@auto-seo` | 자동 SEO 분석 |
+| `@format` | 코드 포맷팅 |
 
-### @security - 보안
-```yaml
-호출: "@security [보안 검토]"
-```
+## 🐛 오류 수정 (10개)
+| 명령어 | 설명 |
+|--------|------|
+| `@debugger [에러]` | 에러 분석/해결 |
+| `@error-hunt` | 잠재적 에러 탐지 |
+| `@trace [에러]` | 에러 추적 |
+| `@fix-type` | 타입 에러 수정 |
+| `@fix-lint` | 린트 에러 수정 |
+| `@fix-build` | 빌드 에러 수정 |
+| `@fix-runtime` | 런타임 에러 수정 |
+| `@fix-hydration` | Hydration 에러 수정 |
+| `@fix-cors` | CORS 에러 수정 |
+| `@fix-memory` | 메모리 누수 수정 |
 
-### @optimizer - 최적화
-```yaml
-호출: "@optimizer [최적화 대상]"
-```
+## 🚀 원샷 빌드 (7개)
+| 명령어 | 설명 |
+|--------|------|
+| `@fullstack [앱]` | 풀스택 앱 생성 + MCP 안내 |
+| `@quickstart [템플릿]` | 템플릿 시작 |
+| `@clone [서비스]` | 서비스 클론 |
+| `@feature [기능]` | 기능 추가 |
+| `@page [페이지]` | 페이지 생성 |
+| `@component [컴포넌트]` | 컴포넌트 생성 |
+| `@api [리소스]` | API 생성 |
 
-### @refactorer - 리팩토링
-```yaml
-호출: "@refactorer [코드]"
-```
+## 🎮 게임 개발 (6개)
+| 명령어 | 설명 |
+|--------|------|
+| `@game-init [유형]` | 게임 프로젝트 + MCP 안내 |
+| `@game-system [시스템]` | 게임 시스템 추가 |
+| `@game-ui [UI]` | 게임 UI 생성 |
+| `@game-monetize [유형]` | 수익화 시스템 |
+| `@game-social [기능]` | 소셜 시스템 |
+| `@game-balance` | 게임 밸런싱 |
 
-### @accessibility - 접근성
-```yaml
-호출: "@accessibility [검토]"
-```
+## 📱 앱 개발 (5개)
+| 명령어 | 설명 |
+|--------|------|
+| `@app-init [유형]` | 앱 프로젝트 + MCP 안내 |
+| `@app-feature [기능]` | 앱 기능 추가 |
+| `@app-analytics [서비스]` | 분석 통합 |
+| `@app-crash [서비스]` | 크래시 리포팅 |
+| `@app-ab` | A/B 테스트 |
 
----
+## 🔄 유지보수 (12개)
+| 명령어 | 설명 |
+|--------|------|
+| `@maintain` | 정기 유지보수 |
+| `@upgrade [대상]` | 버전 업그레이드 |
+| `@migrate [대상]` | 마이그레이션 |
+| `@cleanup` | 코드 정리 |
+| `@dependency [작업]` | 의존성 관리 |
+| `@backup` | 백업 |
+| `@rollback` | 롤백 |
+| `@hotfix [문제]` | 긴급 수정 |
+| `@monitor [설정]` | 모니터링 |
+| `@log-analyze` | 로그 분석 |
+| `@cost-analyze` | 비용 분석 |
+| `@scale [방향]` | 스케일링 |
 
-## 🚀 배포/인프라
+## 🛠️ 개발 (5개)
+| 명령어 | 설명 |
+|--------|------|
+| `@frontend [작업]` | UI 개발 |
+| `@backend [작업]` | API 개발 |
+| `@database [작업]` | DB 작업 |
+| `@api-designer [설계]` | API 설계 |
+| `@architect [요청]` | 시스템 설계 |
 
-### @deploy - 배포
-```yaml
-호출: "@deploy [배포 작업]"
-```
+## ✅ 품질 (6개)
+| 명령어 | 설명 |
+|--------|------|
+| `@reviewer [코드]` | 코드 리뷰 |
+| `@tester [대상]` | 테스트 작성 |
+| `@security [검토]` | 보안 검토 |
+| `@optimizer [대상]` | 성능 최적화 |
+| `@refactorer [코드]` | 리팩토링 |
+| `@accessibility [검토]` | 접근성 검토 |
 
-### @devops - CI/CD
-```yaml
-호출: "@devops [인프라]"
-```
-
----
-
-## 📝 콘텐츠
-
-### @documentation - 문서화
-```yaml
-호출: "@documentation [문서]"
-```
-
-### @translator - 번역
-```yaml
-호출: "@translator [번역]"
-```
-
-### @copywriter - 문구 작성
-```yaml
-호출: "@copywriter [문구]"
-```
-
----
-
-## 🔍 리서치
-
-### @researcher - 정보 검색
-```yaml
-호출: "@researcher [주제]"
-교차검증 후 신뢰할 수 있는 정보만 제공
-```
-
-### @fact-checker - 팩트체크
-```yaml
-호출: "@fact-checker [내용]"
-```
-
----
-
-## 🎮 게임
-
-### @game-designer - 게임 기획
-```yaml
-호출: "@game-designer [게임]"
-```
-
----
-
-## 📊 분석
-
-### @data-analyst - 데이터 분석
-```yaml
-호출: "@data-analyst [분석]"
-```
-
-### @prompt-engineer - AI 프롬프트
-```yaml
-호출: "@prompt-engineer [프롬프트]"
-```
-
----
-
-# 📚 스킬 (35개)
-
-## 핵심 스킬
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 1 | fullstack-generator | "풀스택", "전체 만들어줘" |
-| 2 | auth-system | "로그인", "회원가입", "인증" |
-| 3 | crud-generator | "CRUD", "게시판", "관리" |
-| 4 | nextjs-webapp | "웹앱", "Next.js" |
-| 5 | api-integrator | "API 연결", "Gemini", "OpenAI" |
-
-## 데이터베이스
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 6 | database-design | "DB 설계", "스키마" |
-| 7 | database-optimizer | "DB 최적화", "쿼리" |
-| 8 | realtime | "실시간", "채팅" |
-
-## 프론트엔드
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 9 | form-handling | "폼", "유효성 검사" |
-| 10 | state-management | "상태 관리", "Zustand" |
-| 11 | animation | "애니메이션", "모션" |
-| 12 | charts | "차트", "그래프" |
-
-## 앱/게임
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 13 | pwa-app | "PWA", "오프라인" |
-| 14 | mobile-app | "모바일 앱", "Expo" |
-| 15 | unity-game | "유니티", "Unity" |
-| 16 | web-game | "웹 게임", "Phaser" |
-| 17 | game-mechanics | "레벨 시스템", "보상" |
-
-## 기능
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 18 | file-upload | "파일 업로드" |
-| 19 | payment | "결제", "Stripe" |
-| 20 | email | "이메일 발송" |
-| 21 | map | "지도", "카카오맵" |
-| 22 | i18n | "다국어", "번역" |
-
-## 품질
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 23 | error-debugger | "에러", "오류" |
-| 24 | testing | "테스트", "Vitest" |
-| 25 | seo-optimization | "SEO" |
-| 26 | accessibility | "접근성", "a11y" |
-| 27 | performance-audit | "성능 분석" |
-| 28 | monitoring | "모니터링", "Sentry" |
-
-## 배포
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 29 | vercel-deploy | "배포", "Vercel" |
-
-## 리서치
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 30 | research-verification | "자료 검색", "확인" |
-| 31 | version-compatibility | "버전", "호환성" |
-
-## 기타
-| # | 스킬 | 트리거 |
-|---|-----|--------|
-| 32 | code-generation | "코드 생성" |
-| 33 | legal-compliance | "약관", "개인정보" |
-| 34 | korean-edu-app | "교육 앱", "학습" |
-| 35 | landing-page | "랜딩 페이지" |
+## 🚀 배포 (2개)
+| 명령어 | 설명 |
+|--------|------|
+| `@deploy [작업]` | 배포 |
+| `@devops [작업]` | CI/CD |
 
 ---
 
-# 🔍 정보 검증 규칙
+# 📚 스킬 전체 (70개)
 
-```yaml
-교차검증 필수:
-  - 최소 2-3개 공신력 있는 출처 확인
-  - 출처 간 정보 일치 여부 확인
-  - 불확실하면 "확인 필요" 명시
+## 🔌 MCP (5개) - NEW!
+| 트리거 | 스킬 |
+|--------|------|
+| "MCP 설정", "MCP 설치" | mcp-setup |
+| "MCP 목록" | mcp-list |
+| "MCP 확인" | mcp-check |
+| "MCP 추천" | mcp-recommend |
+| "MCP 가이드" | mcp-guide |
 
-공신력 출처 우선순위:
-  1. 공식 문서 (docs.*)
-  2. GitHub 공식 저장소
-  3. MDN Web Docs
-  4. 학술/정부 자료
+## 🔧 자동 수정/검증 (12개)
+| 트리거 | 스킬 |
+|--------|------|
+| "자동 수정" | auto-repair |
+| "검증" | code-validation |
+| "건강 체크" | project-health |
+| "테스트 생성" | auto-test-gen |
+| "문서 생성" | auto-documentation |
+| "리팩토링" | auto-refactoring |
+| "최적화" | auto-optimization |
+| "보안 검사" | auto-security |
+| "접근성 검사" | auto-accessibility |
+| "SEO 검사" | auto-seo |
+| "린트 수정" | lint-fix |
+| "타입 수정" | type-fix |
 
-할루시네이션 방지:
-  - 존재하지 않는 API 사용 금지
-  - 가상의 라이브러리 추천 금지
-  - 실제 테스트된 코드만 제공
-```
+## 🐛 오류 수정 (10개)
+| 트리거 | 스킬 |
+|--------|------|
+| "에러" | error-debugger |
+| "에러 찾아" | error-hunting |
+| "에러 추적" | error-tracing |
+| "타입 에러" | type-error-fix |
+| "린트 에러" | lint-error-fix |
+| "빌드 에러" | build-error-fix |
+| "런타임 에러" | runtime-error-fix |
+| "hydration" | hydration-fix |
+| "CORS" | cors-fix |
+| "메모리 누수" | memory-leak-fix |
 
----
+## 🚀 핵심 (7개)
+| 트리거 | 스킬 |
+|--------|------|
+| "풀스택" | fullstack-generator |
+| "로그인" | auth-system |
+| "CRUD" | crud-generator |
+| "웹앱" | nextjs-webapp |
+| "API 연결" | api-integrator |
+| "컴포넌트 생성" | component-generator |
+| "API 생성" | api-generator |
 
-# 🎨 UI/UX 규칙
+## 🎮 게임 (10개)
+| 트리거 | 스킬 |
+|--------|------|
+| "게임 초기화" | game-init |
+| "게임 시스템" | game-system |
+| "게임 UI" | game-ui |
+| "수익화" | game-monetize |
+| "리더보드" | game-leaderboard |
+| "게임 밸런싱" | game-balance |
+| "웹 게임" | web-game |
+| "유니티" | unity-game |
+| "레벨 시스템" | game-mechanics |
+| "멀티플레이어" | multiplayer |
 
-```yaml
-디자인:
-  - 글래스모피즘 (backdrop-filter: blur)
-  - Framer Motion 애니메이션
-  - 다크모드 지원
+## 📱 앱 (8개)
+| 트리거 | 스킬 |
+|--------|------|
+| "PWA" | pwa-app |
+| "모바일 앱" | mobile-app |
+| "오프라인" | offline-mode |
+| "푸시 알림" | push-notification |
+| "딥링크" | deep-linking |
+| "분석 통합" | analytics-integration |
+| "크래시 리포트" | crash-reporting |
+| "A/B 테스트" | ab-testing |
 
-컴포넌트:
-  - 스켈레톤 로딩
-  - 토스트 알림
-  - 로딩/에러/빈 상태
+## 🔄 유지보수 (12개)
+| 트리거 | 스킬 |
+|--------|------|
+| "유지보수" | maintenance |
+| "업그레이드" | version-upgrade |
+| "마이그레이션" | migration |
+| "정리" | cleanup |
+| "의존성" | dependency-management |
+| "백업" | backup |
+| "롤백" | rollback |
+| "핫픽스" | hotfix |
+| "모니터링" | monitoring |
+| "로그 분석" | log-analysis |
+| "비용 분석" | cost-analysis |
+| "스케일링" | scaling |
 
-시인성:
-  - 터치 영역: 44px 이상
-  - 색상 대비: 4.5:1 이상
-```
+## 💾 데이터베이스 (3개)
+| 트리거 | 스킬 |
+|--------|------|
+| "DB 설계" | database-design |
+| "DB 최적화" | database-optimizer |
+| "실시간" | realtime |
 
----
-
-# 💰 비용 최적화
-
-```yaml
-Firestore/Supabase:
-  - 로컬 캐시 활성화
-  - 실시간 구독 최소화
-
-AI API:
-  - 디바운스 1-2초
-  - 결과 캐싱
-  - 저렴한 모델 우선
-```
-
----
-
-# ⚖️ 저작권 안전
-
-```yaml
-폰트: Pretendard, Noto Sans KR, Inter (OFL)
-아이콘: Lucide React, Heroicons (MIT)
-이미지: 직접 제작 SVG, Unsplash
-```
+## ⚙️ 기능 (5개)
+| 트리거 | 스킬 |
+|--------|------|
+| "파일 업로드" | file-upload |
+| "결제" | payment |
+| "이메일" | email |
+| "지도" | map |
+| "다국어" | i18n |
 
 ---
 
@@ -649,37 +812,70 @@ Database: Supabase
 AI: Gemini API
 Testing: Vitest + Playwright
 PWA: Serwist
-Icons: Lucide React
+```
+
+---
+
+# 🔄 자동 실행 프로세스
+
+## 새 프로젝트 생성
+```
+1. @fullstack [앱] 또는 @game-init [유형] 또는 @app-init [유형]
+2. 자동으로 @mcp-setup 실행 (필요한 MCP 안내)
+3. 자동으로 @autofix 실행
+4. 에러 0개 확인
+5. 완료 보고서 + MCP 설정 가이드
+```
+
+## 코드 수정 후
+```
+@autofix → 에러 0개까지 반복 → 완료
+```
+
+## 정기 유지보수
+```
+@healthcheck → @maintain → @autofix
 ```
 
 ---
 
 # ⚡ 퀵 레퍼런스
 
-## 원샷 빌드 (가장 중요!)
+## 🔥 핵심 명령어
 ```
-@fullstack [앱 설명]          # 완전한 앱 한번에
-@quickstart [템플릿]          # 템플릿으로 빠른 시작
-@clone [서비스명]             # 서비스 클론
-@feature [기능명]             # 기능 추가
-@page [페이지명]              # 페이지 추가
-```
-
-## 개발
-```
-@debugger [에러]    @frontend [UI]
-@backend [API]      @database [DB]
+@fullstack [앱]     # 완전한 앱 생성 + MCP 안내
+@autofix            # 에러 0개까지 자동 수정
+@mcp-setup          # MCP 자동 설정
+@validate           # 전체 검증
 ```
 
-## 품질
+## MCP
 ```
-@reviewer [코드]    @tester [대상]
-@security [검토]    @optimizer [대상]
+@mcp-setup          @mcp-install [MCP]
+@mcp-list           @mcp-check
+@mcp-recommend [유형]
 ```
 
-## 배포
+## 자동 수정
 ```
-@deploy [작업]      @devops [인프라]
+@autofix      @fix-all      @fix-type
+@fix-lint     @fix-build    @fix-runtime
+```
+
+## 원샷 빌드
+```
+@fullstack    @quickstart   @clone
+@feature      @page         @component
+```
+
+## 게임
+```
+@game-init    @game-system  @game-ui
+```
+
+## 앱
+```
+@app-init     @app-feature  @app-analytics
 ```
 
 ---
@@ -691,20 +887,18 @@ Icons: Lucide React
        🎉 작업 완료 보고서
 ═══════════════════════════════════════
 ✅ 빌드: 성공
-✅ 타입 체크: 통과
-✅ 모든 기능: 작동 확인
+✅ 타입 체크: 에러 0개
+✅ 린트: 에러 0개
+✅ 테스트: 통과
 
-📁 생성된 파일:
-- [파일 목록]
+🔌 권장 MCP:
+- supabase-mcp (DB/Auth)
+- @modelcontextprotocol/server-filesystem
+- @modelcontextprotocol/server-github
 
-🔑 필요한 환경변수:
-- .env.example 참조
+📁 생성된 파일: [목록]
 
-🚀 실행 방법:
-1. cp .env.example .env.local
-2. .env.local에 API 키 입력
-3. npm install
-4. npm run dev
+🚀 실행: npm run dev
 ═══════════════════════════════════════
 ```
 
@@ -712,4 +906,7 @@ Icons: Lucide React
 
 **Claude Code는 이 설정을 자동으로 읽고 적용합니다.**
 
-**핵심 명령어: `@fullstack [앱 설명]` → API 키만 넣으면 바로 작동!**
+**🔥 핵심:**
+- `@fullstack [앱]` → 완전한 앱 생성 + MCP 안내
+- `@mcp-setup` → 필요한 MCP 자동 감지/설정
+- `@autofix` → 에러 0개까지 자동 수정

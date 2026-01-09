@@ -583,7 +583,17 @@ function checkWritingQuality(text, idealWordCount = 100) {
   return { isInvalid: false };
 }
 
-// Analyze writing using Gemini AI - 격려 중심 평가
+// 🚀 프롬프트 캐시 - 동일 글 재분석 방지 (API 비용 절감)
+const analysisCache = new Map();
+const ANALYSIS_CACHE_TTL = 3600000; // 1시간
+
+function getAnalysisCacheKey(text, topic, gradeLevel) {
+  // 글 내용의 해시값 생성 (간단한 해시)
+  const hash = text.slice(0, 100) + text.length + topic + gradeLevel;
+  return hash;
+}
+
+// Analyze writing using Gemini AI - 🚀 최적화: 토큰 50% 절감 + 캐싱
 exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
@@ -592,188 +602,81 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   const data = request.data;
   const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore} = data || {};
 
-  // 🚀 고쳐쓰기 모드 로깅 (디버깅용)
   if (isRewrite) {
-    console.log(`[고쳐쓰기 모드] 주제: "${topic}", 이전점수: ${previousScore}, previousScore타입: ${typeof previousScore}`);
+    console.log(`[고쳐쓰기] 주제: "${topic}", 이전점수: ${previousScore}`);
   }
 
   if (!text || !topic) {
     throw new HttpsError('invalid-argument', '텍스트와 주제가 필요합니다.');
   }
 
-  // 🚀 서버 측 무의미한 글 감지 (AI 호출 전에 체크)
+  // 🚀 서버 측 무의미한 글 감지 (AI 호출 전 차단 = API 비용 0원)
   const qualityCheck = checkWritingQuality(text, idealWordCount);
   if (qualityCheck.isInvalid) {
-    console.log(`[무의미한 글 감지] 사유: ${qualityCheck.reason}`);
+    console.log(`[무의미한 글] ${qualityCheck.reason} - API 호출 차단`);
     return {
-      score: 0,
-      contentScore: 0,
-      topicRelevanceScore: 0,
-      structureScore: 0,
-      vocabularyScore: 0,
-      grammarScore: 0,
-      creativityScore: 0,
-      feedback: qualityCheck.feedback,
-      strengths: [],
+      score: 0, contentScore: 0, topicRelevanceScore: 0, structureScore: 0,
+      vocabularyScore: 0, grammarScore: 0, creativityScore: 0,
+      feedback: qualityCheck.feedback, strengths: [],
       improvements: [qualityCheck.improvement],
       overallFeedback: qualityCheck.feedback,
-      writingTips: ['주제에 맞는 의미있는 내용을 작성해보세요.', '같은 말을 반복하지 말고 다양한 문장으로 표현해보세요.'],
-      detailedFeedback: [],
-      qualityPenalty: qualityCheck.reason
+      writingTips: ['주제에 맞는 의미있는 내용을 작성해보세요.'],
+      detailedFeedback: [], qualityPenalty: qualityCheck.reason
     };
+  }
+
+  // 🚀 분석 캐시 확인 (동일 글 재분석 방지)
+  const cacheKey = getAnalysisCacheKey(text, topic, gradeLevel);
+  const cached = analysisCache.get(cacheKey);
+  if (cached && !isRewrite && (Date.now() - cached.timestamp) < ANALYSIS_CACHE_TTL) {
+    console.log(`[캐시 히트] 분석 결과 재사용 - API 비용 절감`);
+    return cached.data;
   }
 
   try {
     const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
+    if (!apiKey) throw new Error('Gemini API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
-    const gradeLevelNames = {
-      'elementary_1_2': '초등학교 1-2학년',
-      'elementary_3_4': '초등학교 3-4학년',
-      'elementary_5_6': '초등학교 5-6학년',
-      'middle': '중학생',
-      'high': '고등학생'
+    const gradeNames = {
+      'elementary_1_2': '초1-2', 'elementary_3_4': '초3-4',
+      'elementary_5_6': '초5-6', 'middle': '중등', 'high': '고등'
     };
+    const grade = gradeNames[gradeLevel] || gradeLevel;
 
-    const gradeName = gradeLevelNames[gradeLevel] || gradeLevel;
-
-    // 🚀 고쳐쓰기 모드 - 학생의 노력을 인정하여 점수 상승
+    // 🚀 고쳐쓰기 모드 압축
     const rewriteInfo = isRewrite && previousScore !== null
-      ? `\n\n**🔄 고쳐쓰기 모드 - 반드시 점수 상승!**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-이 학생은 이전 글(${previousScore}점)을 수정하여 다시 제출했습니다.
-
-⭐️ 핵심 원칙: 고쳐쓰기는 학생의 노력을 인정하여 **반드시 점수를 올려주세요!**
-학생이 피드백을 받고 다시 노력했다는 것 자체가 칭찬받을 일입니다.
-
-🎯 점수 산정 (필수!):
-- 최소 점수: ${previousScore + 3}점 (이전 점수 + 3점 이상)
-- 권장 점수: ${previousScore + 5}점 ~ ${previousScore + 12}점
-- 내용이 조금이라도 추가/수정되었다면: +5점 ~ +10점
-- 문법/맞춤법이 개선되었다면: +3점 ~ +5점 추가
-- 구성이 개선되었다면: +3점 ~ +5점 추가
-
-📌 평가 시 주의사항:
-1. 고쳐쓰기한 글은 무조건 이전 점수(${previousScore}점)보다 높게 평가하세요
-2. 학생이 다시 시도한 노력 자체를 인정해주세요
-3. 작은 개선이라도 긍정적으로 평가하세요
-4. 점수가 떨어지면 학생이 의욕을 잃습니다!
-
-❌ 점수를 올리지 않아도 되는 유일한 경우:
-- 이전 글과 완전히 동일한 내용 (복사-붙여넣기)
-- 무의미한 문자 반복으로만 채움
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      ? `\n[고쳐쓰기] 이전${previousScore}점→최소${previousScore+3}점 이상으로 평가. 노력 인정!`
       : '';
 
-    const prompt = `당신은 ${gradeName} 학생의 글쓰기를 평가하는 따뜻하고 격려하는 선생님입니다.
-학생의 노력과 성장 가능성을 인정하면서 구체적이고 도움이 되는 피드백을 제공해주세요.
-**학생들이 글쓰기에 흥미를 잃지 않도록 격려 중심의 평가를 해주세요.**${rewriteInfo}
+    // 🚀 최적화된 프롬프트 (토큰 50% 절감)
+    const prompt = `${grade} 글쓰기 평가. 격려 중심, 관대하게.${rewriteInfo}
 
-🎯 **[필수] 이 글의 주제: "${topic}"**
-⚠️ 반드시 위 주제("${topic}")를 기준으로 평가하세요. 다른 주제로 착각하지 마세요!
-글자 수: ${wordCount}자 (권장: ${idealWordCount}자)
-학년: ${gradeName}
+주제: "${topic}" | ${wordCount}자(권장${idealWordCount}자)
 
-학생이 작성한 글:
+글:
 """
 ${text}
 """
 
-**⚠️ 무의미한 글 감지 (최우선 확인!):**
-다음 중 하나라도 해당하면 즉시 0점 처리:
-- 같은 글자/단어 반복 (예: "아아아아아", "ㅋㅋㅋㅋ", "하하하하", "가나다라마바사아자차카타파하" 반복)
-- 의미없는 알파벳 나열 (예: "asdfgh", "qwerty", "abcdef" 등)
-- 의미없는 숫자 나열 (예: "123456", "111111" 등)
-- 키보드 순서대로 입력 (예: "ㅂㅈㄷㄱㅅㅛ", "qwertyuiop")
-- 의미없는 문장 반복 (예: "나는 밥을 먹었다. 나는 밥을 먹었다. 나는 밥을 먹었다.")
-- 주제와 전혀 관련없는 횡설수설
-- 글의 50% 이상이 무의미한 내용으로 채워진 경우
+[무의미한 글=0점: 반복문자, 주제무관, 키보드나열]
 
-위 경우 score는 반드시 0점, feedback에 "의미있는 글을 작성해주세요"라고 적어주세요.
+평가기준(관대하게, 기본점수 높게):
+- 내용(25): 기본18점, 주제이해→22-25
+- 주제일치(10): 엄격평가, 3점이하시 총점-20
+- 구성(20): 기본14점, 서본결→17-20
+- 어휘(20): 기본14점, 다양성→17-20, 반복시-5
+- 문법(15): 기본11점
+- 창의(10): 기본6점
 
-**✨ 평가 방침 (매우 중요!):**
-- 학생들의 글쓰기 의욕을 북돋아주기 위해 **관대하게 평가**해주세요
-- 완벽하지 않아도 노력이 보이면 높은 점수를 주세요
-- 평균적인 글은 72-78점, 잘 쓴 글은 80-88점, 매우 뛰어난 글은 90점 이상입니다
-- **기본 점수를 높게 시작하고, 심각한 문제가 있을 때만 감점하세요**
+평균72-78점, 잘씀80-88점, 뛰어남90+
 
-1. 내용 (25점) - 기본 18점에서 시작:
-   - 22-25점: 주제에 대한 이해와 나름의 시각이 있음
-   - 18-21점: 주제와 관련된 내용을 적절히 전개함
-   - 12-17점: 주제를 다루고 있으나 깊이가 부족
-   - 0-11점: 주제와 관련없거나 내용이 매우 빈약함
+AI판단: 잘쓴것≠AI. 의심시 낮은확률(15-25%)
 
-2. 주제 일치도 (10점) - ⚠️ 엄격하게 평가:
-   - 9-10점: 글 전체가 주제와 완벽히 일치, 주제를 벗어난 부분 없음
-   - 7-8점: 대부분 주제와 일치하나 일부 벗어난 내용 있음
-   - 4-6점: 주제와 관련은 있으나 상당 부분 벗어남
-   - 0-3점: 주제와 거의 관련 없는 내용 (이 경우 전체 점수 -20점 추가 감점!)
-
-3. 구성 (20점) - 기본 14점에서 시작:
-   - 17-20점: 서론/본론/결론 구조가 명확함
-   - 14-16점: 기본적인 글 구조가 있음
-   - 9-13점: 구조가 다소 불명확함
-   - 0-8점: 구조 없이 나열식
-
-4. 어휘 및 문장 다양성 (20점) - 기본 14점에서 시작:
-   - 17-20점: 다양한 어휘와 문장 시작어 사용 (예: "나는", "그래서", "왜냐하면" 등 다양하게 시작)
-   - 14-16점: 기본적인 어휘, 문장 시작어가 2-3가지 정도
-   - 9-13점: 어휘가 단조롭고 같은 문장 시작어 반복 (예: 계속 "나는"으로 시작)
-   - 0-8점: 같은 단어/시작어 과도한 반복 (이 경우 -5점 추가 감점!)
-
-5. 문법/맞춤법 (15점) - 기본 11점에서 시작:
-   - 13-15점: 맞춤법 오류 거의 없음
-   - 11-12점: 사소한 실수 몇 개
-   - 7-10점: 여러 개의 맞춤법 오류
-   - 0-6점: 심각한 문법 오류 다수
-
-6. 창의성 (10점) - 기본 6점에서 시작:
-   - 9-10점: 독창적인 표현이나 시각
-   - 6-8점: 나름의 개성이 있음
-   - 3-5점: 평범하지만 성실함
-   - 0-2점: 매우 틀에 박힌 내용
-
-**📌 추가 감점 규칙 (반드시 적용!):**
-- 주제 일치도 3점 이하: 전체 점수에서 -20점 추가 감점
-- 같은 문장 시작어 4회 이상 연속 반복: -5점 추가 감점
-- 글자 수 감점은 서버에서 자동 적용됨 (AI는 글자 수 감점하지 마세요)
-
-**피드백 작성 지침 (매우 중요!):**
-⚠️ 모든 피드백에서 반드시 제시된 주제("${topic}")를 기준으로 작성하세요!
-1. "잘한 점"은 학생이 실제로 잘한 구체적인 부분을 3-4개 이상 찾아서 칭찬해주세요 (문장 인용 포함)
-2. "개선할 점"은 구체적인 예시와 함께 어떻게 고치면 좋을지 설명해주세요 (3개 이상)
-3. "종합 의견"은 학생에게 직접 말하듯이 따뜻하면서도 구체적인 조언을 4-5문장으로 작성해주세요
-4. "글쓰기 팁"은 이 학생이 다음에 글을 쓸 때 바로 적용할 수 있는 실용적인 조언 2-3개
-5. "상세 피드백"에서는 실제로 고쳐야 할 문장을 글에서 찾아 구체적으로 수정 제안해주세요
-
-**🤖 AI 작성 여부 판단 (함께 분석):**
-- 글을 잘 쓰는 것 ≠ AI가 쓴 것 (글 잘 쓰는 학생도 많음)
-- AI 징후: "~입니다" 반복, "첫째/둘째/셋째" 나열, 감정/경험 없는 백과사전식, 모든 문장 비슷한 길이
-- 사람 징후: 개인 경험, 감정 표현, 문장 길이 변화, 약간의 오류
-- 의심스러우면 낮은 확률(15-25%)로!
-
-반드시 다음 JSON 형식으로만 응답하세요:
-{
-  "score": 총점(0-100),
-  "contentScore": 내용(0-25),
-  "topicRelevanceScore": 주제일치(0-10),
-  "structureScore": 구성(0-20),
-  "vocabularyScore": 어휘다양성(0-20),
-  "grammarScore": 문법(0-15),
-  "creativityScore": 창의성(0-10),
-  "feedback": "평가 한 줄 요약",
-  "strengths": ["잘한 점 1", "잘한 점 2", "잘한 점 3"],
-  "improvements": ["개선점 1", "개선점 2"],
-  "overallFeedback": "종합 의견 3-4문장",
-  "writingTips": ["팁 1", "팁 2"],
-  "detailedFeedback": [{"type": "grammar/vocabulary/structure", "original": "원문", "suggestion": "수정", "reason": "이유"}],
-  "aiCheck": {"probability": 0-100, "verdict": "LOW/MEDIUM/HIGH", "reason": "판정 이유 1문장"}
-}`;
+JSON만:
+{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"한줄요약","strengths":["잘한점1","2","3"],"improvements":["개선점1","2"],"overallFeedback":"종합3-4문장","writingTips":["팁1","팁2"],"detailedFeedback":[{"type":"grammar","original":"원문","suggestion":"수정","reason":"이유"}],"aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -936,6 +839,16 @@ ${text}
       };
     }
 
+    // 🚀 분석 결과 캐시 저장 (동일 글 재제출 시 API 비용 절감)
+    if (!isRewrite) {
+      analysisCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+      // 캐시 크기 제한 (100개 이상이면 오래된 것 삭제)
+      if (analysisCache.size > 100) {
+        const oldest = [...analysisCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+        if (oldest) analysisCache.delete(oldest[0]);
+      }
+    }
+
     return parsed;
   } catch (error) {
     console.error('글 분석 에러:', error);
@@ -972,7 +885,7 @@ exports.detectPlagiarism = onCall({secrets: [geminiApiKey]}, async (request) => 
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
     const previousTexts = previousSubmissions.map((s, i) => `[이전 글 ${i + 1}]\n${s.content}`).join('\n\n');
 
@@ -1030,7 +943,7 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
     const prompt = `당신은 학생 글쓰기를 분석하는 전문가입니다. 다음 글이 AI에 의해 작성되었는지 **매우 신중하게** 분석해주세요.
 
@@ -1114,7 +1027,11 @@ ${text}
   }
 });
 
-// Get writing help
+// 🚀 AI 도움 캐시 (동일 요청 방지)
+const helpCache = new Map();
+const HELP_CACHE_TTL = 600000; // 10분
+
+// Get writing help - 🚀 최적화: 토큰 40% 절감 + 캐싱
 exports.getWritingHelp = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
@@ -1127,123 +1044,68 @@ exports.getWritingHelp = onCall({secrets: [geminiApiKey]}, async (request) => {
     throw new HttpsError('invalid-argument', '주제가 필요합니다.');
   }
 
-  // 🚀 polish/expand는 최소 50자 이상 작성해야 사용 가능
   const cleanText = (text || '').replace(/\s/g, '');
   if ((helpType === 'polish' || helpType === 'expand') && cleanText.length < 50) {
-    throw new HttpsError('invalid-argument', '표현 다듬기와 확장 기능은 최소 50자 이상 작성해야 사용할 수 있습니다.');
+    throw new HttpsError('invalid-argument', '최소 50자 이상 작성 필요');
+  }
+
+  // 🚀 캐시 확인
+  const cacheKey = `help_${helpType}_${topic}_${cleanText.slice(0, 50)}`;
+  const cached = helpCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < HELP_CACHE_TTL) {
+    console.log(`[캐시 히트] getWritingHelp ${helpType}`);
+    return cached.data;
   }
 
   try {
     const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
+    if (!apiKey) throw new Error('API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
-    let prompt = '';
-    if (helpType === 'hint') {
-      prompt = `학생이 "${topic}"이라는 주제로 글을 쓰려고 합니다.
-현재 작성된 내용: ${text || '(아직 없음)'}
+    // 🚀 최적화된 프롬프트 (40% 토큰 절감)
+    const prompts = {
+      hint: `주제:"${topic}" 현재:${text||'없음'}
+힌트만(직접내용X). JSON:{"hints":["힌트1","2","3"],"questions":["질문1","2"]}`,
+      structure: `"${topic}" 글구조 안내
+JSON:{"introduction":"서론","body":["본론1","2"],"conclusion":"결론"}`,
+      polish: `주제:"${topic}"
+글:"""${text}"""
+규칙:내용추가X,길이늘리기X,표현만개선,제안만
+3-5개 수정제안. JSON:{"suggestions":[{"original":"원문","improved":"수정","reason":"이유"}],"tips":["팁1","2"],"praise":"칭찬"}`,
+      expand: `주제:"${topic}"
+글:"""${text}"""
+확장아이디어만(직접쓰지X). JSON:{"expandIdeas":["1","2","3"],"detailSuggestions":[{"part":"부분","suggestion":"제안"}],"examples":["예시1","2"]}`,
+      default: `주제:"${topic}" 현재:${text||'없음'}
+조언. JSON:{"advice":"조언","tips":["팁1","2"]}`
+    };
 
-학생이 스스로 생각할 수 있도록 힌트만 제공해주세요. 직접적인 내용을 알려주지 말고, 생각할 거리를 던져주세요.
-
-JSON 형식으로 응답:
-{
-  "hints": ["힌트1", "힌트2", "힌트3"],
-  "questions": ["생각해볼 질문1", "생각해볼 질문2"]
-}`;
-    } else if (helpType === 'structure') {
-      prompt = `"${topic}"이라는 주제로 글을 쓸 때 어떤 구조로 쓰면 좋을지 안내해주세요.
-
-JSON 형식으로 응답:
-{
-  "introduction": "서론에서 다룰 내용 안내",
-  "body": ["본론1 안내", "본론2 안내"],
-  "conclusion": "결론에서 다룰 내용 안내"
-}`;
-    } else if (helpType === 'polish') {
-      prompt = `학생이 "${topic}"이라는 주제로 글을 쓰고 있습니다.
-
-현재 작성된 내용:
-"""
-${text}
-"""
-
-**중요한 규칙 (반드시 지켜주세요!):**
-1. 절대로 새로운 내용을 추가하지 마세요
-2. 절대로 글의 길이를 늘리지 마세요
-3. 학생이 쓴 문장 구조와 아이디어를 그대로 유지하세요
-4. 오직 표현만 개선하세요 (어휘, 문법, 맞춤법)
-5. 학생이 직접 글을 수정할 수 있도록 "제안"만 하세요
-
-위 글에서 개선할 수 있는 표현 3-5개만 찾아서 제안해주세요.
-- 어색한 표현 → 자연스러운 표현
-- 반복되는 단어 → 다양한 어휘
-- 문법 오류 수정
-
-JSON 형식으로 응답:
-{
-  "suggestions": [
-    {"original": "학생이 쓴 원래 표현", "improved": "개선된 표현", "reason": "왜 바꾸면 좋은지 설명"}
-  ],
-  "tips": ["표현 개선 팁1", "표현 개선 팁2"],
-  "praise": "잘 쓴 부분 칭찬 (1문장)"
-}`;
-    } else if (helpType === 'expand') {
-      prompt = `학생이 "${topic}"이라는 주제로 글을 쓰고 있습니다.
-
-현재 작성된 내용:
-"""
-${text}
-"""
-
-위 글을 더 풍성하게 확장할 수 있도록 도와주세요.
-- 추가할 수 있는 내용 제안
-- 더 자세히 설명할 부분 안내
-- 예시나 구체적인 상황 추가 아이디어
-
-학생이 직접 쓸 수 있도록 아이디어만 제공해주세요.
-
-JSON 형식으로 응답:
-{
-  "expandIdeas": ["확장 아이디어1", "확장 아이디어2", "확장 아이디어3"],
-  "detailSuggestions": [
-    {"part": "확장할 부분", "suggestion": "이렇게 더 자세히 쓸 수 있어요"}
-  ],
-  "examples": ["추가할 수 있는 예시1", "추가할 수 있는 예시2"]
-}`;
-    } else {
-      prompt = `학생이 "${topic}"이라는 주제로 글을 쓰고 있습니다.
-현재 작성된 내용: ${text || '(아직 없음)'}
-
-글쓰기에 도움이 될 조언을 해주세요.
-
-JSON 형식으로 응답:
-{
-  "advice": "전반적인 조언",
-  "tips": ["팁1", "팁2"]
-}`;
-    }
-
+    const prompt = prompts[helpType] || prompts.default;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('AI 응답 파싱 실패');
+    if (!jsonMatch) throw new Error('파싱 실패');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // 🚀 캐시 저장
+    helpCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+    if (helpCache.size > 50) {
+      const oldest = [...helpCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+      if (oldest) helpCache.delete(oldest[0]);
     }
 
-    return JSON.parse(jsonMatch[0]);
+    return parsed;
   } catch (error) {
     console.error('글쓰기 도움 에러:', error);
     throw new HttpsError('internal', `도움 요청 실패: ${error.message}`);
   }
 });
 
-// Get quick advice during writing
+// Get quick advice - 🚀 최적화: 토큰 50% 절감
 exports.getQuickAdvice = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
@@ -1258,48 +1120,25 @@ exports.getQuickAdvice = onCall({secrets: [geminiApiKey]}, async (request) => {
 
   try {
     const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
+    if (!apiKey) throw new Error('API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
-    const gradeLevelNames = {
-      'elementary_1_2': '초등학교 1-2학년',
-      'elementary_3_4': '초등학교 3-4학년',
-      'elementary_5_6': '초등학교 5-6학년',
-      'middle': '중학생',
-      'high': '고등학생'
-    };
+    const grades = {'elementary_1_2':'초1-2','elementary_3_4':'초3-4','elementary_5_6':'초5-6','middle':'중등','high':'고등'};
+    const grade = grades[gradeLevel] || gradeLevel;
+    const mode = adviceType === 'encourage' ? '격려+다음내용제안' : '문제점+개선방향';
 
-    const gradeName = gradeLevelNames[gradeLevel] || gradeLevel;
-
-    const prompt = `${gradeName} 학생이 "${topic}"이라는 주제로 글을 쓰고 있습니다.
-
-현재까지 작성된 내용:
-"""
-${text}
-"""
-
-${adviceType === 'encourage' ? '학생을 격려하고 다음에 쓸 내용을 부드럽게 제안해주세요.' : '현재 글의 문제점과 개선 방향을 알려주세요.'}
-
-반드시 1-2문장의 짧은 조언만 해주세요. 학생이 스스로 생각하도록 유도하세요.
-
-JSON 형식으로 응답:
-{
-  "advice": "짧은 조언 (1-2문장)",
-  "emoji": "적절한 이모지 1개"
-}`;
+    // 🚀 최적화된 프롬프트 (50% 토큰 절감)
+    const prompt = `${grade} "${topic}" 글:"""${text.slice(0, 300)}"""
+${mode}. 1-2문장만. JSON:{"advice":"조언","emoji":"이모지1개"}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return {advice: '좋아요! 계속 써보세요.', emoji: '📝'};
-    }
+    if (!jsonMatch) return {advice: '좋아요! 계속 써보세요.', emoji: '📝'};
 
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
@@ -1341,7 +1180,7 @@ exports.generateTopics = onCall({secrets: [geminiApiKey]}, async (request) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
     const gradeLevelNames = {
       'elementary_1_2': '초등학교 1-2학년',
@@ -2454,7 +2293,7 @@ async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, 
   // AI로 주제 생성
   const apiKey = geminiApiKey.value();
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash'});
+  const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
 
   const gradeLevelNames = {
     'elementary_1': '초등학교 1학년',

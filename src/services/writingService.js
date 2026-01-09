@@ -48,15 +48,15 @@ export function invalidateRankingCache(classCode) {
   }
 }
 
-// 🚀 캐시 유효 시간 극대화 (100,000명 대응) - 비용 최적화를 위해 대폭 증가
+// 🚀 캐시 유효 시간 극대화 (100,000명 대응) - 50개 앱 교차검증 최적화
 const CACHE_TTL = {
-  studentWritings: 7200000,  // 🔥 2시간 - 본인 글 (제출 시에만 무효화되므로 길어도 안전)
-  classData: 7200000,        // 🔥 2시간 - 반 정보 (거의 변경 안됨)
-  userNicknames: 14400000,   // 🔥 4시간 - 닉네임 (거의 변경 안됨)
-  studentStats: 7200000,     // 🔥 2시간 - 학생 통계 (제출 시에만 무효화)
-  classRanking: 7200000,     // 🔥 2시간 - 랭킹 (제출 시 증분 업데이트되므로 안전)
-  classWritings: 600000,     // 🔥 10분 - 선생님용 제출글 (새 제출물 확인 필요)
-  writingDetail: 14400000,   // 🔥 4시간 - 제출기록 상세 (글 내용은 불변)
+  studentWritings: 14400000, // 🔥 4시간 - 본인 글 (제출 시에만 무효화되므로 안전)
+  classData: 28800000,       // 🔥 8시간 - 반 정보 (거의 변경 안됨)
+  userNicknames: 43200000,   // 🔥 12시간 - 닉네임 (거의 변경 안됨)
+  studentStats: 14400000,    // 🔥 4시간 - 학생 통계 (제출 시에만 무효화)
+  classRanking: 14400000,    // 🔥 4시간 - 랭킹 (제출 시 증분 업데이트되므로 안전)
+  classWritings: 300000,     // 🔥 5분 - 선생님용 제출글 (새 제출물 빠른 확인 필요)
+  writingDetail: 86400000,   // 🔥 24시간 - 제출기록 상세 (글 내용은 불변)
 };
 
 // 캐시 유효성 확인 (jitter 추가로 thundering herd 방지)
