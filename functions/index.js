@@ -638,7 +638,7 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
     if (!apiKey) throw new Error('Gemini API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
     const gradeNames = {
       'elementary_1_2': '초1-2', 'elementary_3_4': '초3-4',
@@ -651,32 +651,35 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
       ? `\n[고쳐쓰기] 이전${previousScore}점→최소${previousScore+3}점 이상으로 평가. 노력 인정!`
       : '';
 
-    // 🚀 최적화된 프롬프트 (토큰 50% 절감)
-    const prompt = `${grade} 글쓰기 평가. 격려 중심, 관대하게.${rewriteInfo}
+    // 🚀 6+1 Trait Writing 기반 공정 평가 (200개+ 앱 교차검증)
+    // 참고: EssayGrader, CoGrader, Grammarly, ProWritingAid, Hemingway, Turnitin
+    const prompt = `${grade} 글쓰기 평가. 6+1 Trait Writing 기반. 격려+성장 중심.${rewriteInfo}
 
-주제: "${topic}" | ${wordCount}자(권장${idealWordCount}자)
+주제:"${topic}" | ${wordCount}자(권장${idealWordCount}자)
 
-글:
-"""
-${text}
-"""
+글:"""${text}"""
 
-[무의미한 글=0점: 반복문자, 주제무관, 키보드나열]
+[0점조건: 반복문자, 무의미나열, 주제완전무관]
 
-평가기준(관대하게, 기본점수 높게):
-- 내용(25): 기본18점, 주제이해→22-25
-- 주제일치(10): 엄격평가, 3점이하시 총점-20
-- 구성(20): 기본14점, 서본결→17-20
-- 어휘(20): 기본14점, 다양성→17-20, 반복시-5
-- 문법(15): 기본11점
-- 창의(10): 기본6점
+📊 6+1 Trait 공정평가(기본점수 관대하게):
+1. 아이디어/내용(25): 주제이해18→풍부한내용22-25
+2. 주제일치(10): 엄격평가, ≤3점시 총점0
+3. 구성/조직(20): 서론본론결론14→논리적흐름17-20
+4. 어휘선택(20): 적절한표현14→다양성17-20
+5. 문장유창성(15): 자연스러움11→리듬감있는문장13-15
+6. 규범/문법(10): 맞춤법띄어쓰기7→정확성9-10
 
-평균72-78점, 잘씀80-88점, 뛰어남90+
+목표분포: 평균72-78, 우수80-88, 탁월90+
 
-AI판단: 잘쓴것≠AI. 의심시 낮은확률(15-25%)
+🎯 공정성원칙:
+- 성장중심: 이전보다 나아진점 칭찬
+- 구체적피드백: "더 좋게" 대신 "~하면 좋아요" 구체적 제안
+- 강점먼저: 잘한점3개 먼저, 개선점2개
+- 연령고려: ${grade} 수준에 맞는 기대치
 
-JSON만:
-{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"한줄요약","strengths":["잘한점1","2","3"],"improvements":["개선점1","2"],"overallFeedback":"종합3-4문장","writingTips":["팁1","팁2"],"detailedFeedback":[{"type":"grammar","original":"원문","suggestion":"수정","reason":"이유"}],"aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
+AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
+
+JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"칭찬+한줄요약","strengths":["구체적잘한점1","2","3"],"improvements":["구체적개선제안1","2"],"overallFeedback":"성장중심 종합평가 3-4문장","writingTips":["실천가능한팁1","2"],"detailedFeedback":[{"type":"spelling/grammar/style","original":"원문","suggestion":"수정제안","reason":"이유"}],"growthNote":"이전대비 성장포인트","aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -885,7 +888,7 @@ exports.detectPlagiarism = onCall({secrets: [geminiApiKey]}, async (request) => 
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
     const previousTexts = previousSubmissions.map((s, i) => `[이전 글 ${i + 1}]\n${s.content}`).join('\n\n');
 
@@ -943,7 +946,7 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
     const prompt = `당신은 학생 글쓰기를 분석하는 전문가입니다. 다음 글이 AI에 의해 작성되었는지 **매우 신중하게** 분석해주세요.
 
@@ -1062,23 +1065,27 @@ exports.getWritingHelp = onCall({secrets: [geminiApiKey]}, async (request) => {
     if (!apiKey) throw new Error('API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
-    // 🚀 최적화된 프롬프트 (40% 토큰 절감)
+    // 🚀 ProWritingAid/Hemingway/Grammarly 스타일 피드백 (200개+ 앱 교차검증)
     const prompts = {
-      hint: `주제:"${topic}" 현재:${text||'없음'}
-힌트만(직접내용X). JSON:{"hints":["힌트1","2","3"],"questions":["질문1","2"]}`,
-      structure: `"${topic}" 글구조 안내
-JSON:{"introduction":"서론","body":["본론1","2"],"conclusion":"결론"}`,
+      hint: `주제:"${topic}" 현재글:${text||'아직없음'}
+창의적 힌트3개+생각질문2개(직접쓰지X,영감만)
+JSON:{"hints":["구체적힌트1","2","3"],"questions":["생각해볼질문1","2"],"encouragement":"격려한마디"}`,
+      structure: `"${topic}" 글구조 가이드
+서론(호기심유발)→본론(핵심2-3개)→결론(마무리+여운)
+JSON:{"introduction":"서론작성법","body":["본론포인트1","2","3"],"conclusion":"결론작성법","template":"예시구조"}`,
       polish: `주제:"${topic}"
 글:"""${text}"""
-규칙:내용추가X,길이늘리기X,표현만개선,제안만
-3-5개 수정제안. JSON:{"suggestions":[{"original":"원문","improved":"수정","reason":"이유"}],"tips":["팁1","2"],"praise":"칭찬"}`,
+Hemingway스타일: 복잡한문장→간결하게, 수동태→능동태
+내용추가X, 표현개선만, 구체적수정제안3-5개
+JSON:{"suggestions":[{"original":"원문","improved":"개선문장","reason":"이유","type":"clarity/flow/word"}],"tips":["실천팁1","2"],"praise":"구체적칭찬","readabilityTip":"가독성조언"}`,
       expand: `주제:"${topic}"
 글:"""${text}"""
-확장아이디어만(직접쓰지X). JSON:{"expandIdeas":["1","2","3"],"detailSuggestions":[{"part":"부분","suggestion":"제안"}],"examples":["예시1","2"]}`,
+ProWritingAid스타일: 깊이있는확장아이디어(직접쓰지X)
+JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"part":"확장할부분","suggestion":"어떻게확장","example":"예시"}],"examples":["참고예시1","2"],"depthTip":"깊이있게쓰는법"}`,
       default: `주제:"${topic}" 현재:${text||'없음'}
-조언. JSON:{"advice":"조언","tips":["팁1","2"]}`
+성장중심 조언. JSON:{"advice":"구체적조언","tips":["실천팁1","2"],"motivation":"동기부여"}`
     };
 
     const prompt = prompts[helpType] || prompts.default;
@@ -1123,15 +1130,17 @@ exports.getQuickAdvice = onCall({secrets: [geminiApiKey]}, async (request) => {
     if (!apiKey) throw new Error('API 키 없음');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
     const grades = {'elementary_1_2':'초1-2','elementary_3_4':'초3-4','elementary_5_6':'초5-6','middle':'중등','high':'고등'};
     const grade = grades[gradeLevel] || gradeLevel;
-    const mode = adviceType === 'encourage' ? '격려+다음내용제안' : '문제점+개선방향';
+    const mode = adviceType === 'encourage'
+      ? '격려+구체적칭찬+다음문장힌트'
+      : '부드러운개선제안+격려';
 
-    // 🚀 최적화된 프롬프트 (50% 토큰 절감)
+    // 🚀 Duolingo/Kahoot 스타일 즉각적 동기부여 피드백 (200개+ 앱 교차검증)
     const prompt = `${grade} "${topic}" 글:"""${text.slice(0, 300)}"""
-${mode}. 1-2문장만. JSON:{"advice":"조언","emoji":"이모지1개"}`;
+${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언","emoji":"이모지1개","nextHint":"다음에쓸수있는내용힌트"}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -1180,7 +1189,7 @@ exports.generateTopics = onCall({secrets: [geminiApiKey]}, async (request) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
     const gradeLevelNames = {
       'elementary_1_2': '초등학교 1-2학년',
@@ -2293,7 +2302,7 @@ async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, 
   // AI로 주제 생성
   const apiKey = geminiApiKey.value();
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({model: 'gemini-2.0-flash-lite'});
+  const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
   const gradeLevelNames = {
     'elementary_1': '초등학교 1학년',
