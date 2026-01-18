@@ -14,6 +14,182 @@ const MAX_STUDENTS_PER_CLASS = 40;
 // Define secret for Gemini API key
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
+// ============================================
+// 🌱 싹DB 유틸리티 함수들 (글쓰기 평가 지식베이스)
+// ============================================
+
+// 싹DB 캐시 (서버 메모리)
+const ssakDBCache = {
+  rubrics: new Map(),
+  examples: new Map(),
+  lastUpdated: null
+};
+const SSAK_CACHE_TTL = 3600000; // 1시간
+
+/**
+ * 학년을 학령대/학년군으로 변환
+ * @param {string} gradeLevel - elementary_1_2, middle, high 등
+ * @returns {{ educationLevel: string, gradeGroup: string }}
+ */
+function gradeToEducationLevel(gradeLevel) {
+  const mapping = {
+    'elementary_1_2': { educationLevel: '초등학교', gradeGroup: '1-2학년' },
+    'elementary_3_4': { educationLevel: '초등학교', gradeGroup: '3-4학년' },
+    'elementary_5_6': { educationLevel: '초등학교', gradeGroup: '5-6학년' },
+    'middle': { educationLevel: '중학교', gradeGroup: '1학년' }, // 중학교는 1학년 기준
+    'high': { educationLevel: '고등학교', gradeGroup: '1학년' }
+  };
+  return mapping[gradeLevel] || { educationLevel: '초등학교', gradeGroup: '3-4학년' };
+}
+
+/**
+ * 글쓰기 유형을 장르로 매핑
+ */
+function getGenreFromTopic(topic, gradeLevel) {
+  // 키워드 기반 장르 추론
+  const topicLower = (topic || '').toLowerCase();
+
+  if (topicLower.includes('독서') || topicLower.includes('책') || topicLower.includes('읽')) {
+    return gradeLevel?.includes('elementary') ? '독후감' : '독서감상문';
+  }
+  if (topicLower.includes('일기') || topicLower.includes('하루') || topicLower.includes('오늘')) {
+    return '일기';
+  }
+  if (topicLower.includes('편지') || topicLower.includes('에게')) {
+    return '편지';
+  }
+  if (topicLower.includes('설명') || topicLower.includes('알려') || topicLower.includes('소개')) {
+    return '설명문';
+  }
+  if (topicLower.includes('주장') || topicLower.includes('의견') || topicLower.includes('생각')) {
+    return gradeLevel?.includes('elementary') ? '설명문' : '논설문';
+  }
+
+  // 학년별 기본 장르
+  if (gradeLevel === 'elementary_1_2') return '일기';
+  if (gradeLevel === 'elementary_3_4') return '생활문';
+  if (gradeLevel === 'elementary_5_6') return '설명문';
+  if (gradeLevel === 'middle') return '논설문';
+  if (gradeLevel === 'high') return '논설문';
+
+  return '일기';
+}
+
+/**
+ * Firestore에서 싹DB 루브릭 검색
+ */
+async function getSsakRubric(gradeLevel, topic) {
+  const { educationLevel, gradeGroup } = gradeToEducationLevel(gradeLevel);
+  const genre = getGenreFromTopic(topic, gradeLevel);
+
+  const cacheKey = `${educationLevel}_${gradeGroup}_${genre}`;
+
+  // 캐시 확인
+  const cached = ssakDBCache.rubrics.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < SSAK_CACHE_TTL) {
+    return cached.data;
+  }
+
+  try {
+    // Firestore에서 총괄 루브릭 검색
+    const snapshot = await db.collection('rubrics')
+      .where('education_level', '==', educationLevel)
+      .where('grade', '==', gradeGroup)
+      .where('genre', '==', genre)
+      .where('domain', '==', '종합')
+      .limit(1)
+      .get();
+
+    if (!snapshot.empty) {
+      const rubric = snapshot.docs[0].data();
+      ssakDBCache.rubrics.set(cacheKey, { data: rubric, timestamp: Date.now() });
+      console.log(`[싹DB] 루브릭 로드: ${educationLevel} ${gradeGroup} ${genre}`);
+      return rubric;
+    }
+
+    // 해당 장르 없으면 일기 폴백
+    if (genre !== '일기') {
+      console.log(`[싹DB] ${genre} 루브릭 없음, 일기로 폴백`);
+      const fallbackSnapshot = await db.collection('rubrics')
+        .where('education_level', '==', educationLevel)
+        .where('grade', '==', gradeGroup)
+        .where('genre', '==', '일기')
+        .where('domain', '==', '종합')
+        .limit(1)
+        .get();
+
+      if (!fallbackSnapshot.empty) {
+        const rubric = fallbackSnapshot.docs[0].data();
+        ssakDBCache.rubrics.set(cacheKey, { data: rubric, timestamp: Date.now() });
+        return rubric;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[싹DB] 루브릭 검색 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * Firestore에서 싹DB 우수작 예시 검색
+ */
+async function getSsakExample(gradeLevel, topic, level = 'high') {
+  const { educationLevel, gradeGroup } = gradeToEducationLevel(gradeLevel);
+  const genre = getGenreFromTopic(topic, gradeLevel);
+
+  const cacheKey = `${educationLevel}_${genre}_${level}`;
+
+  // 캐시 확인
+  const cached = ssakDBCache.examples.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < SSAK_CACHE_TTL) {
+    return cached.data;
+  }
+
+  try {
+    const snapshot = await db.collection('examples')
+      .where('education_level', '==', educationLevel)
+      .where('genre', '==', genre)
+      .where('level', '==', level)
+      .limit(1)
+      .get();
+
+    if (!snapshot.empty) {
+      const example = snapshot.docs[0].data();
+      ssakDBCache.examples.set(cacheKey, { data: example, timestamp: Date.now() });
+      console.log(`[싹DB] 예시 로드: ${educationLevel} ${genre} (${level})`);
+      return example;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[싹DB] 예시 검색 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * 싹DB 컨텍스트를 프롬프트용 문자열로 변환
+ */
+function buildSsakPromptContext(rubric, example) {
+  let context = '';
+
+  if (rubric && rubric.content) {
+    // 루브릭에서 핵심 평가 기준 추출
+    const rubricContent = rubric.content.substring(0, 1500); // 토큰 제한
+    context += `\n[싹DB 평가기준]\n${rubricContent}\n`;
+  }
+
+  if (example && example.content) {
+    // 우수작에서 핵심 부분만 추출
+    const exampleContent = example.content.substring(0, 800);
+    context += `\n[싹DB 우수작 예시]\n${exampleContent}\n`;
+  }
+
+  return context;
+}
+
 // 🚀 슈퍼관리자 userData에 학급 요약 정보 동기화 (DB 읽기 최적화)
 // 학급 생성/수정/삭제 시 호출하여 슈퍼관리자가 로그인할 때 추가 DB 읽기 없이 학급 정보 확인 가능
 const syncSuperAdminClassesSummary = async () => {
@@ -646,15 +822,30 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
     };
     const grade = gradeNames[gradeLevel] || gradeLevel;
 
+    // 🌱 싹DB에서 루브릭과 우수작 예시 검색
+    let ssakContext = '';
+    try {
+      const [rubric, example] = await Promise.all([
+        getSsakRubric(gradeLevel, topic),
+        getSsakExample(gradeLevel, topic, 'high')
+      ]);
+      ssakContext = buildSsakPromptContext(rubric, example);
+      if (ssakContext) {
+        console.log(`[싹DB] 컨텍스트 로드 성공 (${ssakContext.length}자)`);
+      }
+    } catch (ssakError) {
+      console.warn('[싹DB] 컨텍스트 로드 실패 (기본 평가 사용):', ssakError.message);
+    }
+
     // 🚀 고쳐쓰기 모드 압축
     const rewriteInfo = isRewrite && previousScore !== null
       ? `\n[고쳐쓰기] 이전${previousScore}점→최소${previousScore+3}점 이상으로 평가. 노력 인정!`
       : '';
 
-    // 🚀 6+1 Trait Writing 기반 공정 평가 (200개+ 앱 교차검증)
+    // 🚀 6+1 Trait Writing 기반 공정 평가 + 싹DB 루브릭
     // 참고: EssayGrader, CoGrader, Grammarly, ProWritingAid, Hemingway, Turnitin
     const prompt = `${grade} 글쓰기 평가. 6+1 Trait Writing 기반. 격려+성장 중심.${rewriteInfo}
-
+${ssakContext}
 주제:"${topic}" | ${wordCount}자(권장${idealWordCount}자)
 
 글:"""${text}"""

@@ -174,5 +174,79 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() &&
                             draftId.matches('draft_' + request.auth.uid + '_.*');
     }
+
+    // ===== 싹DB 컬렉션들 (읽기 전용, 관리자만 쓰기 가능) =====
+
+    // 평가 루브릭
+    match /rubrics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 우수작 예시
+    match /examples/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 첨삭 패턴
+    match /feedbackPatterns/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 글쓰기 이론
+    match /writingTheory/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // AI 판별
+    match /aiDetection/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 주제 뱅크
+    match /topics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 학습 경로
+    match /learningPaths/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 평가 도구
+    match /evaluationTools/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 시스템 설정
+    match /system/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 메타데이터
+    match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 기타
+    match /misc/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 싹DB 메타 정보
+    match /ssakdb_meta/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
   }
 }
