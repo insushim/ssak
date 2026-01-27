@@ -1,0 +1,252 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function: Check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    // Helper function: Check if user is teacher
+    function isTeacher() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // Helper function: Check if user is student
+    function isStudent() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    // Helper function: Check if user is approved teacher
+    function isApprovedTeacher() {
+      return isTeacher() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read user documents
+      allow read: if isAuthenticated();
+
+      // Users can create their own document during registration
+      // OR approved teachers can create student accounts (batch creation)
+      allow create: if isAuthenticated() &&
+                       ((request.auth.uid == userId && request.resource.data.uid == userId) ||
+                        (isApprovedTeacher() && request.resource.data.role == 'student'));
+
+      // Users can update their own document OR super admin can update any
+      // OR approved teachers can update student classCode (for class operations)
+      allow update: if isAuthenticated() &&
+                       (request.auth.uid == userId ||
+                        isSuperAdmin() ||
+                        (isApprovedTeacher() &&
+                         resource.data.role == 'student' &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved', 'uid', 'email']))));
+
+      // Only super admin can delete users
+      allow delete: if isSuperAdmin();
+    }
+
+    // Classes collection
+    match /classes/{classCode} {
+      // Anyone authenticated can read classes
+      allow read: if isAuthenticated();
+
+      // Only approved teachers can create classes
+      allow create: if isApprovedTeacher() &&
+                       request.resource.data.teacherId == request.auth.uid &&
+                       request.resource.data.students.size() == 0 &&
+                       request.resource.data.maxStudents == 40;
+
+      // Only the teacher who owns the class or super admin can update
+      allow update: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        isStudent()); // Students can join classes
+
+      // Only the teacher who owns the class or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin());
+    }
+
+    // Writings collection
+    match /writings/{writingId} {
+      // Anyone authenticated can read writings
+      allow read: if isAuthenticated();
+
+      // Only students can create writings (for themselves)
+      allow create: if isStudent() &&
+                       request.resource.data.studentId == request.auth.uid;
+
+      // Student who wrote it can update, OR
+      // Approved teacher can update only reviewed/reviewedAt fields
+      allow update: if (isStudent() && resource.data.studentId == request.auth.uid) ||
+                       (isApprovedTeacher() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed', 'reviewedAt']));
+
+      // Student, their teacher, or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        isTeacher());
+    }
+
+    // Student stats collection
+    match /studentStats/{studentId} {
+      // Anyone authenticated can read stats
+      allow read: if isAuthenticated();
+
+      // Only the student themselves or system can write stats
+      allow write: if isAuthenticated() &&
+                      (request.auth.uid == studentId ||
+                       isSuperAdmin());
+    }
+
+    // Assignments collection
+    match /assignments/{assignmentId} {
+      // Anyone authenticated can read assignments
+      allow read: if isAuthenticated();
+
+      // Only approved teachers can create assignments
+      allow create: if isApprovedTeacher();
+
+      // Teacher/super admin can update anything
+      // Students can only update submissions field (for adding their submission info)
+      allow update: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin() ||
+                        (isStudent() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['submissions'])));
+
+      // Only teacher or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.teacherId == request.auth.uid ||
+                        isSuperAdmin());
+    }
+
+    // Assignment submissions collection
+    match /submissions/{submissionId} {
+      // Anyone authenticated can read submissions
+      allow read: if isAuthenticated();
+
+      // Only students can create submissions (for themselves)
+      allow create: if isStudent() &&
+                       request.resource.data.studentId == request.auth.uid;
+
+      // Only the student who submitted or their teacher can update
+      allow update: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isApprovedTeacher() ||
+                        isSuperAdmin());
+
+      // Student, their teacher, or super admin can delete
+      allow delete: if isAuthenticated() &&
+                       (resource.data.studentId == request.auth.uid ||
+                        isApprovedTeacher() ||
+                        isSuperAdmin());
+    }
+
+    // Scheduler settings collection
+    match /schedulers/{classCode} {
+      // Teachers and super admin can read/write scheduler settings
+      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+    }
+
+    // Auto assignment logs collection
+    match /autoAssignmentLogs/{logId} {
+      // Teachers and super admin can read/write auto assignment logs
+      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+    }
+
+    // Drafts collection (임시 저장)
+    match /drafts/{draftId} {
+      // Students can read/write their own drafts
+      // draftId format: draft_{studentId}_{topic}
+      allow read, write: if isAuthenticated() &&
+                            draftId.matches('draft_' + request.auth.uid + '_.*');
+    }
+
+    // ===== 싹DB 컬렉션들 (읽기 전용, 관리자만 쓰기 가능) =====
+
+    // 평가 루브릭
+    match /rubrics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 우수작 예시
+    match /examples/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 첨삭 패턴
+    match /feedbackPatterns/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 글쓰기 이론
+    match /writingTheory/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // AI 판별
+    match /aiDetection/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 주제 뱅크
+    match /topics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 학습 경로
+    match /learningPaths/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 평가 도구
+    match /evaluationTools/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 시스템 설정
+    match /system/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 메타데이터
+    match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 기타
+    match /misc/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // 싹DB 메타 정보
+    match /ssakdb_meta/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+  }
+}

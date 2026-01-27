@@ -1,6 +1,46 @@
 {
   "indexes": [
     {
+      "collectionGroup": "rubrics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "education_level",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "grade",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "genre",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "domain",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "examples",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "education_level",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "genre",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "level",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "writings",
       "queryScope": "COLLECTION",
       "fields": [
@@ -102,6 +142,20 @@
         },
         {
           "fieldPath": "isDraft",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "writings",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "isDraft",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "submittedAt",
           "order": "ASCENDING"
         }
       ]

@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 임시로 싹DB 컬렉션 업로드를 위해 열어둠
+    // 업로드 완료 후 반드시 원래 규칙으로 복원할 것!
+
+    match /rubrics/{docId} {
+      allow read, write: if true;
+    }
+    match /examples/{docId} {
+      allow read, write: if true;
+    }
+    match /feedbackPatterns/{docId} {
+      allow read, write: if true;
+    }
+    match /writingTheory/{docId} {
+      allow read, write: if true;
+    }
+    match /aiDetection/{docId} {
+      allow read, write: if true;
+    }
+    match /topics/{docId} {
+      allow read, write: if true;
+    }
+    match /learningPaths/{docId} {
+      allow read, write: if true;
+    }
+    match /evaluationTools/{docId} {
+      allow read, write: if true;
+    }
+    match /system/{docId} {
+      allow read, write: if true;
+    }
+    match /metadata/{docId} {
+      allow read, write: if true;
+    }
+    match /misc/{docId} {
+      allow read, write: if true;
+    }
+    match /ssakdb_meta/{docId} {
+      allow read, write: if true;
+    }
+
+    // 기존 앱 규칙들은 유지
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}

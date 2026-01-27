@@ -1,7 +1,7 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
 
-export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWordCount, isRewrite = false, previousScore = null) {
+export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWordCount, isRewrite = false, previousScore = null, previousText = null) {
   try {
     const analyzeWritingFn = httpsCallable(functions, 'analyzeWriting');
     const result = await analyzeWritingFn({
@@ -11,7 +11,8 @@ export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWo
       wordCount,
       idealWordCount,
       isRewrite,
-      previousScore
+      previousScore,
+      previousText
     });
     return result.data;
   } catch (error) {
@@ -90,6 +91,18 @@ export async function getQuickAdvice(text, topic, gradeLevel, adviceType = 'enco
     return result.data;
   } catch (error) {
     console.error('실시간 조언 에러:', error);
+    throw error;
+  }
+}
+
+// 싹DB 상태 확인 (디버깅용)
+export async function checkSsakDBStatus() {
+  try {
+    const checkSsakDBStatusFn = httpsCallable(functions, 'checkSsakDBStatus');
+    const result = await checkSsakDBStatusFn();
+    return result.data;
+  } catch (error) {
+    console.error('싹DB 상태 확인 에러:', error);
     throw error;
   }
 }

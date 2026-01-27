@@ -3284,7 +3284,8 @@ export default function StudentDashboard({ user, userData }) {
                                 studentName: userData.name,
                                 minScore: requiredScore,
                                 isAssignment: submittedWriting.isAssignment,
-                                previousScore: feedback.score  // 이전 점수 저장 (고쳐쓰기 보너스용)
+                                previousScore: feedback.score,  // 이전 점수 저장 (고쳐쓰기 보너스용)
+                                previousText: submittedWriting.content  // 🚀 이전 글 텍스트 저장 (AI 비교용)
                               });
                               // 고쳐쓰기 모드 - AI 제안 저장 (minScore + 원본 내용 포함)
                               setRewriteMode({
@@ -3343,7 +3344,8 @@ export default function StudentDashboard({ user, userData }) {
                               studentName: userData.name,
                               minScore: requiredScore,  // 🚀 기준점수 전달 (누락 버그 수정)
                               isAssignment: submittedWriting.isAssignment,
-                              previousScore: feedback.score  // 🚀 이전 점수 저장 (AI 고쳐쓰기 보너스용)
+                              previousScore: feedback.score,  // 🚀 이전 점수 저장 (AI 고쳐쓰기 보너스용)
+                              previousText: submittedWriting.content  // 🚀 이전 글 텍스트 저장 (AI 비교용)
                             });
                             // 고쳐쓰기 모드 - AI 제안 저장 (minScore + 원본 내용 포함)
                             setRewriteMode({
@@ -3522,7 +3524,8 @@ export default function StudentDashboard({ user, userData }) {
                               studentName: userData.name,
                               minScore: writingRequiredScore,
                               isAssignment: writingDetail.isAssignment || false,
-                              previousScore: writing.score
+                              previousScore: writing.score,
+                              previousText: writingDetail.content || ''  // 🚀 이전 글 텍스트 저장 (AI 비교용)
                             });
                             setRewriteMode({
                               detailedFeedback: writingDetail.analysis?.detailedFeedback || [],

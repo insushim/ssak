@@ -139,7 +139,11 @@ async function getSsakExample(gradeLevel, topic, level = 'high') {
   const { educationLevel, gradeGroup } = gradeToEducationLevel(gradeLevel);
   const genre = getGenreFromTopic(topic, gradeLevel);
 
-  const cacheKey = `${educationLevel}_${genre}_${level}`;
+  // level 매핑 (영어 → 한글) - 싹DB에 한글로 저장되어 있음
+  const levelMap = { 'high': '상', 'mid': '중', 'low': '하' };
+  const koreanLevel = levelMap[level] || level;
+
+  const cacheKey = `${educationLevel}_${genre}_${koreanLevel}`;
 
   // 캐시 확인
   const cached = ssakDBCache.examples.get(cacheKey);
@@ -151,14 +155,14 @@ async function getSsakExample(gradeLevel, topic, level = 'high') {
     const snapshot = await db.collection('examples')
       .where('education_level', '==', educationLevel)
       .where('genre', '==', genre)
-      .where('level', '==', level)
+      .where('level', '==', koreanLevel)
       .limit(1)
       .get();
 
     if (!snapshot.empty) {
       const example = snapshot.docs[0].data();
       ssakDBCache.examples.set(cacheKey, { data: example, timestamp: Date.now() });
-      console.log(`[싹DB] 예시 로드: ${educationLevel} ${genre} (${level})`);
+      console.log(`[싹DB] 예시 로드: ${educationLevel} ${genre} (${koreanLevel})`);
       return example;
     }
 
@@ -776,10 +780,10 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   const data = request.data;
-  const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore} = data || {};
+  const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore, previousText} = data || {};
 
   if (isRewrite) {
-    console.log(`[고쳐쓰기] 주제: "${topic}", 이전점수: ${previousScore}`);
+    console.log(`[고쳐쓰기] 주제: "${topic}", 이전점수: ${previousScore}, 이전글길이: ${previousText?.length || 0}자`);
   }
 
   if (!text || !topic) {
@@ -837,10 +841,32 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
       console.warn('[싹DB] 컨텍스트 로드 실패 (기본 평가 사용):', ssakError.message);
     }
 
-    // 🚀 고쳐쓰기 모드 압축
-    const rewriteInfo = isRewrite && previousScore !== null
-      ? `\n[고쳐쓰기] 이전${previousScore}점→최소${previousScore+3}점 이상으로 평가. 노력 인정!`
-      : '';
+    // 🚀 고쳐쓰기 모드 - 이전 글과 비교 평가
+    let rewriteInfo = '';
+    if (isRewrite && previousScore !== null) {
+      if (previousText) {
+        // 이전 글 텍스트가 있으면 실제 비교 가능
+        rewriteInfo = `\n\n🔄 [고쳐쓰기 평가 - 두 글 비교]
+📝 이전 글 (${previousScore}점):
+"""${previousText.substring(0, 800)}"""
+
+📝 수정된 글 (위의 "글" 참조)
+
+⚡ 비교 평가 기준:
+1. 두 글을 직접 비교하여 개선된 점 찾기
+2. 문법/맞춤법 수정, 문장 다듬기, 내용 추가/구체화 등 확인
+3. 개선이 있으면 점수 상승 (최소 +3~5점)
+4. 내용이 거의 같거나 나빠졌으면 점수 유지/하락
+5. growthNote에 "구체적으로 어떤 부분이 좋아졌는지" 필수 작성`;
+      } else {
+        // 이전 글 텍스트 없으면 기존 방식
+        rewriteInfo = `\n\n🔄 [고쳐쓰기 평가]
+이전점수: ${previousScore}점
+- 학생이 피드백 받고 수정한 글입니다
+- 노력을 인정하여 이전보다 3-5점 향상 권장
+- growthNote에 칭찬 포인트 작성`;
+      }
+    }
 
     // 🚀 6+1 Trait Writing 기반 공정 평가 + 싹DB 루브릭
     // 참고: EssayGrader, CoGrader, Grammarly, ProWritingAid, Hemingway, Turnitin
@@ -958,50 +984,46 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
       }
     }
 
-    // 🚀 고쳐쓰기 모드: 의미있는 개선이 있을 때만 점수 보정
+    // 🚀 고쳐쓰기 모드: 노력 인정 + 성장 중심 평가
     // previousScore가 0이어도 유효한 값이므로 !== null && !== undefined 체크
     if (isRewrite && previousScore !== null && previousScore !== undefined) {
       const originalAiScore = parsed.score;
       const prevScore = Number(previousScore); // 숫자로 변환 (문자열 방지)
-      const scoreDiff = parsed.score - prevScore;
+      const scoreDiff = originalAiScore - prevScore;
 
       console.log(`[고쳐쓰기 분석] AI원점수: ${originalAiScore}, 이전점수: ${prevScore}, 차이: ${scoreDiff}`);
       console.log(`[고쳐쓰기 분석] 주제일치도: ${parsed.topicRelevanceScore}/10, 어휘다양성: ${parsed.vocabularyScore}/20`);
 
-      // 🚀 의미없는 수정 감지 - 점수 보정하지 않음
+      // 🚀 의미없는 수정 감지 (글자 반복, 무의미한 내용)
       const isLowQualityRewrite =
         (parsed.topicRelevanceScore !== undefined && parsed.topicRelevanceScore <= 3) || // 주제 일치도 3점 이하
-        (parsed.vocabularyScore !== undefined && parsed.vocabularyScore <= 6) || // 어휘 다양성 매우 낮음
-        originalAiScore <= 30; // AI가 매우 낮게 평가 (무의미한 글로 판단)
+        originalAiScore <= 25; // AI가 매우 낮게 평가 (무의미한 글)
 
-      // 점수가 떨어졌거나 같으면 보정 검토
-      if (parsed.score <= prevScore) {
-        if (isLowQualityRewrite) {
-          // 의미없는 수정 - 점수 유지 (떨어지지는 않게)
-          parsed.score = prevScore;
-          parsed.rewriteBlocked = true;
-          console.log(`[고쳐쓰기 차단] 의미없는 수정 감지 - 점수 유지: ${prevScore}점 (주제일치도: ${parsed.topicRelevanceScore}, AI원점수: ${originalAiScore})`);
-        } else {
-          // 정상적인 수정 - 점수 상승
-          const minBonus = 3;
-          const maxBonus = 8;
-          // 이전 점수에 따라 보너스 조정 (높을수록 보너스 적게)
-          const bonus = prevScore >= 85 ? minBonus :
-                        prevScore >= 75 ? minBonus + 2 :
-                        prevScore >= 65 ? minBonus + 3 :
-                        maxBonus;
-          parsed.score = Math.min(100, prevScore + bonus);
-          console.log(`[고쳐쓰기 보정] AI점수(${originalAiScore}) <= 이전점수(${prevScore}) → 강제 상승: ${parsed.score}점 (+${bonus})`);
-        }
+      if (isLowQualityRewrite) {
+        // 의미없는 수정 - 이전 점수 유지
+        parsed.score = prevScore;
+        parsed.rewriteBlocked = true;
+        console.log(`[고쳐쓰기 차단] 의미없는 수정 감지 - 점수 유지: ${parsed.score}점`);
+      } else if (scoreDiff >= 3) {
+        // AI가 충분히 올려줌 - AI 판단 존중
+        parsed.score = originalAiScore;
+        console.log(`[고쳐쓰기] AI 충분히 상승: ${prevScore}→${originalAiScore}점 (+${scoreDiff})`);
       } else {
-        // AI가 점수를 올렸지만, 의미없는 수정이면 제한
-        if (isLowQualityRewrite && scoreDiff > 5) {
-          // 의미없는 수정인데 점수가 크게 올랐다면 제한
-          parsed.score = Math.min(parsed.score, prevScore + 3);
-          console.log(`[고쳐쓰기 제한] 의미없는 수정인데 점수 급상승 - 제한: ${parsed.score}점`);
-        } else {
-          console.log(`[고쳐쓰기] 자연 상승: 이전(${prevScore}점) → 현재(${parsed.score}점) +${scoreDiff}점`);
-        }
+        // AI가 점수를 올려주지 않거나 조금만 올림 - 노력 보정
+        // 고쳐쓰기는 노력했으니 최소 +3점, 최대 +7점 보정
+        const minBonus = 3;
+        const maxBonus = 7;
+        // 이전 점수에 따라 보너스 차등 (높을수록 적게)
+        const bonus = prevScore >= 90 ? minBonus :
+                      prevScore >= 80 ? minBonus + 1 :
+                      prevScore >= 70 ? minBonus + 2 :
+                      prevScore >= 60 ? minBonus + 3 :
+                      maxBonus;
+
+        // AI 점수와 보정 점수 중 높은 것 선택
+        const boostedScore = Math.min(100, prevScore + bonus);
+        parsed.score = Math.max(originalAiScore, boostedScore);
+        console.log(`[고쳐쓰기 보정] AI점수(${originalAiScore}) vs 보정점수(${boostedScore}) → ${parsed.score}점`);
       }
 
       parsed.isRewrite = true;
@@ -1117,7 +1139,189 @@ ${previousTexts}
   }
 });
 
-// Detect AI usage - 더 관대한 기준으로 수정
+// ============================================
+// 🔍 AI 감지 유틸리티 함수들 (GPTZero, Turnitin 등 참고)
+// 참고: Perplexity & Burstiness 기반 (학술적으로 검증된 기법)
+// ============================================
+
+/**
+ * 텍스트의 Burstiness(폭발성) 계산
+ * 문장 길이의 변화량 - AI는 균일하고, 사람은 다양함
+ * 참고: https://gptzero.me/news/perplexity-and-burstiness-what-is-it/
+ */
+function calculateBurstiness(text) {
+  const sentences = text.split(/[.!?。]+/).filter(s => s.trim().length > 0);
+  if (sentences.length < 3) return { score: 50, isAiLike: false };
+
+  const lengths = sentences.map(s => s.trim().length);
+  const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  const variance = lengths.reduce((sum, len) => sum + Math.pow(len - avg, 2), 0) / lengths.length;
+  const stdDev = Math.sqrt(variance);
+  const coeffOfVariation = (stdDev / avg) * 100; // 변동계수
+
+  // 변동계수가 낮을수록 AI 의심 (문장 길이가 균일)
+  // 사람: 보통 30-70%, AI: 보통 10-25%
+  const isAiLike = coeffOfVariation < 25;
+  const score = Math.min(100, Math.max(0, coeffOfVariation));
+
+  return { score, isAiLike, stdDev: stdDev.toFixed(1), avg: avg.toFixed(1) };
+}
+
+/**
+ * 반복 패턴 감지 (AI 특유의 패턴)
+ */
+function detectRepetitivePatterns(text) {
+  const patterns = {
+    // 한국어 AI 특유 패턴
+    conclusionPhrases: /결론적으로|요약하자면|정리하자면|마지막으로|종합하면/g,
+    listingPhrases: /첫째|둘째|셋째|넷째|먼저|다음으로|마지막으로/g,
+    formalEndings: /입니다\.|습니다\.|합니다\.|됩니다\./g,
+    connectors: /그러므로|따라서|그렇기 때문에|이러한 이유로|그 결과/g,
+    aiPhrases: /중요합니다|필요합니다|바람직합니다|효과적입니다|의미있습니다/g,
+    templatePhrases: /~에 대해|~에 관해|~의 중요성|~의 필요성|~라고 할 수 있습니다/g,
+    // 영어 AI 특유 패턴 (타이핑으로 영어 입력 시)
+    englishAi: /In conclusion|To summarize|Furthermore|Moreover|Additionally/gi,
+  };
+
+  const results = {};
+  let totalMatches = 0;
+
+  for (const [name, regex] of Object.entries(patterns)) {
+    const matches = (text.match(regex) || []).length;
+    results[name] = matches;
+    totalMatches += matches;
+  }
+
+  // 글자 수 대비 패턴 밀도 계산
+  const density = (totalMatches / (text.length / 100)).toFixed(2);
+
+  return {
+    patterns: results,
+    totalMatches,
+    density: parseFloat(density),
+    isAiLike: density > 1.5 || totalMatches > 5
+  };
+}
+
+/**
+ * 어휘 다양성 계산 (Type-Token Ratio)
+ * AI는 비슷한 어휘를 반복 사용하는 경향
+ */
+function calculateVocabularyDiversity(text) {
+  // 한글 단어 추출 (조사 등 제거 간소화)
+  const words = text.match(/[가-힣]+/g) || [];
+  if (words.length < 10) return { ttr: 50, isAiLike: false };
+
+  const uniqueWords = new Set(words);
+  const ttr = (uniqueWords.size / words.length) * 100; // Type-Token Ratio
+
+  // TTR이 너무 높으면 AI 의심 (같은 단어를 다른 표현으로 계속 바꿈)
+  // TTR이 너무 낮으면 반복 많음 (사람도 가능)
+  // AI는 보통 65-85% 범위, 초등학생은 40-60%
+  const isAiLike = ttr > 75;
+
+  return { ttr: ttr.toFixed(1), uniqueWords: uniqueWords.size, totalWords: words.length, isAiLike };
+}
+
+/**
+ * 문장 시작 패턴 분석
+ * AI는 주어로 시작하는 문장이 많고, 다양한 시작이 적음
+ */
+function analyzeSentenceStarts(text) {
+  const sentences = text.split(/[.!?。]+/).filter(s => s.trim().length > 5);
+  if (sentences.length < 3) return { diversity: 50, isAiLike: false };
+
+  const starts = sentences.map(s => {
+    const trimmed = s.trim();
+    // 첫 2-3글자 추출
+    return trimmed.substring(0, Math.min(3, trimmed.length));
+  });
+
+  const uniqueStarts = new Set(starts);
+  const diversity = (uniqueStarts.size / starts.length) * 100;
+
+  // 문장 시작이 다양하지 않으면 AI 의심
+  const isAiLike = diversity < 50;
+
+  return { diversity: diversity.toFixed(1), isAiLike };
+}
+
+/**
+ * 감정/개인 표현 감지 (사람 글의 특징)
+ */
+function detectPersonalExpression(text) {
+  const personalPatterns = {
+    emotions: /기뻤|슬펐|행복|즐거웠|무서웠|신났|설렜|짜증|화났|웃겼|재밌었|힘들었|아팠|좋았|싫었/g,
+    firstPerson: /나는|내가|우리|저는|제가/g,
+    experience: /했다|갔다|봤다|먹었다|만났다|놀았다|배웠다/g,
+    colloquial: /엄청|진짜|완전|대박|너무|정말|되게|겁나|짱/g,
+    uncertainty: /것 같다|인 것 같아|모르겠|글쎄/g,
+  };
+
+  let totalPersonal = 0;
+  const results = {};
+
+  for (const [name, regex] of Object.entries(personalPatterns)) {
+    const matches = (text.match(regex) || []).length;
+    results[name] = matches;
+    totalPersonal += matches;
+  }
+
+  const density = (totalPersonal / (text.length / 100)).toFixed(2);
+
+  return {
+    patterns: results,
+    totalPersonal,
+    density: parseFloat(density),
+    isHumanLike: density > 0.5 || totalPersonal > 3
+  };
+}
+
+/**
+ * 종합 AI 감지 점수 계산
+ */
+function calculateAiDetectionScore(text) {
+  const burstiness = calculateBurstiness(text);
+  const repetitive = detectRepetitivePatterns(text);
+  const vocabulary = calculateVocabularyDiversity(text);
+  const sentenceStarts = analyzeSentenceStarts(text);
+  const personal = detectPersonalExpression(text);
+
+  // 각 지표별 AI 의심 점수 (0-100)
+  const scores = {
+    burstiness: burstiness.isAiLike ? 70 : 20,
+    repetitive: Math.min(100, repetitive.density * 30),
+    vocabulary: vocabulary.isAiLike ? 60 : 15,
+    sentenceStarts: sentenceStarts.isAiLike ? 50 : 10,
+    personal: personal.isHumanLike ? -20 : 30, // 개인 표현 있으면 감점
+  };
+
+  // 가중 평균 (개인 표현이 있으면 크게 감점)
+  let totalScore = (
+    scores.burstiness * 0.25 +
+    scores.repetitive * 0.30 +
+    scores.vocabulary * 0.15 +
+    scores.sentenceStarts * 0.15 +
+    scores.personal * 0.15
+  );
+
+  // 0-100 범위로 조정
+  totalScore = Math.max(0, Math.min(100, totalScore));
+
+  return {
+    totalScore: Math.round(totalScore),
+    breakdown: {
+      burstiness: { ...burstiness, contribution: scores.burstiness },
+      repetitivePatterns: { ...repetitive, contribution: scores.repetitive },
+      vocabularyDiversity: { ...vocabulary, contribution: scores.vocabulary },
+      sentenceStarts: { ...sentenceStarts, contribution: scores.sentenceStarts },
+      personalExpression: { ...personal, contribution: scores.personal },
+    },
+    verdict: totalScore >= 60 ? 'HIGH' : totalScore >= 35 ? 'MEDIUM' : 'LOW'
+  };
+}
+
+// Detect AI usage - GPTZero/Turnitin 기법 기반 강화 버전
 exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
@@ -1130,6 +1334,10 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
     throw new HttpsError('invalid-argument', '텍스트가 필요합니다.');
   }
 
+  // 🔍 1단계: 통계 기반 분석 (Perplexity/Burstiness 등)
+  const statisticalAnalysis = calculateAiDetectionScore(text);
+  console.log(`[AI감지 통계분석] 점수: ${statisticalAnalysis.totalScore}, 판정: ${statisticalAnalysis.verdict}`);
+
   try {
     const apiKey = geminiApiKey.value();
     if (!apiKey) {
@@ -1139,7 +1347,8 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
-    const prompt = `당신은 학생 글쓰기를 분석하는 전문가입니다. 다음 글이 AI에 의해 작성되었는지 **매우 신중하게** 분석해주세요.
+    // 🔍 2단계: AI 기반 심층 분석 (통계 결과 포함)
+    const prompt = `당신은 AI 생성 텍스트 감지 전문가입니다. GPTZero, Turnitin, Originality.ai의 기법을 참고하여 분석하세요.
 
 주제: ${topic}
 
@@ -1148,41 +1357,44 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
 ${text}
 """
 
-**중요한 판단 기준:**
+📊 **통계 분석 결과 (참고용):**
+- 전체 AI 의심 점수: ${statisticalAnalysis.totalScore}/100
+- Burstiness(문장길이변화): ${statisticalAnalysis.breakdown.burstiness.score?.toFixed?.(1) || 'N/A'}% (낮으면 AI 의심)
+- 반복패턴 밀도: ${statisticalAnalysis.breakdown.repetitivePatterns.density}
+- 어휘다양성(TTR): ${statisticalAnalysis.breakdown.vocabularyDiversity.ttr || 'N/A'}%
+- 개인표현 밀도: ${statisticalAnalysis.breakdown.personalExpression.density}
 
-글을 잘 쓰는 것과 AI가 쓴 것은 완전히 다릅니다!
-- 어른이나 글쓰기를 잘하는 학생도 완성도 높은 글을 씁니다
-- 단순히 "글이 잘 쓰여졌다"는 것은 AI 사용의 근거가 아닙니다
-- 맞춤법이 정확하고 문장이 매끄러운 것도 AI 증거가 아닙니다
+🔬 **분석 기준 (GPTZero/Turnitin 참고):**
 
-**AI 작성의 명확한 징후 (여러 개가 동시에 나타나야 함):**
-- ChatGPT 특유의 "~입니다. ~입니다." 반복 패턴
-- "첫째, 둘째, 셋째" 같은 정형화된 나열 구조
-- 감정이나 개인 경험이 전혀 없는 백과사전식 서술
-- "결론적으로", "요약하자면" 같은 AI 특유 표현
-- 모든 문장이 비슷한 길이와 구조
+1. **Perplexity (예측가능성)**: AI 글은 다음 단어가 예측하기 쉬움
+2. **Burstiness (문장변화)**: AI 글은 문장 길이가 균일함
+3. **패턴 반복**: "결론적으로", "첫째/둘째", "~입니다" 반복
+4. **어휘 다양성**: AI는 비슷한 수준의 어휘만 사용
+5. **개인 표현**: 감정, 경험, 구어체 표현 유무
 
-**사람이 쓴 글의 특징:**
-- 개인적인 경험이나 생각 표현
-- 감정 표현 (기쁘다, 슬프다, 재미있다 등)
-- 문장 길이의 자연스러운 변화
-- 구어체와 문어체의 자연스러운 혼용
-- 약간의 문법 오류나 구어적 표현
+⚠️ **중요: 오탐 방지**
+- 초등학생 글은 원래 단순하고 반복적일 수 있음
+- 글을 잘 쓰는 것 ≠ AI 사용
+- 의심스러우면 LOW로 판정 (학생 보호)
 
-**판정 기준 (매우 엄격하게):**
-- LOW (0-30%): 기본값. 대부분의 글은 여기에 해당
-- MEDIUM (31-60%): AI 특유 패턴이 2-3개 이상 명확히 발견될 때만
-- HIGH (61-100%): AI 특유 패턴이 4개 이상이고, 개인적 표현이 전무할 때만
+**판정 기준:**
+- LOW (0-30%): 개인 표현 있음, 자연스러운 문체
+- MEDIUM (31-55%): AI 패턴 2-3개 + 개인 표현 부족
+- HIGH (56-100%): AI 패턴 4개+ AND 개인 표현 전무 AND 통계점수 50+
 
-**의심스러우면 낮은 점수를 주세요.** 잘 쓴 글을 AI로 오판하는 것보다, AI 글을 놓치는 것이 학생에게 덜 해롭습니다.
-
-반드시 다음 JSON 형식으로만 응답하세요:
+JSON만 응답:
 {
-  "aiProbability": 0-100 (기본값은 15-25 범위로 설정),
+  "aiProbability": 0-100,
   "verdict": "LOW/MEDIUM/HIGH",
-  "explanation": "판정 이유를 학생이 이해할 수 있게 친절하게 설명 (2-3문장)",
-  "humanLikeFeatures": ["사람이 쓴 것으로 보이는 특징1", "특징2"],
-  "aiLikeFeatures": ["AI가 쓴 것으로 의심되는 특징 (없으면 빈 배열)"]
+  "explanation": "판정 이유 2-3문장 (학생이 이해할 수 있게)",
+  "humanLikeFeatures": ["사람 특징1", "특징2"],
+  "aiLikeFeatures": ["AI 의심 특징 (없으면 빈배열)"],
+  "analysisDetails": {
+    "perplexity": "낮음/보통/높음",
+    "burstiness": "낮음/보통/높음",
+    "patternRepetition": "적음/보통/많음",
+    "personalExpression": "있음/부족/없음"
+  }
 }`;
 
     const result = await model.generateContent(prompt);
@@ -1192,31 +1404,54 @@ ${text}
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return {
-        aiProbability: 15,
+        aiProbability: Math.min(25, statisticalAnalysis.totalScore),
         verdict: 'LOW',
         explanation: '분석을 완료했습니다. 직접 작성한 글로 판단됩니다.',
         humanLikeFeatures: ['자연스러운 문체'],
-        aiLikeFeatures: []
+        aiLikeFeatures: [],
+        statisticalAnalysis: statisticalAnalysis.breakdown
       };
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    // 확률이 너무 높게 나오면 조정 (글을 잘 쓴다고 AI는 아님)
-    if (parsed.aiProbability > 60 && (!parsed.aiLikeFeatures || parsed.aiLikeFeatures.length < 3)) {
-      parsed.aiProbability = Math.min(parsed.aiProbability, 40);
+    // 🔍 3단계: 통계 분석과 AI 분석 결합
+    // 두 분석 결과의 가중 평균 (통계 40%, AI 60%)
+    const combinedScore = Math.round(
+      statisticalAnalysis.totalScore * 0.4 + parsed.aiProbability * 0.6
+    );
+
+    // 개인 표현이 많으면 점수 대폭 감소
+    if (statisticalAnalysis.breakdown.personalExpression.isHumanLike) {
+      parsed.aiProbability = Math.min(parsed.aiProbability, 35);
+    }
+
+    // 통계와 AI 분석이 모두 낮으면 확실히 LOW
+    if (statisticalAnalysis.totalScore < 30 && parsed.aiProbability < 40) {
+      parsed.aiProbability = Math.min(parsed.aiProbability, 25);
       parsed.verdict = 'LOW';
     }
+
+    // 최종 판정
+    parsed.aiProbability = combinedScore;
+    parsed.verdict = combinedScore >= 55 ? 'HIGH' : combinedScore >= 35 ? 'MEDIUM' : 'LOW';
+
+    // 통계 분석 결과 첨부
+    parsed.statisticalAnalysis = statisticalAnalysis.breakdown;
+
+    console.log(`[AI감지 최종] 통계:${statisticalAnalysis.totalScore} + AI:${parsed.aiProbability} = 결합:${combinedScore} → ${parsed.verdict}`);
 
     return parsed;
   } catch (error) {
     console.error('AI 사용 감지 에러:', error);
+    // 에러 시에도 통계 분석 결과 반환
     return {
-      aiProbability: 15,
-      verdict: 'LOW',
-      explanation: '분석 중 오류가 발생했지만, 직접 작성한 글로 간주합니다.',
-      humanLikeFeatures: [],
-      aiLikeFeatures: []
+      aiProbability: Math.min(25, statisticalAnalysis.totalScore),
+      verdict: statisticalAnalysis.verdict === 'HIGH' ? 'MEDIUM' : 'LOW',
+      explanation: '분석 중 오류가 발생했지만, 통계 분석 결과를 기반으로 판단합니다.',
+      humanLikeFeatures: statisticalAnalysis.breakdown.personalExpression.isHumanLike ? ['개인적 표현 발견'] : [],
+      aiLikeFeatures: statisticalAnalysis.breakdown.repetitivePatterns.isAiLike ? ['반복 패턴 발견'] : [],
+      statisticalAnalysis: statisticalAnalysis.breakdown
     };
   }
 });

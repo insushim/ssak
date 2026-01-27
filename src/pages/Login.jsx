@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "../services/authService";
+import { Wand2, Zap, Sparkles } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -95,15 +96,21 @@ export default function Login() {
 
           <div className="flex items-center gap-4 pt-4">
             <div className="flex items-center gap-2 text-xs text-blue-200">
-              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">🪄</span>
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                <Wand2 className="w-4 h-4 text-cyan-300" />
+              </span>
               <span>AI 첨삭</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-200">
-              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">⚡</span>
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                <Zap className="w-4 h-4 text-yellow-300" />
+              </span>
               <span>즉시 피드백</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-200">
-              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">✨</span>
+              <span className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-yellow-200" />
+              </span>
               <span>실력 향상</span>
             </div>
           </div>
