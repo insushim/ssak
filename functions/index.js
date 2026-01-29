@@ -136,14 +136,25 @@ async function getSsakRubric(gradeLevel, topic) {
  * Firestore에서 싹DB 우수작 예시 검색
  */
 async function getSsakExample(gradeLevel, topic, level = 'high') {
-  const { educationLevel, gradeGroup } = gradeToEducationLevel(gradeLevel);
   const genre = getGenreFromTopic(topic, gradeLevel);
+
+  // 우수작 예시 파일은 루브릭과 다른 education_level 값 사용
+  // 루브릭: "초등학교", "중학교", "고등학교"
+  // 예시: "초등", "중", "고"
+  const exampleEducationLevelMap = {
+    'elementary_1_2': '초등',
+    'elementary_3_4': '초등',
+    'elementary_5_6': '초등',
+    'middle': '중',
+    'high': '고'
+  };
+  const exampleEducationLevel = exampleEducationLevelMap[gradeLevel] || '초등';
 
   // level 매핑 (영어 → 한글) - 싹DB에 한글로 저장되어 있음
   const levelMap = { 'high': '상', 'mid': '중', 'low': '하' };
   const koreanLevel = levelMap[level] || level;
 
-  const cacheKey = `${educationLevel}_${genre}_${koreanLevel}`;
+  const cacheKey = `example_${exampleEducationLevel}_${genre}_${koreanLevel}`;
 
   // 캐시 확인
   const cached = ssakDBCache.examples.get(cacheKey);
@@ -152,20 +163,32 @@ async function getSsakExample(gradeLevel, topic, level = 'high') {
   }
 
   try {
-    const snapshot = await db.collection('examples')
-      .where('education_level', '==', educationLevel)
+    // 1차: education_level, genre, level로 검색
+    let snapshot = await db.collection('examples')
+      .where('education_level', '==', exampleEducationLevel)
       .where('genre', '==', genre)
       .where('level', '==', koreanLevel)
       .limit(1)
       .get();
 
+    // 2차: genre만으로 검색 (예시가 없으면 같은 장르의 다른 학년 예시 사용)
+    if (snapshot.empty) {
+      console.log(`[싹DB] 정확한 예시 없음, 장르로 재검색: ${genre} ${koreanLevel}`);
+      snapshot = await db.collection('examples')
+        .where('genre', '==', genre)
+        .where('level', '==', koreanLevel)
+        .limit(1)
+        .get();
+    }
+
     if (!snapshot.empty) {
       const example = snapshot.docs[0].data();
       ssakDBCache.examples.set(cacheKey, { data: example, timestamp: Date.now() });
-      console.log(`[싹DB] 예시 로드: ${educationLevel} ${genre} (${koreanLevel})`);
+      console.log(`[싹DB] 예시 로드: ${exampleEducationLevel} ${genre} (${koreanLevel})`);
       return example;
     }
 
+    console.log(`[싹DB] 예시 없음: ${exampleEducationLevel} ${genre} ${koreanLevel}`);
     return null;
   } catch (error) {
     console.error('[싹DB] 예시 검색 오류:', error);
@@ -2832,3 +2855,39 @@ async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, 
 
   return { id: assignmentRef.id, title: selectedTopic.title };
 }
+
+// ===== 싹DB 상태 확인 및 데이터 시딩 (관리자 전용) =====
+
+/**
+ * 싹DB 상태 확인 (개발/디버그용)
+ */
+exports.checkSsakDBStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new functions.https.HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  // 슈퍼 관리자 확인
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new functions.https.HttpsError('permission-denied', '관리자 권한이 필요합니다.');
+  }
+
+  const collections = ['rubrics', 'examples', 'feedbackPatterns', 'writingTheory', 'aiDetection', 'topics', 'learningPaths', 'evaluationTools', 'system', 'metadata'];
+  const status = {};
+
+  for (const col of collections) {
+    const snapshot = await db.collection(col).limit(5).get();
+    status[col] = {
+      count: snapshot.size,
+      samples: snapshot.docs.map(doc => ({
+        id: doc.id,
+        education_level: doc.data().education_level,
+        grade: doc.data().grade,
+        genre: doc.data().genre,
+        level: doc.data().level
+      }))
+    };
+  }
+
+  return status;
+});
