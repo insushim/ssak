@@ -925,13 +925,42 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
     const response = await result.response;
     const responseText = response.text();
 
-    // Parse JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    // 🔍 디버깅: AI 응답 로깅
+    console.log(`[AI 응답] 길이: ${responseText.length}자, 내용: ${responseText.substring(0, 500)}`);
+
+    // Parse JSON from response - 더 강력한 파싱
+    let jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    // JSON 블록이 없으면 마크다운 코드 블록 내에서 찾기
     if (!jsonMatch) {
+      const codeBlockMatch = responseText.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/);
+      if (codeBlockMatch) {
+        jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
+      }
+    }
+
+    if (!jsonMatch) {
+      console.error(`[AI 파싱 실패] 전체 응답: ${responseText}`);
       throw new Error('AI 응답을 파싱할 수 없습니다.');
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      // JSON 파싱 실패 시 수정 시도
+      let cleanedJson = jsonMatch[0]
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*]/g, ']')
+        .replace(/[\u0000-\u001F]+/g, ' ');
+      try {
+        parsed = JSON.parse(cleanedJson);
+        console.log('[AI 파싱] JSON 수정 후 파싱 성공');
+      } catch (secondError) {
+        console.error(`[AI 파싱 실패] 원본: ${jsonMatch[0].substring(0, 300)}`);
+        throw new Error('AI 응답을 파싱할 수 없습니다.');
+      }
+    }
 
     // 점수 유효성 검사 및 보정
     parsed.contentScore = Math.max(0, Math.min(25, parsed.contentScore || 0));

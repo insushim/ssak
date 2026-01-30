@@ -747,21 +747,24 @@ export default function StudentDashboard({ user, userData }) {
 
         // sendBeacon은 JSON 직접 전송 불가, 로컬스토리지에 저장해두면 다음 접속시 복구
         localStorage.setItem(`writing_pending_save_${user.uid}`, JSON.stringify(draftData));
-        console.log(`[페이지 종료] "${currentWriting.topic}" 임시저장 예약됨`);
+        // 로그 제거됨 (무한 호출 방지)
       } catch (e) {
         console.warn('페이지 종료 시 저장 실패:', e);
       }
     };
 
-    window.addEventListener('pagehide', handleUnloadSave);
-    window.addEventListener('visibilitychange', () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         handleUnloadSave();
       }
-    });
+    };
+
+    window.addEventListener('pagehide', handleUnloadSave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('pagehide', handleUnloadSave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [currentWriting.topic, currentWriting.content, currentWriting.wordCount, feedback, user.uid]);
 
@@ -2379,27 +2382,94 @@ export default function StudentDashboard({ user, userData }) {
                       </div>
                     )}
 
-                    {/* 고쳐쓰기 모드: 수정 필요 부분 강조된 원본 글 미리보기 */}
+                    {/* 고쳐쓰기 모드: 원본 글에서 수정 필요 부분 강조 + AI 제안 통합 */}
                     {rewriteMode && rewriteMode.detailedFeedback && rewriteMode.detailedFeedback.length > 0 && (
-                      <div className="mb-3 p-3 bg-white border-2 border-orange-200 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-semibold text-orange-700">📌 수정이 필요한 부분 (빨간색 표시)</span>
+                      <div className="mb-3 p-4 bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl">
+                        {/* 빨간색 강조된 원본 글 */}
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-6 h-6 bg-orange-200 rounded-full flex items-center justify-center text-sm">📌</span>
+                            <span className="font-bold text-orange-800">원본 글 (수정이 필요한 부분은 빨간색)</span>
+                          </div>
+                          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-lg border border-orange-200">
+                            {(() => {
+                              // 원본 내용 사용 (rewriteMode.originalContent)
+                              let highlightedContent = rewriteMode.originalContent || currentWriting.content;
+                              // 수정이 필요한 문장들을 빨간색으로 강조
+                              rewriteMode.detailedFeedback.forEach(item => {
+                                if (item.original && highlightedContent.includes(item.original)) {
+                                  highlightedContent = highlightedContent.replace(
+                                    item.original,
+                                    `<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">${item.original}</mark>`
+                                  );
+                                }
+                              });
+                              return <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />;
+                            })()}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                          {(() => {
-                            let highlightedContent = currentWriting.content;
-                            // 수정이 필요한 문장들을 빨간색으로 강조
-                            rewriteMode.detailedFeedback.forEach(item => {
-                              if (item.original && highlightedContent.includes(item.original)) {
-                                highlightedContent = highlightedContent.replace(
-                                  item.original,
-                                  `<mark class="bg-red-200 text-red-800 px-1 rounded">${item.original}</mark>`
-                                );
-                              }
-                            });
-                            return <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />;
-                          })()}
+
+                        {/* AI 수정 제안 목록 */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="w-6 h-6 bg-orange-200 rounded-full flex items-center justify-center text-sm">📝</span>
+                            <span className="font-bold text-orange-800">AI가 제안하는 수정 사항</span>
+                          </div>
+                          <div className="space-y-3">
+                            {rewriteMode.detailedFeedback.map((item, idx) => (
+                              <div key={idx} className="bg-white rounded-lg p-3 border border-orange-200 shadow-sm">
+                                <div className="flex items-start gap-2">
+                                  <span className="flex-shrink-0 w-5 h-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                                  <div className="flex-1">
+                                    <div className="mb-2">
+                                      <span className="text-xs text-gray-500 block mb-1">원본:</span>
+                                      <p className="text-sm bg-red-50 text-red-700 px-2 py-1 rounded border-l-4 border-red-400 font-medium">
+                                        "{item.original}"
+                                      </p>
+                                    </div>
+                                    <div className="mb-2">
+                                      <span className="text-xs text-gray-500 block mb-1">이렇게 고쳐보세요:</span>
+                                      <p className="text-sm bg-emerald-50 text-emerald-700 px-2 py-1 rounded border-l-4 border-emerald-400 font-medium">
+                                        "{item.suggestion}"
+                                      </p>
+                                    </div>
+                                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                                      <span className="text-amber-500">💡</span> {item.reason}
+                                      {item.type && (
+                                        <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                                          item.type === 'grammar' ? 'bg-blue-100 text-blue-600' :
+                                          item.type === 'vocabulary' ? 'bg-purple-100 text-purple-600' :
+                                          item.type === 'structure' ? 'bg-green-100 text-green-600' :
+                                          'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {item.type === 'grammar' ? '문법' :
+                                           item.type === 'vocabulary' ? '어휘' :
+                                           item.type === 'structure' ? '구조' :
+                                           item.type === 'expression' ? '표현' : item.type}
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 개선사항 목록 */}
+                        {rewriteMode.improvements && rewriteMode.improvements.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-orange-200">
+                            <h5 className="font-semibold text-orange-700 text-sm mb-2">💪 추가 개선 포인트</h5>
+                            <ul className="space-y-1">
+                              {rewriteMode.improvements.map((improvement, idx) => (
+                                <li key={idx} className="text-sm text-orange-600 flex items-start gap-2">
+                                  <span className="text-orange-400">•</span>
+                                  {improvement}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -2710,73 +2780,6 @@ export default function StudentDashboard({ user, userData }) {
                             ✕
                           </button>
                         </div>
-                      </div>
-                    )}
-
-                    {/* 고쳐쓰기 모드 - AI 제안 패널 */}
-                    {rewriteMode && rewriteMode.detailedFeedback && rewriteMode.detailedFeedback.length > 0 && (
-                      <div className="mt-4 p-4 bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl">
-                        <h4 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
-                          <span className="w-6 h-6 bg-orange-200 rounded-full flex items-center justify-center text-sm">📝</span>
-                          AI가 제안하는 수정 사항
-                        </h4>
-                        <div className="space-y-3">
-                          {rewriteMode.detailedFeedback.map((item, idx) => (
-                            <div key={idx} className="bg-white rounded-lg p-3 border border-orange-200 shadow-sm">
-                              <div className="flex items-start gap-2">
-                                <span className="flex-shrink-0 w-5 h-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-                                <div className="flex-1">
-                                  {/* 원본 문장 - 빨간색 강조 */}
-                                  <div className="mb-2">
-                                    <span className="text-xs text-gray-500 block mb-1">원본:</span>
-                                    <p className="text-sm bg-red-50 text-red-700 px-2 py-1 rounded border-l-4 border-red-400 font-medium">
-                                      "{item.original}"
-                                    </p>
-                                  </div>
-                                  {/* 제안 문장 - 초록색 강조 */}
-                                  <div className="mb-2">
-                                    <span className="text-xs text-gray-500 block mb-1">이렇게 고쳐보세요:</span>
-                                    <p className="text-sm bg-emerald-50 text-emerald-700 px-2 py-1 rounded border-l-4 border-emerald-400 font-medium">
-                                      "{item.suggestion}"
-                                    </p>
-                                  </div>
-                                  {/* 이유 */}
-                                  <p className="text-xs text-gray-600 flex items-center gap-1">
-                                    <span className="text-amber-500">💡</span> {item.reason}
-                                    {item.type && (
-                                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
-                                        item.type === 'grammar' ? 'bg-blue-100 text-blue-600' :
-                                        item.type === 'vocabulary' ? 'bg-purple-100 text-purple-600' :
-                                        item.type === 'structure' ? 'bg-green-100 text-green-600' :
-                                        'bg-gray-100 text-gray-600'
-                                      }`}>
-                                        {item.type === 'grammar' ? '문법' :
-                                         item.type === 'vocabulary' ? '어휘' :
-                                         item.type === 'structure' ? '구조' :
-                                         item.type === 'expression' ? '표현' : item.type}
-                                      </span>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* 개선사항 목록 */}
-                        {rewriteMode.improvements && rewriteMode.improvements.length > 0 && (
-                          <div className="mt-4 pt-3 border-t border-orange-200">
-                            <h5 className="font-semibold text-orange-700 text-sm mb-2">💪 추가 개선 포인트</h5>
-                            <ul className="space-y-1">
-                              {rewriteMode.improvements.map((improvement, idx) => (
-                                <li key={idx} className="text-sm text-orange-600 flex items-start gap-2">
-                                  <span className="text-orange-400">•</span>
-                                  {improvement}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
                       </div>
                     )}
 
