@@ -1198,6 +1198,223 @@ ${result.data.message}`);
               </div>
             </div>
 
+            {/* 🌱 싹DB 관리 */}
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">🌱 싹DB 관리 (AI 평가 지식베이스)</h2>
+                <p className="text-sm text-gray-500 mt-1">학년별 평가 기준과 우수작 예시 관리</p>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                {/* 싹DB 현황 조회 */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h3 className="font-medium text-emerald-800 mb-2">싹DB 현황 조회</h3>
+                  <p className="text-sm text-emerald-700 mb-3">
+                    Firestore에 저장된 싹DB 데이터 현황을 확인합니다.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { checkSsakDBStatus } = await import('../utils/geminiAPI');
+                        const status = await checkSsakDBStatus();
+                        console.log('[싹DB 현황]', status);
+
+                        let message = '싹DB 현황:\n\n';
+                        for (const [collection, data] of Object.entries(status)) {
+                          message += `${collection}: ${data.count}개\n`;
+                          if (data.samples && data.samples.length > 0) {
+                            message += `  샘플: ${data.samples.map(s => s.id).slice(0, 3).join(', ')}\n`;
+                          }
+                        }
+                        alert(message);
+                      } catch (error) {
+                        console.error('싹DB 현황 조회 에러:', error);
+                        alert('조회 실패: ' + error.message);
+                      }
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                  >
+                    싹DB 현황 조회
+                  </button>
+                </div>
+
+                {/* 싹DB 메타 업데이트 */}
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                  <h3 className="font-medium text-indigo-800 mb-2">싹DB 메타 정보 업데이트</h3>
+                  <p className="text-sm text-indigo-700 mb-3">
+                    싹DB 컬렉션별 문서 수를 다시 계산하고 메타 정보를 업데이트합니다.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const updateMetaFn = httpsCallable(functions, 'updateSsakDBMeta');
+                        const result = await updateMetaFn();
+                        alert(`메타 업데이트 완료!\n\n총 문서: ${result.data.total}개\n\n${Object.entries(result.data.counts).map(([k, v]) => `${k}: ${v}개`).join('\n')}`);
+                      } catch (error) {
+                        console.error('메타 업데이트 에러:', error);
+                        alert('업데이트 실패: ' + error.message);
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  >
+                    메타 정보 업데이트
+                  </button>
+                </div>
+
+                {/* 싹DB JSON 업로드 */}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h3 className="font-medium text-orange-800 mb-2">📤 싹DB 데이터 업로드</h3>
+                  <p className="text-sm text-orange-700 mb-3">
+                    로컬 싹DB JSON 파일을 Firestore에 업로드합니다.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {['rubrics', 'examples', 'feedbackPatterns', 'topics', 'writingTheory', 'aiDetection'].map(collection => (
+                        <label
+                          key={collection}
+                          className="cursor-pointer"
+                        >
+                          <input
+                            type="file"
+                            accept=".json"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+
+                              try {
+                                const text = await file.text();
+                                const documents = JSON.parse(text);
+
+                                if (typeof documents !== 'object') {
+                                  throw new Error('유효한 JSON 객체가 아닙니다.');
+                                }
+
+                                const docCount = Object.keys(documents).length;
+                                if (!confirm(`${collection} 컬렉션에 ${docCount}개 문서를 업로드하시겠습니까?`)) {
+                                  return;
+                                }
+
+                                const uploadFn = httpsCallable(functions, 'uploadSsakDBBatch');
+
+                                // 450개씩 나눠서 업로드
+                                const entries = Object.entries(documents);
+                                const CHUNK_SIZE = 400;
+                                let uploaded = 0;
+
+                                for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+                                  const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
+                                  const result = await uploadFn({ collection, documents: chunk });
+                                  uploaded += result.data.count;
+                                  console.log(`${collection} 업로드 진행: ${uploaded}/${entries.length}`);
+                                }
+
+                                alert(`✅ ${collection} 업로드 완료!\n총 ${uploaded}개 문서`);
+                              } catch (error) {
+                                console.error('업로드 에러:', error);
+                                alert('업로드 실패: ' + error.message);
+                              }
+
+                              e.target.value = '';
+                            }}
+                          />
+                          <span className="inline-block px-3 py-1.5 bg-white border border-orange-300 rounded-lg text-sm text-orange-700 hover:bg-orange-100 transition-colors">
+                            {collection}.json
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-orange-600">
+                      💡 scripts/ssakdb-collections/ 폴더의 JSON 파일을 선택하세요
+                    </p>
+                  </div>
+                </div>
+
+                {/* 전체 업로드 */}
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h3 className="font-medium text-red-800 mb-2">⚠️ 싹DB 전체 업로드</h3>
+                  <p className="text-sm text-red-700 mb-3">
+                    모든 싹DB 데이터를 일괄 업로드합니다. 기존 데이터는 덮어씁니다.
+                  </p>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+
+                        try {
+                          const text = await file.text();
+                          const allData = JSON.parse(text);
+
+                          if (typeof allData !== 'object') {
+                            throw new Error('유효한 JSON 객체가 아닙니다.');
+                          }
+
+                          const collections = Object.keys(allData);
+                          let totalDocs = 0;
+                          for (const col of collections) {
+                            totalDocs += Object.keys(allData[col] || {}).length;
+                          }
+
+                          if (!confirm(`총 ${collections.length}개 컬렉션, ${totalDocs}개 문서를 업로드하시겠습니까?\n\n컬렉션: ${collections.join(', ')}`)) {
+                            return;
+                          }
+
+                          const uploadFn = httpsCallable(functions, 'uploadSsakDBBatch');
+                          let totalUploaded = 0;
+
+                          for (const collection of collections) {
+                            const documents = allData[collection];
+                            if (!documents || typeof documents !== 'object') continue;
+
+                            const entries = Object.entries(documents);
+                            const CHUNK_SIZE = 400;
+
+                            for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+                              const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
+                              const result = await uploadFn({ collection, documents: chunk });
+                              totalUploaded += result.data.count;
+                              console.log(`${collection} 업로드: ${result.data.count}개`);
+                            }
+                          }
+
+                          // 메타 정보 업데이트
+                          const updateMetaFn = httpsCallable(functions, 'updateSsakDBMeta');
+                          await updateMetaFn();
+
+                          alert(`✅ 전체 업로드 완료!\n총 ${totalUploaded}개 문서`);
+                        } catch (error) {
+                          console.error('전체 업로드 에러:', error);
+                          alert('업로드 실패: ' + error.message);
+                        }
+
+                        e.target.value = '';
+                      }}
+                    />
+                    <span className="inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium cursor-pointer">
+                      ssakdb-export.json 전체 업로드
+                    </span>
+                  </label>
+                  <p className="text-xs text-red-600 mt-2">
+                    💡 scripts/ssakdb-export.json 파일을 선택하세요
+                  </p>
+                </div>
+
+                {/* 현재 AI 평가 설정 */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-800 mb-2">AI 평가 싹DB 활용 현황</h3>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>✅ 학년별 평가 루브릭 (rubrics) - 6+1 Trait Writing 기반</li>
+                    <li>✅ 학년별 우수작 예시 (examples) - 상/중/하 수준별</li>
+                    <li>✅ 첨삭 패턴 (feedbackPatterns) - 내용/조직/표현/표기</li>
+                    <li>✅ AI 평가 시 자동 참조 (getSsakRubric, getSsakExample)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             {/* DB 읽기 최적화 현황 */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">

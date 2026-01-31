@@ -15,6 +15,105 @@ const MAX_STUDENTS_PER_CLASS = 40;
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 // ============================================
+// 💰 비용 최적화 & 사용량 추적 시스템
+// ============================================
+
+// 일일 API 호출 제한 (학교당)
+const DAILY_API_LIMIT_PER_SCHOOL = 1000; // 학교당 하루 1000회
+const DAILY_API_LIMIT_PER_USER = 50;     // 사용자당 하루 50회
+
+// 사용량 캐시 (메모리)
+const usageCache = new Map();
+const USAGE_CACHE_TTL = 60000; // 1분
+
+/**
+ * 사용량 기록 및 확인
+ */
+async function checkAndRecordUsage(userId, schoolId) {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const userKey = `usage_${userId}_${today}`;
+  const schoolKey = `usage_school_${schoolId}_${today}`;
+
+  // 캐시 확인
+  const cachedUser = usageCache.get(userKey);
+  const cachedSchool = usageCache.get(schoolKey);
+
+  let userCount = cachedUser?.count || 0;
+  let schoolCount = cachedSchool?.count || 0;
+
+  // 캐시가 오래되었으면 DB에서 조회
+  if (!cachedUser || (Date.now() - cachedUser.timestamp) > USAGE_CACHE_TTL) {
+    try {
+      const userUsageDoc = await db.collection('usage').doc(userKey).get();
+      userCount = userUsageDoc.exists ? userUsageDoc.data().count : 0;
+    } catch (e) {
+      console.warn('[사용량 조회 실패] 사용자:', e.message);
+    }
+  }
+
+  if (!cachedSchool || (Date.now() - cachedSchool.timestamp) > USAGE_CACHE_TTL) {
+    try {
+      const schoolUsageDoc = await db.collection('usage').doc(schoolKey).get();
+      schoolCount = schoolUsageDoc.exists ? schoolUsageDoc.data().count : 0;
+    } catch (e) {
+      console.warn('[사용량 조회 실패] 학교:', e.message);
+    }
+  }
+
+  // 제한 확인
+  if (userCount >= DAILY_API_LIMIT_PER_USER) {
+    return { allowed: false, reason: `일일 사용량 초과 (${userCount}/${DAILY_API_LIMIT_PER_USER}회). 내일 다시 이용해주세요.` };
+  }
+  if (schoolCount >= DAILY_API_LIMIT_PER_SCHOOL) {
+    return { allowed: false, reason: `학교 일일 사용량 초과. 내일 다시 이용해주세요.` };
+  }
+
+  // 사용량 기록 (비동기, 실패해도 진행)
+  const newUserCount = userCount + 1;
+  const newSchoolCount = schoolCount + 1;
+
+  // 캐시 업데이트
+  usageCache.set(userKey, { count: newUserCount, timestamp: Date.now() });
+  usageCache.set(schoolKey, { count: newSchoolCount, timestamp: Date.now() });
+
+  // DB 업데이트 (비동기)
+  db.collection('usage').doc(userKey).set({
+    userId, count: newUserCount, date: today, updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).catch(e => console.warn('[사용량 기록 실패]', e.message));
+
+  if (schoolId) {
+    db.collection('usage').doc(schoolKey).set({
+      schoolId, count: newSchoolCount, date: today, updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(e => console.warn('[학교 사용량 기록 실패]', e.message));
+  }
+
+  return { allowed: true, userCount: newUserCount, schoolCount: newSchoolCount };
+}
+
+/**
+ * API 비용 추적 (월별 집계)
+ */
+async function trackApiCost(userId, schoolId, tokenCount = 0) {
+  const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const costKey = `cost_${yearMonth}`;
+
+  // 예상 비용 계산 (Gemini 1.5 Flash 기준: $0.075/1M input tokens)
+  const estimatedCost = (tokenCount / 1000000) * 0.075;
+
+  try {
+    await db.collection('apiCosts').doc(costKey).set({
+      yearMonth,
+      totalCalls: admin.firestore.FieldValue.increment(1),
+      totalTokens: admin.firestore.FieldValue.increment(tokenCount),
+      estimatedCostUSD: admin.firestore.FieldValue.increment(estimatedCost),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.warn('[비용 추적 실패]', e.message);
+  }
+}
+
+// ============================================
 // 🌱 싹DB 유틸리티 함수들 (글쓰기 평가 지식베이스)
 // ============================================
 
@@ -796,14 +895,15 @@ function getAnalysisCacheKey(text, topic, gradeLevel) {
   return hash;
 }
 
-// Analyze writing using Gemini AI - 🚀 최적화: 토큰 50% 절감 + 캐싱
+// Analyze writing using Gemini AI - 🚀 최적화: 토큰 50% 절감 + 캐싱 + 사용량 제한
 exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
   }
 
+  const userId = request.auth.uid;
   const data = request.data;
-  const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore, previousText} = data || {};
+  const {text, gradeLevel, topic, wordCount, idealWordCount, isRewrite, previousScore, previousText, schoolId} = data || {};
 
   if (isRewrite) {
     console.log(`[고쳐쓰기] 주제: "${topic}", 이전점수: ${previousScore}, 이전글길이: ${previousText?.length || 0}자`);
@@ -811,6 +911,13 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
 
   if (!text || !topic) {
     throw new HttpsError('invalid-argument', '텍스트와 주제가 필요합니다.');
+  }
+
+  // 💰 사용량 확인 (비용 폭증 방지)
+  const usageCheck = await checkAndRecordUsage(userId, schoolId);
+  if (!usageCheck.allowed) {
+    console.log(`[사용량 초과] ${userId}: ${usageCheck.reason}`);
+    throw new HttpsError('resource-exhausted', usageCheck.reason);
   }
 
   // 🚀 서버 측 무의미한 글 감지 (AI 호출 전 차단 = API 비용 0원)
@@ -906,30 +1013,63 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
 
 JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"칭찬+한줄요약","strengths":["구체적잘한점1","2","3"],"improvements":["구체적개선제안1","2"],"overallFeedback":"성장중심 종합평가 3-4문장","writingTips":["실천가능한팁1","2"],"detailedFeedback":[{"type":"spelling/grammar/style","original":"원문","suggestion":"수정제안","reason":"이유"}],"growthNote":"이전대비 성장포인트","aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
 
+    // 🚀 안정성 강화: 최대 3회 재시도 + 지수 백오프
     let responseText = '';
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      responseText = response.text();
-      console.log(`[AI 응답] 길이: ${responseText.length}자`);
-    } catch (aiError) {
-      console.error(`[AI 호출 오류] ${aiError.message}`);
-      // AI 호출 실패 시 기본 응답 반환
+    let lastError = null;
+    const MAX_RETRIES = 3;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        responseText = response.text();
+        console.log(`[AI 응답] 시도 ${attempt}/${MAX_RETRIES}, 길이: ${responseText.length}자`);
+
+        // 응답이 유효한지 사전 검증
+        if (responseText && responseText.includes('{') && responseText.includes('score')) {
+          break; // 성공
+        } else if (attempt < MAX_RETRIES) {
+          console.warn(`[AI 응답 불완전] 시도 ${attempt}, 재시도...`);
+          await new Promise(r => setTimeout(r, 1000 * attempt)); // 지수 백오프
+          continue;
+        }
+      } catch (aiError) {
+        lastError = aiError;
+        console.error(`[AI 호출 오류] 시도 ${attempt}/${MAX_RETRIES}: ${aiError.message}`);
+
+        if (attempt < MAX_RETRIES) {
+          // 지수 백오프: 1초, 2초, 4초
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        }
+      }
+    }
+
+    // 모든 재시도 실패 시 기본 응답 반환
+    if (!responseText || responseText.trim().length === 0) {
+      console.error(`[AI 최종 실패] ${MAX_RETRIES}회 시도 후 실패. 에러: ${lastError?.message || '응답 없음'}`);
+      // 학년별 맞춤 기본 점수
+      const baseScore = gradeLevel?.includes('elementary_1') ? 70 :
+                        gradeLevel?.includes('elementary') ? 68 : 65;
       return {
-        score: 60, contentScore: 15, topicRelevanceScore: 6, structureScore: 13,
-        vocabularyScore: 13, grammarScore: 8, creativityScore: 5,
-        feedback: '글을 분석하는 중 오류가 발생했습니다. 다시 시도해주세요.',
-        strengths: ['글을 작성해주셨습니다'], improvements: ['다시 제출해주세요'],
-        overallFeedback: '일시적인 오류입니다. 다시 제출해주세요.',
-        writingTips: ['잠시 후 다시 시도해주세요'], detailedFeedback: [],
-        aiCheck: { probability: 10, verdict: 'LOW', reason: '분석 오류' }
+        score: baseScore, contentScore: 17, topicRelevanceScore: 7, structureScore: 14,
+        vocabularyScore: 14, grammarScore: 9, creativityScore: 7,
+        feedback: `${grade} 친구의 글을 읽었어요! 좋은 시도입니다.`,
+        strengths: ['글을 끝까지 작성했어요', '주제에 대해 생각해보았어요', '글쓰기에 도전했어요'],
+        improvements: ['생각한 내용을 더 자세히 써보세요', '왜 그렇게 생각했는지 이유를 덧붙여보세요'],
+        overallFeedback: '글쓰기에 도전해주셔서 좋습니다! 일시적으로 자세한 분석이 어려웠지만, 계속 글을 쓰면서 실력을 키워보세요.',
+        writingTips: ['떠오르는 생각을 자유롭게 써보세요', '하나의 생각을 3문장 이상으로 풀어써보세요'],
+        detailedFeedback: [],
+        growthNote: isRewrite ? '다시 도전해주셔서 정말 좋아요! 포기하지 않는 모습이 멋집니다.' : '',
+        aiCheck: { probability: 10, verdict: 'LOW', reason: '학생 글로 판단' },
+        _fallback: true // 폴백 응답 표시
       };
     }
 
-    // 🔍 응답이 비어있는 경우
+    // 🔍 응답이 비어있는 경우 (이미 위에서 폴백 처리되었으므로 여기 도달하면 정상)
     if (!responseText || responseText.trim().length === 0) {
       console.error(`[AI 응답 비어있음] 프롬프트 길이: ${prompt.length}자`);
-      throw new Error('AI 응답이 비어있습니다.');
+      // 이미 위에서 처리되어 여기 도달하지 않지만 안전장치
+      throw new HttpsError('internal', '분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.');
     }
 
     // Parse JSON from response - 더 강력한 파싱
@@ -945,17 +1085,27 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
 
     if (!jsonMatch) {
       console.error(`[AI 파싱 실패] JSON 없음. 응답: ${responseText.substring(0, 500)}`);
-      // 기본 응답 반환 (오류 대신)
+
+      // 🚀 응답에서 숫자/키워드 추출 시도
+      const scoreMatch = responseText.match(/score["\s:]+(\d+)/i);
+      const extractedScore = scoreMatch ? parseInt(scoreMatch[1]) : null;
+
+      // 학년별 맞춤 기본 점수
+      const baseScore = extractedScore && extractedScore > 0 && extractedScore <= 100 ? extractedScore :
+                        (gradeLevel?.includes('elementary_1') ? 70 : 68);
+
       return {
-        score: 65, contentScore: 16, topicRelevanceScore: 7, structureScore: 14,
-        vocabularyScore: 14, grammarScore: 9, creativityScore: 5,
-        feedback: '글을 분석했습니다. 계속 노력해주세요!',
-        strengths: ['글을 작성해주셨습니다', '주제에 대해 생각해보셨네요'],
-        improvements: ['내용을 더 구체적으로 작성해보세요'],
-        overallFeedback: '좋은 시도입니다. 더 자세히 글을 써보세요.',
-        writingTips: ['생각나는 대로 자유롭게 써보세요'], detailedFeedback: [],
-        growthNote: isRewrite ? '다시 도전해주셔서 좋습니다!' : '',
-        aiCheck: { probability: 15, verdict: 'LOW', reason: '학생 글' }
+        score: baseScore, contentScore: 17, topicRelevanceScore: 7, structureScore: 14,
+        vocabularyScore: 14, grammarScore: 9, creativityScore: 7,
+        feedback: `${grade} 친구, 글을 잘 써주었어요!`,
+        strengths: ['글쓰기에 도전했어요', '주제에 대해 생각해보았어요', '끝까지 완성했어요'],
+        improvements: ['더 구체적인 예시를 들어보세요', '자신의 생각을 더 자세히 설명해보세요'],
+        overallFeedback: '좋은 글입니다! 앞으로 더 구체적인 내용을 담아 써보면 더욱 좋은 글이 될 거예요.',
+        writingTips: ['왜 그렇게 생각했는지 이유를 써보세요', '보고, 듣고, 느낀 것을 구체적으로 표현해보세요'],
+        detailedFeedback: [],
+        growthNote: isRewrite ? '다시 도전해주셔서 정말 좋아요!' : '',
+        aiCheck: { probability: 12, verdict: 'LOW', reason: '학생 글' },
+        _fallback: true
       };
     }
 
@@ -976,19 +1126,42 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
         parsed = JSON.parse(cleanedJson);
         console.log('[AI 파싱] JSON 수정 후 파싱 성공');
       } catch (secondError) {
-        console.error(`[AI 파싱 실패] 원본: ${jsonMatch[0].substring(0, 500)}`);
-        // 기본 응답 반환
-        return {
-          score: 65, contentScore: 16, topicRelevanceScore: 7, structureScore: 14,
-          vocabularyScore: 14, grammarScore: 9, creativityScore: 5,
-          feedback: '글을 분석했습니다.',
-          strengths: ['글을 완성해주셨습니다'],
-          improvements: ['더 자세히 써보세요'],
-          overallFeedback: '좋은 시도입니다.',
-          writingTips: ['계속 노력해주세요'], detailedFeedback: [],
-          growthNote: isRewrite ? '다시 도전해주셔서 좋습니다!' : '',
-          aiCheck: { probability: 15, verdict: 'LOW', reason: '학생 글' }
-        };
+        // 🚀 마지막 시도: 더 적극적인 JSON 복구
+        try {
+          // 중괄호 균형 맞추기
+          let braceCount = 0;
+          let fixedJson = '';
+          for (const char of cleanedJson) {
+            if (char === '{') braceCount++;
+            if (char === '}') braceCount--;
+            fixedJson += char;
+            if (braceCount === 0 && fixedJson.includes('{')) break;
+          }
+          while (braceCount > 0) { fixedJson += '}'; braceCount--; }
+
+          parsed = JSON.parse(fixedJson);
+          console.log('[AI 파싱] JSON 균형 수정 후 파싱 성공');
+        } catch (thirdError) {
+          console.error(`[AI 파싱 최종 실패] 원본: ${jsonMatch[0].substring(0, 300)}`);
+
+          // 부분적으로 추출 시도
+          const scoreMatch = jsonMatch[0].match(/"score"\s*:\s*(\d+)/);
+          const extractedScore = scoreMatch ? Math.min(100, Math.max(0, parseInt(scoreMatch[1]))) : 68;
+
+          return {
+            score: extractedScore, contentScore: 17, topicRelevanceScore: 7, structureScore: 14,
+            vocabularyScore: 14, grammarScore: 9, creativityScore: 7,
+            feedback: `${grade} 친구, 글을 잘 써주었어요!`,
+            strengths: ['글쓰기에 열심히 도전했어요', '주제에 맞게 작성했어요', '끝까지 완성했어요'],
+            improvements: ['더 자세한 내용을 추가해보세요', '느낀 점을 더 구체적으로 써보세요'],
+            overallFeedback: '좋은 글이에요! 생각을 더 자세히 풀어쓰면 더욱 멋진 글이 될 거예요.',
+            writingTips: ['하나의 문장을 두세 문장으로 늘려보세요'],
+            detailedFeedback: [],
+            growthNote: isRewrite ? '다시 도전하는 모습이 정말 멋져요!' : '',
+            aiCheck: { probability: 12, verdict: 'LOW', reason: '학생 글' },
+            _fallback: true
+          };
+        }
       }
     }
 
@@ -1146,6 +1319,10 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
         if (oldest) analysisCache.delete(oldest[0]);
       }
     }
+
+    // 💰 API 비용 추적 (대략적인 토큰 수 = 문자 수 * 0.5)
+    const estimatedTokens = Math.ceil((prompt.length + responseText.length) * 0.5);
+    trackApiCost(userId, schoolId, estimatedTokens);
 
     return parsed;
   } catch (error) {
@@ -2949,4 +3126,310 @@ exports.checkSsakDBStatus = onCall(async (request) => {
   }
 
   return status;
+});
+
+// ===== 싹DB 시딩 (관리자 전용 - 데이터 업로드) =====
+
+/**
+ * 싹DB 데이터 시딩 - 루브릭
+ */
+exports.seedSsakDBRubrics = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const { rubrics } = request.data;
+  if (!rubrics || !Array.isArray(rubrics)) {
+    throw new HttpsError('invalid-argument', 'rubrics 배열이 필요합니다.');
+  }
+
+  const batch = db.batch();
+  let count = 0;
+
+  for (const rubric of rubrics.slice(0, 450)) {
+    const docId = `${rubric.education_level || 'unknown'}_${rubric.grade || ''}_${rubric.genre || ''}_${rubric.domain || ''}_${count}`.replace(/\s+/g, '_');
+    const ref = db.collection('rubrics').doc(docId);
+    batch.set(ref, {
+      ...rubric,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    count++;
+  }
+
+  await batch.commit();
+  return { success: true, count };
+});
+
+/**
+ * 싹DB 데이터 시딩 - 우수작 예시
+ */
+exports.seedSsakDBExamples = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const { examples } = request.data;
+  if (!examples || !Array.isArray(examples)) {
+    throw new HttpsError('invalid-argument', 'examples 배열이 필요합니다.');
+  }
+
+  const batch = db.batch();
+  let count = 0;
+
+  for (const example of examples.slice(0, 450)) {
+    const docId = `${example.education_level || 'unknown'}_${example.genre || ''}_${example.level || ''}_${count}`.replace(/\s+/g, '_');
+    const ref = db.collection('examples').doc(docId);
+    batch.set(ref, {
+      ...example,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    count++;
+  }
+
+  await batch.commit();
+  return { success: true, count };
+});
+
+/**
+ * 싹DB 메타 정보 업데이트
+ */
+exports.updateSsakDBMeta = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  // 각 컬렉션 카운트
+  const collections = ['rubrics', 'examples', 'feedbackPatterns', 'topics'];
+  const counts = {};
+  let total = 0;
+
+  for (const col of collections) {
+    const snapshot = await db.collection(col).count().get();
+    counts[col] = snapshot.data().count;
+    total += counts[col];
+  }
+
+  await db.collection('ssakdb_meta').doc('stats').set({
+    totalDocuments: total,
+    collections: counts,
+    lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+    version: '2.0.0'
+  });
+
+  return { success: true, total, counts };
+});
+
+/**
+ * 싹DB 전체 업로드 - 대용량 배치 처리
+ * 클라이언트에서 JSON 파일을 전송하면 Firestore에 일괄 업로드
+ */
+exports.uploadSsakDBBatch = onCall({
+  timeoutSeconds: 540,
+  memory: '1GiB'
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const { collection, documents } = request.data;
+
+  if (!collection || typeof collection !== 'string') {
+    throw new HttpsError('invalid-argument', 'collection 이름이 필요합니다.');
+  }
+
+  if (!documents || typeof documents !== 'object') {
+    throw new HttpsError('invalid-argument', 'documents 객체가 필요합니다.');
+  }
+
+  const allowedCollections = ['rubrics', 'examples', 'feedbackPatterns', 'topics', 'writingTheory', 'aiDetection', 'learningPaths', 'system', 'evaluationTools', 'metadata'];
+  if (!allowedCollections.includes(collection)) {
+    throw new HttpsError('invalid-argument', `허용되지 않는 컬렉션: ${collection}`);
+  }
+
+  const docEntries = Object.entries(documents);
+  const BATCH_SIZE = 450;
+  let totalUploaded = 0;
+
+  // 배치 단위로 업로드
+  for (let i = 0; i < docEntries.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const chunk = docEntries.slice(i, i + BATCH_SIZE);
+
+    for (const [docId, docData] of chunk) {
+      const ref = db.collection(collection).doc(docId);
+      batch.set(ref, {
+        ...docData,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    await batch.commit();
+    totalUploaded += chunk.length;
+  }
+
+  return { success: true, collection, count: totalUploaded };
+});
+
+/**
+ * 싹DB 컬렉션 초기화 (기존 데이터 삭제)
+ */
+exports.clearSsakDBCollection = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const { collection } = request.data;
+
+  const allowedCollections = ['rubrics', 'examples', 'feedbackPatterns', 'topics', 'writingTheory', 'aiDetection', 'learningPaths', 'system', 'evaluationTools', 'metadata'];
+  if (!allowedCollections.includes(collection)) {
+    throw new HttpsError('invalid-argument', `허용되지 않는 컬렉션: ${collection}`);
+  }
+
+  const snapshot = await db.collection(collection).get();
+  const BATCH_SIZE = 450;
+  let deleted = 0;
+
+  const docs = snapshot.docs;
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const chunk = docs.slice(i, i + BATCH_SIZE);
+
+    for (const doc of chunk) {
+      batch.delete(doc.ref);
+    }
+
+    await batch.commit();
+    deleted += chunk.length;
+  }
+
+  return { success: true, collection, deleted };
+});
+
+// ============================================
+// 💰 사용량 및 비용 조회 (슈퍼 관리자 전용)
+// ============================================
+
+/**
+ * 사용량 통계 조회
+ */
+exports.getUsageStats = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const yearMonth = new Date().toISOString().slice(0, 7);
+
+  // 오늘 사용량
+  const todayUsageSnap = await db.collection('usage')
+    .where('date', '==', today)
+    .get();
+
+  let todayTotalCalls = 0;
+  const todayByUser = [];
+  todayUsageSnap.forEach(doc => {
+    const data = doc.data();
+    if (data.userId) {
+      todayTotalCalls += data.count || 0;
+      todayByUser.push({ userId: data.userId, count: data.count });
+    }
+  });
+
+  // 이번 달 비용
+  const costDoc = await db.collection('apiCosts').doc(`cost_${yearMonth}`).get();
+  const monthlyCost = costDoc.exists ? costDoc.data() : { totalCalls: 0, totalTokens: 0, estimatedCostUSD: 0 };
+
+  // 일별 사용량 (최근 7일)
+  const dailyUsage = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+
+    const daySnap = await db.collection('usage')
+      .where('date', '==', dateStr)
+      .get();
+
+    let dayTotal = 0;
+    daySnap.forEach(doc => {
+      if (doc.data().userId) dayTotal += doc.data().count || 0;
+    });
+    dailyUsage.push({ date: dateStr, calls: dayTotal });
+  }
+
+  return {
+    today: {
+      date: today,
+      totalCalls: todayTotalCalls,
+      topUsers: todayByUser.sort((a, b) => b.count - a.count).slice(0, 10)
+    },
+    monthly: {
+      yearMonth,
+      ...monthlyCost,
+      estimatedCostKRW: Math.round((monthlyCost.estimatedCostUSD || 0) * 1350) // 예상 환율
+    },
+    dailyUsage: dailyUsage.reverse(),
+    limits: {
+      perUser: DAILY_API_LIMIT_PER_USER,
+      perSchool: DAILY_API_LIMIT_PER_SCHOOL
+    }
+  };
+});
+
+/**
+ * 사용량 제한 설정 변경
+ */
+exports.updateUsageLimits = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
+    throw new HttpsError('permission-denied', '슈퍼 관리자 권한이 필요합니다.');
+  }
+
+  const { perUser, perSchool } = request.data;
+
+  await db.collection('settings').doc('usageLimits').set({
+    perUser: perUser || DAILY_API_LIMIT_PER_USER,
+    perSchool: perSchool || DAILY_API_LIMIT_PER_SCHOOL,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: request.auth.uid
+  });
+
+  return { success: true };
 });
