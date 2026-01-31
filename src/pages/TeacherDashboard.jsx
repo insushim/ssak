@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
+// 🚀 경량 차트 사용 (recharts 524KB → 5KB)
+import { SimpleLineChart, SimpleBarChart } from "../components/LightweightCharts";
 import { signOut } from "../services/authService";
 import {
   getTeacherClasses,
@@ -2303,62 +2304,30 @@ export default function TeacherDashboard({ user, userData }) {
                     </div>
                   </div>
 
-                  {/* 점수 추이 그래프 */}
+                  {/* 점수 추이 그래프 - 🚀 경량 차트 사용 */}
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <h3 className="font-semibold text-gray-700 mb-4">점수 추이</h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <LineChart data={growthData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="displayDate" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'white',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                          }}
-                        />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="averageScore"
-                          name="평균 점수"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          dot={{ fill: '#3b82f6', strokeWidth: 2 }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="highScore"
-                          name="최고 점수"
-                          stroke="#10b981"
-                          strokeWidth={2}
-                          dot={{ fill: '#10b981', strokeWidth: 2 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <h3 className="font-semibold text-gray-700 mb-4">평균 점수 추이</h3>
+                    <SimpleLineChart
+                      data={growthData}
+                      dataKey="averageScore"
+                      xAxisKey="displayDate"
+                      height={250}
+                      strokeColor="#3b82f6"
+                      showArea={true}
+                      fillColor="rgba(59, 130, 246, 0.15)"
+                    />
                   </div>
 
-                  {/* 제출 횟수 그래프 */}
+                  {/* 제출 횟수 그래프 - 🚀 경량 차트 사용 */}
                   <div className="bg-gray-50 rounded-xl p-4">
                     <h3 className="font-semibold text-gray-700 mb-4">일별 제출 횟수</h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={growthData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="displayDate" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'white',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                          }}
-                        />
-                        <Bar dataKey="submissions" name="제출 횟수" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <SimpleBarChart
+                      data={growthData}
+                      dataKey="submissions"
+                      xAxisKey="displayDate"
+                      height={200}
+                      barColor="#8b5cf6"
+                    />
                   </div>
                 </div>
               )}

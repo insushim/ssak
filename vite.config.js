@@ -77,6 +77,10 @@ export default defineConfig({
     sourcemap: false,
     // 🔥 esbuild minify (기본값, terser보다 빠름)
     minify: 'esbuild',
+    // 🚀 프로덕션 빌드에서 console.log 제거 (번들 크기 감소 + 보안)
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
     rollupOptions: {
       output: {
         // 🚀 코드 스플리팅 - 대형 라이브러리 분리
