@@ -33,8 +33,9 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      // Anyone authenticated can read user documents
-      allow read: if isAuthenticated();
+      // Users can read their own document, teachers/admins can read any
+      allow read: if isAuthenticated() &&
+                     (request.auth.uid == userId || isTeacher() || isSuperAdmin());
 
       // Users can create their own document during registration
       // OR approved teachers can create student accounts (batch creation)
@@ -80,8 +81,9 @@ service cloud.firestore {
 
     // Writings collection
     match /writings/{writingId} {
-      // Anyone authenticated can read writings
-      allow read: if isAuthenticated();
+      // Students can only read their own writings, teachers/admins can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.studentId == request.auth.uid || isTeacher() || isSuperAdmin());
 
       // Only students can create writings (for themselves)
       allow create: if isStudent() &&
@@ -102,8 +104,9 @@ service cloud.firestore {
 
     // Student stats collection
     match /studentStats/{studentId} {
-      // Anyone authenticated can read stats
-      allow read: if isAuthenticated();
+      // Students can only read their own stats, teachers/admins can read all
+      allow read: if isAuthenticated() &&
+                     (request.auth.uid == studentId || isTeacher() || isSuperAdmin());
 
       // Only the student themselves or system can write stats
       allow write: if isAuthenticated() &&
@@ -135,8 +138,9 @@ service cloud.firestore {
 
     // Assignment submissions collection
     match /submissions/{submissionId} {
-      // Anyone authenticated can read submissions
-      allow read: if isAuthenticated();
+      // Students can read their own submissions, teachers/admins can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.studentId == request.auth.uid || isTeacher() || isSuperAdmin());
 
       // Only students can create submissions (for themselves)
       allow create: if isStudent() &&

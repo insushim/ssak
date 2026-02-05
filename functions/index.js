@@ -11,7 +11,7 @@ const db = admin.firestore();
 const auth = admin.auth();
 const MAX_STUDENTS_PER_CLASS = 40;
 
-// Define secret for Gemini API key
+// Gemini API 키 (Firebase Secret Manager)
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 // ============================================
@@ -944,12 +944,6 @@ exports.analyzeWriting = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) throw new Error('Gemini API 키 없음');
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     const gradeNames = {
       'elementary_1_2': '초1-2', 'elementary_3_4': '초3-4',
       'elementary_5_6': '초5-6', 'middle': '중등', 'high': '고등'
@@ -993,13 +987,13 @@ ${ssakContext}
 
 [0점조건: 반복문자, 무의미나열, 주제완전무관]
 
-📊 6+1 Trait 공정평가(기본점수 관대하게):
-1. 아이디어/내용(25): 주제이해18→풍부한내용22-25
-2. 주제일치(10): 엄격평가, ≤3점시 총점0
-3. 구성/조직(20): 서론본론결론14→논리적흐름17-20
-4. 어휘선택(20): 적절한표현14→다양성17-20
-5. 문장유창성(15): 자연스러움11→리듬감있는문장13-15
-6. 규범/문법(10): 맞춤법띄어쓰기7→정확성9-10
+📊 6가지 평가항목(모든 항목 반드시 평가!):
+1. contentScore(내용,25점): 주제이해=18, 풍부한내용=22-25
+2. topicRelevanceScore(주제,10점): 주제일치도, ≤3점시 총점0
+3. structureScore(구성,20점): 서론본론결론=14, 논리적흐름=17-20
+4. vocabularyScore(어휘,20점): 적절한표현=14, 다양한어휘=17-20
+5. grammarScore(문법,15점): 맞춤법띄어쓰기=10, 정확성=13-15
+6. creativityScore(창의성,10점): 평범한표현=4-5, 자기만의표현=6-7, 독창적=8-10
 
 목표분포: 평균72-78, 우수80-88, 탁월90+
 
@@ -1011,7 +1005,7 @@ ${ssakContext}
 
 AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
 
-JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"칭찬+한줄요약","strengths":["구체적잘한점1","2","3"],"improvements":["구체적개선제안1","2"],"overallFeedback":"성장중심 종합평가 3-4문장","writingTips":["실천가능한팁1","2"],"detailedFeedback":[{"type":"spelling/grammar/style","original":"원문","suggestion":"수정제안","reason":"이유"}],"growthNote":"이전대비 성장포인트","aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
+⚠️6개항목모두평가필수!JSON:{"score":6개합계,"contentScore":0-25,"topicRelevanceScore":0-10,"structureScore":0-20,"vocabularyScore":0-20,"grammarScore":0-15,"creativityScore":0-10,"feedback":"칭찬","strengths":["잘한점3개"],"improvements":["개선점2개"],"overallFeedback":"종합평가","writingTips":["팁2개"],"detailedFeedback":[{"type":"spelling/grammar/style","original":"현재글원문만","suggestion":"수정제안","reason":"이유"}],"growthNote":"성장포인트","aiCheck":{"probability":0-100,"verdict":"LOW/MEDIUM/HIGH","reason":"이유"}}`;
 
     // 🚀 안정성 강화: 최대 3회 재시도 + 지수 백오프
     let responseText = '';
@@ -1020,6 +1014,10 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
+        const apiKey = geminiApiKey.value();
+        if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
         const result = await model.generateContent(prompt);
         const response = await result.response;
         responseText = response.text();
@@ -1195,8 +1193,10 @@ JSON만:{"score":0-100,"contentScore":0-25,"topicRelevanceScore":0-10,"structure
     }
 
     // 🚀 총점 = 각 항목 점수의 합계로 강제 계산 (AI가 준 score 무시)
-    parsed.score = parsed.contentScore + parsed.topicRelevanceScore + parsed.structureScore + 
+    const calculatedScore = parsed.contentScore + parsed.topicRelevanceScore + parsed.structureScore +
                    parsed.vocabularyScore + parsed.grammarScore + parsed.creativityScore;
+    parsed.score = calculatedScore;
+    console.log(`[점수계산] 내용${parsed.contentScore}+주제${parsed.topicRelevanceScore}+구성${parsed.structureScore}+어휘${parsed.vocabularyScore}+문법${parsed.grammarScore}+창의성${parsed.creativityScore}=${calculatedScore}점`);
 
     // 🚀 주제 일치도 3점 이하 시 0점 처리 (주제와 관련 없는 글)
     if (parsed.topicRelevanceScore <= 3) {
@@ -1354,14 +1354,6 @@ exports.detectPlagiarism = onCall({secrets: [geminiApiKey]}, async (request) => 
   }
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     const previousTexts = previousSubmissions.map((s, i) => `[이전 글 ${i + 1}]\n${s.content}`).join('\n\n');
 
     const prompt = `다음 글이 이전에 제출된 글들과 얼마나 유사한지 분석해주세요.
@@ -1382,6 +1374,10 @@ ${previousTexts}
   "details": "분석 결과 설명"
 }`;
 
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1598,14 +1594,6 @@ exports.detectAIUsage = onCall({secrets: [geminiApiKey]}, async (request) => {
   console.log(`[AI감지 통계분석] 점수: ${statisticalAnalysis.totalScore}, 판정: ${statisticalAnalysis.verdict}`);
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     // 🔍 2단계: AI 기반 심층 분석 (통계 결과 포함)
     const prompt = `당신은 AI 생성 텍스트 감지 전문가입니다. GPTZero, Turnitin, Originality.ai의 기법을 참고하여 분석하세요.
 
@@ -1656,6 +1644,10 @@ JSON만 응답:
   }
 }`;
 
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1746,12 +1738,6 @@ exports.getWritingHelp = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) throw new Error('API 키 없음');
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     // 🚀 ProWritingAid/Hemingway/Grammarly 스타일 피드백 (200개+ 앱 교차검증)
     const prompts = {
       hint: `주제:"${topic}" 현재글:${text||'아직없음'}
@@ -1774,6 +1760,10 @@ JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"pa
     };
 
     const prompt = prompts[helpType] || prompts.default;
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) throw new Error('API 키 없음');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1811,12 +1801,6 @@ exports.getQuickAdvice = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) throw new Error('API 키 없음');
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     const grades = {'elementary_1_2':'초1-2','elementary_3_4':'초3-4','elementary_5_6':'초5-6','middle':'중등','high':'고등'};
     const grade = grades[gradeLevel] || gradeLevel;
     const mode = adviceType === 'encourage'
@@ -1827,6 +1811,10 @@ exports.getQuickAdvice = onCall({secrets: [geminiApiKey]}, async (request) => {
     const prompt = `${grade} "${topic}" 글:"""${text.slice(0, 300)}"""
 ${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언","emoji":"이모지1개","nextHint":"다음에쓸수있는내용힌트"}`;
 
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) throw new Error('API 키 없음');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1868,14 +1856,6 @@ exports.generateTopics = onCall({secrets: [geminiApiKey]}, async (request) => {
   }
 
   try {
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) {
-      throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
-
     const gradeLevelNames = {
       'elementary_1_2': '초등학교 1-2학년',
       'elementary_3_4': '초등학교 3-4학년',
@@ -1903,6 +1883,10 @@ ${categoryText}
   ]
 }`;
 
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
@@ -2864,7 +2848,7 @@ exports.migrateMinScoreTo70 = onCall(async (request) => {
 exports.autoAssignmentScheduler = onSchedule({
   schedule: '0 8 * * 1-5', // 월-금 매일 오전 8시 (KST)
   timeZone: 'Asia/Seoul',
-  secrets: [geminiApiKey]
+  secrets: [geminiApiKey],
 }, async (event) => {
   console.log('[자동 출제 스케줄러] 실행 시작:', new Date().toISOString());
 

@@ -2,8 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './config/firebase';
-import { getUserData } from './services/authService';
+import { getUserData, updateUserData } from './services/authService';
 import { ROLES, SUPER_ADMIN_UID } from './config/auth';
+import PrivacyConsent from './components/PrivacyConsent';
 
 // 🚀 Lazy Loading - 대시보드는 필요할 때만 로드 (초기 로딩 속도 향상)
 const Login = lazy(() => import('./pages/Login'));
@@ -30,6 +31,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showPrivacyConsent, setShowPrivacyConsent] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -44,12 +46,20 @@ function App() {
           }
 
           setUserData(data);
+
+          // 개인정보 동의 여부 확인 (학생/선생님 대상, 슈퍼관리자 제외)
+          if (data && !data.privacyAgreed && user.uid !== SUPER_ADMIN_UID) {
+            setShowPrivacyConsent(true);
+          } else {
+            setShowPrivacyConsent(false);
+          }
         } catch (error) {
           console.error('사용자 정보 로드 에러:', error);
         }
       } else {
         setCurrentUser(null);
         setUserData(null);
+        setShowPrivacyConsent(false);
       }
       setLoading(false);
     });
@@ -57,11 +67,42 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // 개인정보 동의 처리
+  const handlePrivacyConsent = async (consentData) => {
+    try {
+      await updateUserData(currentUser.uid, {
+        privacyAgreed: consentData.privacyAgreed,
+        aiProcessingAgreed: consentData.aiProcessingAgreed,
+        marketingAgreed: consentData.marketingAgreed || false,
+        privacyConsentAt: consentData.agreedAt
+      });
+      setUserData(prev => ({
+        ...prev,
+        privacyAgreed: true,
+        aiProcessingAgreed: true,
+        privacyConsentAt: consentData.agreedAt
+      }));
+      setShowPrivacyConsent(false);
+    } catch (error) {
+      console.error('동의 저장 에러:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-xl font-semibold text-gray-700">로딩 중...</div>
       </div>
+    );
+  }
+
+  // 로그인된 상태에서 동의가 필요하면 동의 팝업 표시
+  if (showPrivacyConsent && currentUser) {
+    return (
+      <PrivacyConsent
+        onConsent={handlePrivacyConsent}
+        userName={userData?.name || userData?.nickname || ''}
+      />
     );
   }
 

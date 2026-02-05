@@ -2137,28 +2137,37 @@ export default function StudentDashboard({ user, userData }) {
                             {(() => {
                               // 원본 내용 사용 (rewriteMode.originalContent)
                               let highlightedContent = rewriteMode.originalContent || currentWriting.content;
+                              // 🚀 수정 필요 문장 필터링: 현재 글에 실제로 존재하는 것만 강조
+                              const validFeedback = rewriteMode.detailedFeedback.filter(item =>
+                                item.original && highlightedContent.includes(item.original)
+                              );
                               // 수정이 필요한 문장들을 빨간색으로 강조
-                              rewriteMode.detailedFeedback.forEach(item => {
-                                if (item.original && highlightedContent.includes(item.original)) {
-                                  highlightedContent = highlightedContent.replace(
-                                    item.original,
-                                    `<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">${item.original}</mark>`
-                                  );
-                                }
+                              validFeedback.forEach(item => {
+                                highlightedContent = highlightedContent.replace(
+                                  item.original,
+                                  `<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">${item.original}</mark>`
+                                );
                               });
                               return <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />;
                             })()}
                           </div>
                         </div>
 
-                        {/* AI 수정 제안 목록 */}
+                        {/* AI 수정 제안 목록 - 현재 글에 존재하는 항목만 표시 */}
+                        {(() => {
+                          const originalContent = rewriteMode.originalContent || currentWriting.content;
+                          const validFeedback = rewriteMode.detailedFeedback.filter(item =>
+                            item.original && originalContent.includes(item.original)
+                          );
+                          if (validFeedback.length === 0) return null;
+                          return (
                         <div>
                           <div className="flex items-center gap-2 mb-3">
                             <span className="w-6 h-6 bg-orange-200 rounded-full flex items-center justify-center text-sm">📝</span>
                             <span className="font-bold text-orange-800">AI가 제안하는 수정 사항</span>
                           </div>
                           <div className="space-y-3">
-                            {rewriteMode.detailedFeedback.map((item, idx) => (
+                            {validFeedback.map((item, idx) => (
                               <div key={idx} className="bg-white rounded-lg p-3 border border-orange-200 shadow-sm">
                                 <div className="flex items-start gap-2">
                                   <span className="flex-shrink-0 w-5 h-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
@@ -2197,6 +2206,8 @@ export default function StudentDashboard({ user, userData }) {
                             ))}
                           </div>
                         </div>
+                          );
+                        })()}
 
                         {/* 개선사항 목록 */}
                         {rewriteMode.improvements && rewriteMode.improvements.length > 0 && (
@@ -2841,6 +2852,26 @@ export default function StudentDashboard({ user, userData }) {
                       ))}
                     </div>
 
+                    {/* 글자 수 감점 안내 */}
+                    {feedback.wordCountPenalty > 0 && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl">📏</span>
+                          <div className="flex-1">
+                            <p className="font-semibold text-orange-800">글자 수 부족으로 감점되었어요</p>
+                            <p className="text-sm text-orange-600 mt-1">
+                              항목 합계 <span className="font-bold">{(feedback.contentScore || 0) + (feedback.topicRelevanceScore || 0) + (feedback.structureScore || 0) + (feedback.vocabularyScore || 0) + (feedback.grammarScore || 0) + (feedback.creativityScore || 0)}점</span>
+                              {' - '}글자 수 감점 <span className="font-bold text-red-600">-{feedback.wordCountPenalty}점</span>
+                              {' = '}최종 <span className="font-bold">{feedback.score}점</span>
+                            </p>
+                            <p className="text-xs text-orange-500 mt-1">
+                              글을 더 길게 쓰면 감점이 줄어들어요!
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* AI 활용 분석 */}
                     {feedback.aiUsageCheck && (
                       <div className={`rounded-xl border-2 p-5 ${
@@ -3314,6 +3345,11 @@ export default function StudentDashboard({ user, userData }) {
                                 </div>
                               ))}
                             </div>
+                            {detail.analysis.wordCountPenalty > 0 && (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-xs text-orange-700">
+                                <span>📏 글자 수 감점: 항목합계 {(detail.analysis.contentScore || 0) + (detail.analysis.topicRelevanceScore || 0) + (detail.analysis.structureScore || 0) + (detail.analysis.vocabularyScore || 0) + (detail.analysis.grammarScore || 0) + (detail.analysis.creativityScore || 0)}점 - <span className="font-bold text-red-600">{detail.analysis.wordCountPenalty}점</span> = {writing.score}점</span>
+                              </div>
+                            )}
                             {detail.aiUsageCheck && (
                               <div className={`p-3 rounded-xl text-sm ${
                                 detail.aiUsageCheck.verdict === 'HIGH' ? 'bg-red-50 border border-red-200' :
