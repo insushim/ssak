@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 // 🚀 경량 차트 사용 (recharts 524KB → 5KB)
 import { SimpleLineChart, SimpleBarChart } from "../components/LightweightCharts";
 import { signOut } from "../services/authService";
@@ -18,6 +18,8 @@ import { GRADE_LEVELS, MAX_STUDENTS_PER_CLASS } from "../config/auth";
 import { batchCreateStudents, deleteClassWithStudents } from "../services/batchService";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
+
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
 
 // 가정통신문 동의서 다운로드 (HTML → 인쇄용)
 function downloadConsentForm(teacherName, schoolName, className) {
@@ -291,6 +293,36 @@ export default function TeacherDashboard({ user, userData }) {
     { value: "토론/논쟁", label: "토론/논쟁", icon: "🗣️", desc: "찬반 의견 논쟁" },
   ];
 
+  // 🚀 Memoized computed values - 렌더링마다 재계산 방지
+  const activeAssignments = useMemo(() => {
+    return assignments.filter(assignment => {
+      const createdAt = new Date(assignment.createdAt).getTime();
+      const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
+      return Date.now() < expiresAt;
+    });
+  }, [assignments]);
+
+  const pendingAssignmentsCount = useMemo(() => {
+    return assignments.filter(a => !completedTopics.includes(a.title)).length;
+  }, [assignments, completedTopics]);
+
+  const completedAssignmentsCount = useMemo(() => {
+    return assignments.filter(a => completedTopics.includes(a.title)).length;
+  }, [assignments, completedTopics]);
+
+  const filteredAssignments = useMemo(() => {
+    const isCompletedTab = writingsSubTab === "completed";
+    return assignments.filter(a =>
+      isCompletedTab ? completedTopics.includes(a.title) : !completedTopics.includes(a.title)
+    );
+  }, [assignments, completedTopics, writingsSubTab]);
+
+  const sortedFilteredAssignments = useMemo(() => {
+    return [...filteredAssignments].sort((a, b) =>
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+  }, [filteredAssignments]);
+
   // 🚀 Ref to track previous classCode to prevent unnecessary re-renders
   const prevClassCodeRef = useRef(null);
 
@@ -382,31 +414,31 @@ export default function TeacherDashboard({ user, userData }) {
     // 🚀 Check if classCode actually changed to prevent duplicate calls
     if (currentClassCode && currentClassCode !== prevClassCodeRef.current) {
       prevClassCodeRef.current = currentClassCode;
-      console.log(`[📊 TeacherDashboard] 클래스 선택됨: ${currentClassCode}`);
+      devLog(`[📊 TeacherDashboard] 클래스 선택됨: ${currentClassCode}`);
 
       // 🚀 제출글은 DB 읽기 0회! (assignments에서 주제 목록 사용, 완료 목록은 로컬스토리지)
       loadCompletedTopics(currentClassCode);
-      console.log(`[📊 TeacherDashboard] loadAssignments 호출`);
+      devLog(`[📊 TeacherDashboard] loadAssignments 호출`);
       loadAssignments(currentClassCode);
       // 🚀 스케줄러 설정 로드 후 체크 (순차 실행으로 캐시 활용)
-      console.log(`[📊 TeacherDashboard] loadSchedulerSettings 호출`);
+      devLog(`[📊 TeacherDashboard] loadSchedulerSettings 호출`);
       loadSchedulerSettings(currentClassCode).then((loadedSettings) => {
         // 자동 출제 스케줄러 체크 (설정 로드 후 - 캐시된 설정 전달로 DB 재조회 방지)
-        console.log(`[📊 TeacherDashboard] runSchedulerCheck 호출 (설정 전달 - DB 읽기 0회)`);
+        devLog(`[📊 TeacherDashboard] runSchedulerCheck 호출 (설정 전달 - DB 읽기 0회)`);
         runSchedulerCheck(currentClassCode, selectedClass.gradeLevel, loadedSettings);
 
         // 🚀 로그인 완료 요약
         const hasClassCache = userData.teacherClasses && userData.teacherClasses.length > 0;
         const hasSchedulerCache = localStorage.getItem(`scheduler_${currentClassCode}`);
         const dbReads = 1 + (hasClassCache ? 0 : 1) + (hasSchedulerCache ? 0 : 1);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log(`[📊 교사 로그인 완료] 총 DB 읽기: ${dbReads}회`);
-        console.log('  - users 문서: 1회 (App.jsx에서 로드)');
-        console.log(`  - classes 컬렉션: ${hasClassCache ? '0회 (userData.teacherClasses 캐시)' : '1회'}`);
-        console.log('  - assignments: 0회 (assignmentSummary 캐시)');
-        console.log(`  - schedulers: ${hasSchedulerCache ? '0회 (LocalStorage 캐시)' : '1회'}`);
-        console.log('  - writings 컬렉션: 0회 (주제 클릭 시에만 로드)');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        devLog(`[📊 교사 로그인 완료] 총 DB 읽기: ${dbReads}회`);
+        devLog('  - users 문서: 1회 (App.jsx에서 로드)');
+        devLog(`  - classes 컬렉션: ${hasClassCache ? '0회 (userData.teacherClasses 캐시)' : '1회'}`);
+        devLog('  - assignments: 0회 (assignmentSummary 캐시)');
+        devLog(`  - schedulers: ${hasSchedulerCache ? '0회 (LocalStorage 캐시)' : '1회'}`);
+        devLog('  - writings 컬렉션: 0회 (주제 클릭 시에만 로드)');
+        devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       });
       // 🚀 클래스 변경 시 랭킹 캐시 무효화
       setRankingLastLoaded(null);
@@ -420,10 +452,10 @@ export default function TeacherDashboard({ user, userData }) {
   // 자동 출제 스케줄러 실행
   // 🚀 최적화: cachedSettings 파라미터 추가 - DB 재조회 방지
   const runSchedulerCheck = async (classCode, gradeLevel, cachedSettings = null) => {
-    console.log(`[스케줄러] runSchedulerCheck 호출됨 - classCode: ${classCode}, gradeLevel: ${gradeLevel}`);
+    devLog(`[스케줄러] runSchedulerCheck 호출됨 - classCode: ${classCode}, gradeLevel: ${gradeLevel}`);
     try {
       const result = await checkAndRunScheduler(classCode, gradeLevel, user.uid, cachedSettings);
-      console.log(`[스케줄러] 결과:`, result);
+      devLog(`[스케줄러] 결과:`, result);
       if (result.executed) {
         alert(result.message);
         // 🚀 최적화: 새 과제를 직접 추가 (DB 재조회 없이)
@@ -444,10 +476,10 @@ export default function TeacherDashboard({ user, userData }) {
       // 60초 이내에 로드했으면 재로드하지 않음
       const now = Date.now();
       if (rankingLastLoaded && (now - rankingLastLoaded) < 60000 && rankingData.length > 0) {
-        console.log(`[📊 TeacherDashboard] 랭킹 캐시 사용 (60초 이내)`);
+        devLog(`[📊 TeacherDashboard] 랭킹 캐시 사용 (60초 이내)`);
         return;
       }
-      console.log(`[📊 TeacherDashboard] loadRankingData 호출 - activeTab: ${activeTab}`);
+      devLog(`[📊 TeacherDashboard] loadRankingData 호출 - activeTab: ${activeTab}`);
       loadRankingData(currentClassCode, rankingPeriod);
     }
   }, [activeTab, selectedClass?.classCode, rankingPeriod]);
@@ -496,13 +528,13 @@ export default function TeacherDashboard({ user, userData }) {
         try {
           const cachedSettings = JSON.parse(cached);
           setSchedulerSettings(cachedSettings);
-          console.log(`[📊 캐시] 스케줄러 설정 - LocalStorage에서 로드 (DB 읽기 0회)`);
+          devLog(`[📊 캐시] 스케줄러 설정 - LocalStorage에서 로드 (DB 읽기 0회)`);
           return cachedSettings; // 🚀 설정 반환
         } catch (e) {}
       }
 
       // 캐시가 없으면 DB에서 로드
-      console.log(`[📊 DB읽기] 스케줄러 설정 조회 - classCode: ${classCode}`);
+      devLog(`[📊 DB읽기] 스케줄러 설정 조회 - classCode: ${classCode}`);
       const settings = await getSchedulerSettings(classCode);
       if (settings) {
         setSchedulerSettings(settings);
@@ -578,7 +610,7 @@ export default function TeacherDashboard({ user, userData }) {
   const loadAssignments = async (classCode) => {
     try {
       // 🚀 선생님은 submissions 정보가 필요하므로 DB에서 로드 (assignmentSummary 캐시에는 submissions 없음)
-      console.log(`[📊 DB읽기] 과제 조회 - classCode: ${classCode}`);
+      devLog(`[📊 DB읽기] 과제 조회 - classCode: ${classCode}`);
       const classAssignments = await getAssignmentsByClass(classCode);
       setAssignments(classAssignments);
     } catch (error) {
@@ -694,7 +726,7 @@ export default function TeacherDashboard({ user, userData }) {
     try {
       // 🚀 항상 DB에서 최신 데이터 로드 (students 배열 포함)
       // 캐시는 요약 정보만 저장하므로 학생 목록은 항상 DB에서 가져옴
-      console.log(`[📊 DB읽기] 학급 조회 - teacherId: ${user.uid}`);
+      devLog(`[📊 DB읽기] 학급 조회 - teacherId: ${user.uid}`);
       const teacherClasses = await getTeacherClasses(user.uid);
 
       // 🚀 캐시 업데이트 (요약 정보만 - 다음 로그인 시 빠른 표시용)
@@ -710,7 +742,7 @@ export default function TeacherDashboard({ user, userData }) {
               schedulerEnabled: c.schedulerEnabled || false
             }))
           });
-          console.log(`[📊 캐시] teacherClasses 요약 저장 완료`);
+          devLog(`[📊 캐시] teacherClasses 요약 저장 완료`);
         } catch (e) {
           console.warn('teacherClasses 캐시 저장 실패:', e);
         }
@@ -1653,67 +1685,54 @@ export default function TeacherDashboard({ user, userData }) {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 현재 출제된 과제 */}
                 <div className="bg-white shadow rounded-lg p-6">
-                  {(() => {
-                    // 만료되지 않은 과제만 필터링
-                    const activeAssignments = assignments.filter(assignment => {
-                      const createdAt = new Date(assignment.createdAt).getTime();
-                      const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
-                      return Date.now() < expiresAt;
-                    });
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">출제된 과제 ({activeAssignments.length})</h3>
+                    <span className="text-xs text-gray-400">※ 1주일 지난 과제는 자동 숨김</span>
+                  </div>
+                  {activeAssignments.length === 0 ? (
+                    <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {[...activeAssignments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((assignment) => {
+                        // 남은 일수 계산
+                        const createdAt = new Date(assignment.createdAt).getTime();
+                        const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
+                        const daysLeft = Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
 
-                    return (
-                      <>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold">출제된 과제 ({activeAssignments.length})</h3>
-                          <span className="text-xs text-gray-400">※ 1주일 지난 과제는 자동 숨김</span>
-                        </div>
-                        {activeAssignments.length === 0 ? (
-                          <p className="text-gray-500 text-sm">아직 출제된 과제가 없습니다.</p>
-                        ) : (
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {[...activeAssignments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((assignment) => {
-                              // 남은 일수 계산
-                              const createdAt = new Date(assignment.createdAt).getTime();
-                              const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
-                              const daysLeft = Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
-
-                              return (
-                                <div key={assignment.id} className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
-                                  <div className="flex justify-between items-start gap-3">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                          daysLeft <= 2 ? 'bg-red-100 text-red-600' :
-                                          daysLeft <= 4 ? 'bg-yellow-100 text-yellow-600' :
-                                          'bg-green-100 text-green-600'
-                                        }`}>
-                                          {daysLeft}일 남음
-                                        </span>
-                                      </div>
-                                      <p className="text-sm text-gray-600">{assignment.description}</p>
-                                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                                        <span>📅 {new Date(assignment.createdAt).toLocaleDateString()}</span>
-                                        {assignment.dueDate && (
-                                          <span className="text-orange-500">⏰ 마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => handleDeleteAssignment(assignment.id, assignment.title)}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                                    >
-                                      🗑️ 삭제
-                                    </button>
-                                  </div>
+                        return (
+                          <div key={assignment.id} className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    daysLeft <= 2 ? 'bg-red-100 text-red-600' :
+                                    daysLeft <= 4 ? 'bg-yellow-100 text-yellow-600' :
+                                    'bg-green-100 text-green-600'
+                                  }`}>
+                                    {daysLeft}일 남음
+                                  </span>
                                 </div>
-                              );
-                            })}
+                                <p className="text-sm text-gray-600">{assignment.description}</p>
+                                <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                                  <span>📅 {new Date(assignment.createdAt).toLocaleDateString()}</span>
+                                  {assignment.dueDate && (
+                                    <span className="text-orange-500">⏰ 마감: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteAssignment(assignment.id, assignment.title)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                              >
+                                🗑️ 삭제
+                              </button>
+                            </div>
                           </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* AI 주제 자동 생성 */}
@@ -1890,7 +1909,7 @@ export default function TeacherDashboard({ user, userData }) {
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
-                    📋 미확인 ({assignments.filter(a => !completedTopics.includes(a.title)).length}개 주제)
+                    📋 미확인 ({pendingAssignmentsCount}개 주제)
                   </button>
                   <button
                     onClick={() => { setWritingsSubTab("completed"); setExpandedTopic(null); setSelectedWriting(null); }}

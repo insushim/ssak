@@ -1,6 +1,8 @@
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 // ============================================
 // 🚀 캐싱 시스템 - Firestore 읽기 최적화
 // ============================================
@@ -8,6 +10,22 @@ const assignmentsCache = new Map(); // classCode -> { data, timestamp }
 const studentAssignmentsCache = new Map(); // classCode -> { data, timestamp } (submissions 제외)
 const submissionsCache = new Map(); // key -> { data, timestamp }
 const pendingRequests = new Map(); // 🚀 진행 중인 요청 추적 (중복 호출 방지)
+
+const MAX_CACHE_SIZE = 100;
+
+function evictIfNeeded(map, maxSize = MAX_CACHE_SIZE) {
+  if (map.size <= maxSize) return;
+  const entries = [...map.entries()];
+  entries.sort((a, b) => {
+    const tsA = a[1]?.timestamp || a[1]?.data?.timestamp || 0;
+    const tsB = b[1]?.timestamp || b[1]?.data?.timestamp || 0;
+    return tsA - tsB;
+  });
+  const toDelete = entries.slice(0, map.size - maxSize);
+  for (const [key] of toDelete) {
+    map.delete(key);
+  }
+}
 
 // 🚀 캐시 TTL 극대화 (100,000명 대응) - 비용 최적화
 const CACHE_TTL = {
@@ -129,7 +147,7 @@ export async function createAssignment(teacherId, classCode, title, description,
             });
             await batch.commit();
           }
-          console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+          devLog(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
         } catch (syncError) {
           console.warn('학생 classInfo 동기화 실패:', syncError);
         }
@@ -161,15 +179,16 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = assignmentsCache.get(classCode);
       if (cached && isCacheValid(cached.timestamp, CACHE_TTL.assignments)) {
-        console.log(`[📊 DB읽기] getAssignmentsByClass 메모리 캐시 히트 - ${cached.data.length}개 과제`);
+        devLog(`[📊 DB읽기] getAssignmentsByClass 메모리 캐시 히트 - ${cached.data.length}개 과제`);
         return cached.data;
       }
 
       // 🔥 2. LocalStorage 캐시 확인
       const lsData = loadFromLocalStorage(classCode, CACHE_TTL.assignments);
       if (lsData) {
-        console.log(`[📊 DB읽기] getAssignmentsByClass LocalStorage 캐시 히트 - ${lsData.length}개 과제`);
+        devLog(`[📊 DB읽기] getAssignmentsByClass LocalStorage 캐시 히트 - ${lsData.length}개 과제`);
         assignmentsCache.set(classCode, { data: lsData, timestamp: Date.now() });
+        evictIfNeeded(assignmentsCache);
         return lsData;
       }
     }
@@ -177,13 +196,13 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
     // 🚀 진행 중인 요청이 있으면 그 결과를 기다림 (중복 호출 방지)
     const pendingKey = `assignments_${classCode}`;
     if (pendingRequests.has(pendingKey)) {
-      console.log(`[📊 DB읽기] getAssignmentsByClass 진행 중인 요청 대기 - classCode: ${classCode}`);
+      devLog(`[📊 DB읽기] getAssignmentsByClass 진행 중인 요청 대기 - classCode: ${classCode}`);
       return pendingRequests.get(pendingKey);
     }
 
     // 🔥 3. DB에서 조회 (캐시 미스 시에만)
     const requestPromise = (async () => {
-      console.log(`[📊 DB읽기] getAssignmentsByClass DB 조회 - classCode: ${classCode}`);
+      devLog(`[📊 DB읽기] getAssignmentsByClass DB 조회 - classCode: ${classCode}`);
       const q = query(
         collection(db, 'assignments'),
         where('classCode', '==', classCode),
@@ -196,13 +215,14 @@ export async function getAssignmentsByClass(classCode, forceRefresh = false) {
         const data = docSnap.data();
         assignments.push({ id: docSnap.id, ...data });
       });
-      console.log(`[📊 DB읽기] getAssignmentsByClass - ${assignments.length}개 과제 로드`);
+      devLog(`[📊 DB읽기] getAssignmentsByClass - ${assignments.length}개 과제 로드`);
 
       // 메모리 + LocalStorage 이중 캐시 저장
       assignmentsCache.set(classCode, {
         data: assignments,
         timestamp: Date.now()
       });
+      evictIfNeeded(assignmentsCache);
       saveToLocalStorage(classCode, assignments);
 
       return assignments;
@@ -253,7 +273,7 @@ export async function migrateAssignmentSummary(classCode) {
       classData.assignmentSummary[0].minScore !== undefined;
 
     if (hasAllFields) {
-      console.log(`[마이그레이션] assignmentSummary 최신 버전 - ${classData.assignmentSummary.length}개`);
+      devLog(`[마이그레이션] assignmentSummary 최신 버전 - ${classData.assignmentSummary.length}개`);
       return { success: true, migrated: false };
     }
 
@@ -265,7 +285,7 @@ export async function migrateAssignmentSummary(classCode) {
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      console.log('[마이그레이션] 과제 없음');
+      devLog('[마이그레이션] 과제 없음');
       return { success: true, migrated: false };
     }
 
@@ -286,7 +306,7 @@ export async function migrateAssignmentSummary(classCode) {
       assignmentSummary: summary
     });
 
-    console.log(`[마이그레이션] assignmentSummary 생성 완료 - ${summary.length}개 과제`);
+    devLog(`[마이그레이션] assignmentSummary 생성 완료 - ${summary.length}개 과제`);
     return { success: true, migrated: true, count: summary.length };
   } catch (error) {
     console.error('[마이그레이션] assignmentSummary 에러:', error);
@@ -341,7 +361,7 @@ export async function deleteAssignment(assignmentId, classCode = null, assignmen
                   });
                   await batch.commit();
                 }
-                console.log(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
+                devLog(`[📊 동기화] 학생 ${studentsSnapshot.size}명의 classInfo.assignmentSummary 업데이트`);
               } catch (syncError) {
                 console.warn('학생 classInfo 동기화 실패:', syncError);
               }
@@ -407,6 +427,7 @@ export async function getSubmissionsByAssignment(assignmentId, forceRefresh = fa
       data: submissions,
       timestamp: Date.now()
     });
+    evictIfNeeded(submissionsCache);
 
     return submissions;
   } catch (error) {
@@ -440,6 +461,7 @@ export async function getSubmissionsByStudent(studentId, forceRefresh = false) {
       data: submissions,
       timestamp: Date.now()
     });
+    evictIfNeeded(submissionsCache);
 
     return submissions;
   } catch (error) {
@@ -457,8 +479,8 @@ export async function getSubmissionsByStudent(studentId, forceRefresh = false) {
 // 🚀 글 제출 시 assignment에 제출자 정보 추가/업데이트
 // 목표점수 이상인 글만 추가됨
 export async function updateAssignmentSubmission(classCode, topic, submissionInfo) {
-  console.log(`[submissions] updateAssignmentSubmission 호출 - classCode: ${classCode}, topic: "${topic}"`);
-  console.log(`[submissions] submissionInfo:`, submissionInfo);
+  devLog(`[submissions] updateAssignmentSubmission 호출 - classCode: ${classCode}, topic: "${topic}"`);
+  devLog(`[submissions] submissionInfo:`, submissionInfo);
   try {
     // topic(제목)으로 assignment 찾기
     const q = query(
@@ -468,10 +490,10 @@ export async function updateAssignmentSubmission(classCode, topic, submissionInf
       limit(1)
     );
     const snapshot = await getDocs(q);
-    console.log(`[submissions] 과제 검색 결과: ${snapshot.size}개`);
+    devLog(`[submissions] 과제 검색 결과: ${snapshot.size}개`);
 
     if (snapshot.empty) {
-      console.log(`[submissions] "${topic}" 과제를 찾을 수 없음 (자유 주제일 수 있음)`);
+      devLog(`[submissions] "${topic}" 과제를 찾을 수 없음 (자유 주제일 수 있음)`);
       return false;
     }
 
@@ -495,9 +517,9 @@ export async function updateAssignmentSubmission(classCode, topic, submissionInf
         submittedAt: submissionInfo.submittedAt,
         reviewed: false
       });
-      console.log(`[submissions] "${topic}" 과제에 ${submissionInfo.nickname} 제출 정보 추가됨 (${submissionInfo.score}점 >= ${minScore}점)`);
+      devLog(`[submissions] "${topic}" 과제에 ${submissionInfo.nickname} 제출 정보 추가됨 (${submissionInfo.score}점 >= ${minScore}점)`);
     } else {
-      console.log(`[submissions] "${topic}" 과제 - ${submissionInfo.nickname} 목표점수 미달 (${submissionInfo.score}점 < ${minScore}점), 선생님에게 표시 안됨`);
+      devLog(`[submissions] "${topic}" 과제 - ${submissionInfo.nickname} 목표점수 미달 (${submissionInfo.score}점 < ${minScore}점), 선생님에게 표시 안됨`);
     }
 
     // assignment 문서 업데이트
@@ -587,7 +609,7 @@ export async function clearAssignmentSubmissions(classCode, topic) {
 // ============================================
 export async function migrateAssignmentSubmissions(classCode) {
   try {
-    console.log(`[마이그레이션] 시작 - classCode: ${classCode}`);
+    devLog(`[마이그레이션] 시작 - classCode: ${classCode}`);
 
     // 1. 해당 클래스의 모든 과제 가져오기 (minScore 정보 포함)
     const assignmentsQuery = query(
@@ -597,7 +619,7 @@ export async function migrateAssignmentSubmissions(classCode) {
     const assignmentsSnapshot = await getDocs(assignmentsQuery);
 
     if (assignmentsSnapshot.empty) {
-      console.log('[마이그레이션] 과제가 없습니다.');
+      devLog('[마이그레이션] 과제가 없습니다.');
       return { success: true, migratedCount: 0 };
     }
 
@@ -646,7 +668,7 @@ export async function migrateAssignmentSubmissions(classCode) {
       });
       await Promise.all(userPromises);
     }
-    console.log(`[마이그레이션] ${nicknameMap.size}명의 학생 닉네임 조회 완료`);
+    devLog(`[마이그레이션] ${nicknameMap.size}명의 학생 닉네임 조회 완료`);
 
     // 주제별로 글 그룹화 (목표점수 이상인 글만!)
     const writingsByTopic = new Map();
@@ -678,7 +700,7 @@ export async function migrateAssignmentSubmissions(classCode) {
       });
     });
 
-    console.log(`[마이그레이션] ${writingsByTopic.size}개 주제에서 목표점수 이상 글 발견`);
+    devLog(`[마이그레이션] ${writingsByTopic.size}개 주제에서 목표점수 이상 글 발견`);
 
     // 4. 각 과제의 submissions 업데이트 (submissions가 없거나 비어있는 경우에만!)
     let migratedCount = 0;
@@ -690,7 +712,7 @@ export async function migrateAssignmentSubmissions(classCode) {
 
       // 🚀 이미 submissions가 있으면 스킵 (정상 동작 중이므로 건드리지 않음)
       if (existingSubmissions.length > 0) {
-        console.log(`[마이그레이션] "${topic}" - 이미 ${existingSubmissions.length}명 submissions 있음 (스킵)`);
+        devLog(`[마이그레이션] "${topic}" - 이미 ${existingSubmissions.length}명 submissions 있음 (스킵)`);
         skippedCount++;
         continue;
       }
@@ -709,7 +731,7 @@ export async function migrateAssignmentSubmissions(classCode) {
       const submissions = Array.from(studentMap.values());
 
       if (submissions.length === 0) {
-        console.log(`[마이그레이션] "${topic}" - 제출글 없음 (스킵)`);
+        devLog(`[마이그레이션] "${topic}" - 제출글 없음 (스킵)`);
         skippedCount++;
         continue;
       }
@@ -718,7 +740,7 @@ export async function migrateAssignmentSubmissions(classCode) {
         submissions: submissions
       });
 
-      console.log(`[마이그레이션] "${topic}" - ${submissions.length}명 submissions 복구됨`);
+      devLog(`[마이그레이션] "${topic}" - ${submissions.length}명 submissions 복구됨`);
       migratedCount++;
     }
 
@@ -727,7 +749,7 @@ export async function migrateAssignmentSubmissions(classCode) {
       invalidateAssignmentsCache(classCode);
     }
 
-    console.log(`[마이그레이션] 완료 - ${migratedCount}개 복구, ${skippedCount}개 스킵 (이미 존재)`);
+    devLog(`[마이그레이션] 완료 - ${migratedCount}개 복구, ${skippedCount}개 스킵 (이미 존재)`);
     return { success: true, migratedCount, skippedCount };
   } catch (error) {
     console.error('[마이그레이션] 에러:', error);

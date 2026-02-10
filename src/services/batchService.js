@@ -1,6 +1,8 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions, auth } from '../config/firebase';
 
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 /**
  * Delete class with all students using Cloud Function
  *
@@ -42,12 +44,12 @@ export async function batchCreateStudents({ classCode, count, prefix, gradeLevel
       throw new Error('로그인이 필요합니다. 다시 로그인해주세요.');
     }
 
-    console.log('Current user:', currentUser.uid, currentUser.email);
+    devLog('Current user:', currentUser.uid, currentUser.email);
 
     // Get ID token to verify authentication
     try {
       const token = await currentUser.getIdToken();
-      console.log('ID Token exists:', !!token);
+      devLog('ID Token exists:', !!token);
     } catch (tokenError) {
       console.error('Token error:', tokenError);
       throw new Error('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');

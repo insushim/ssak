@@ -5,6 +5,8 @@ import { signOut, ensureSuperAdminAccess } from "../services/authService";
 import { ROLES, GRADE_LEVELS } from "../config/auth";
 import { httpsCallable } from "firebase/functions";
 
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 // 🚀 페이지네이션 설정 (10,000명 대응)
 const PAGE_SIZE = 50;
 
@@ -40,11 +42,11 @@ export default function SuperAdminDashboard({ user, userData }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      console.log('[📊 SuperAdmin] 데이터 로드 시작');
+      devLog('[📊 SuperAdmin] 데이터 로드 시작');
 
       // 1. 🚀 학급 요약은 userData에서 가져옴 (DB 읽기 0회!)
       if (userData.classesSummary && userData.classesSummary.length > 0) {
-        console.log('[📊 캐시] userData.classesSummary 사용 (DB 읽기 0회!)');
+        devLog('[📊 캐시] userData.classesSummary 사용 (DB 읽기 0회!)');
         const classes = userData.classesSummary;
         setClassSummaries(classes);
 
@@ -56,14 +58,14 @@ export default function SuperAdminDashboard({ user, userData }) {
           }
         });
         setTeacherCount(uniqueTeacherIds.size);
-        console.log(`[📊 캐시] 학급 ${classes.length}개, 선생님 ${uniqueTeacherIds.size}명 (캐시에서 로드)`);
+        devLog(`[📊 캐시] 학급 ${classes.length}개, 선생님 ${uniqueTeacherIds.size}명 (캐시에서 로드)`);
       } else {
         // classesSummary가 없는 경우 (최초 1회만) - DB에서 로드 후 동기화 트리거
-        console.log('[📊 DB읽기] classesSummary 없음 - 동기화 실행');
+        devLog('[📊 DB읽기] classesSummary 없음 - 동기화 실행');
         try {
           const syncFn = httpsCallable(functions, 'syncClassesSummary');
           await syncFn();
-          console.log('[📊 동기화] classesSummary 동기화 완료 - 새로고침 필요');
+          devLog('[📊 동기화] classesSummary 동기화 완료 - 새로고침 필요');
 
           // 동기화 후 classes에서 직접 로드 (1회성)
           const classesQuery = query(collection(db, "classes"));
@@ -98,7 +100,7 @@ export default function SuperAdminDashboard({ user, userData }) {
 
       // 2. 승인 대기 선생님 (보통 적음 - 1회 쿼리)
       // 🔧 수정: rejected가 true인 선생님은 제외
-      console.log('[📊 DB읽기] 승인 대기 선생님 조회');
+      devLog('[📊 DB읽기] 승인 대기 선생님 조회');
       const pendingQuery = query(
         collection(db, "users"),
         where("role", "==", ROLES.TEACHER),
@@ -114,15 +116,15 @@ export default function SuperAdminDashboard({ user, userData }) {
         }
       });
       setPendingTeachers(pending);
-      console.log(`[📊 DB읽기] 승인 대기 선생님 ${pending.length}명 로드`);
+      devLog(`[📊 DB읽기] 승인 대기 선생님 ${pending.length}명 로드`);
 
       // 🚀 로그인 완료 요약
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 1회');
-      console.log('  - users (승인대기): 1회 쿼리');
-      console.log('  - classes: 0회 (userData.classesSummary 캐시 사용)');
-      console.log('  - 학생 상세: 0회 (학급 클릭 시 로드)');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      devLog('[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 1회');
+      devLog('  - users (승인대기): 1회 쿼리');
+      devLog('  - classes: 0회 (userData.classesSummary 캐시 사용)');
+      devLog('  - 학생 상세: 0회 (학급 클릭 시 로드)');
+      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     } catch (error) {
       console.error("데이터 로드 에러:", error);
@@ -142,7 +144,7 @@ export default function SuperAdminDashboard({ user, userData }) {
     setLoadingStudents(true);
     setSelectedClass(classCode);
     try {
-      console.log(`[📊 DB읽기] 학급 ${classCode} 학생 조회`);
+      devLog(`[📊 DB읽기] 학급 ${classCode} 학생 조회`);
       const studentsQuery = query(
         collection(db, "users"),
         where("classCode", "==", classCode),
@@ -154,7 +156,7 @@ export default function SuperAdminDashboard({ user, userData }) {
         students.push({ ...docSnap.data(), id: docSnap.id });
       });
       setClassStudents(students);
-      console.log(`[📊 DB읽기] 학생 ${students.length}명 로드 (학급: ${classCode})`);
+      devLog(`[📊 DB읽기] 학생 ${students.length}명 로드 (학급: ${classCode})`);
     } catch (error) {
       console.error("학생 로드 에러:", error);
       setClassStudents([]);
@@ -188,7 +190,7 @@ export default function SuperAdminDashboard({ user, userData }) {
 
     setLoadingUserDetail(true);
     try {
-      console.log(`[📊 DB읽기] 사용자 상세 조회 - ${userId}`);
+      devLog(`[📊 DB읽기] 사용자 상세 조회 - ${userId}`);
       const userDoc = await getDoc(doc(db, "users", userId));
       if (userDoc.exists()) {
         setSelectedUserDetail({ ...userDoc.data(), id: userDoc.id });
@@ -240,7 +242,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   const loadRejectedUsers = async () => {
     setLoadingRejected(true);
     try {
-      console.log('[📊 DB읽기] 거절된 사용자 조회');
+      devLog('[📊 DB읽기] 거절된 사용자 조회');
       // 🔧 인덱스 없이도 동작하도록 approved=false인 사용자를 가져와서 rejected 필터링
       const pendingQuery = query(
         collection(db, "users"),
@@ -256,7 +258,7 @@ export default function SuperAdminDashboard({ user, userData }) {
         }
       });
       setRejectedUsers(users);
-      console.log(`[📊 DB읽기] 거절된 사용자 ${users.length}명 로드`);
+      devLog(`[📊 DB읽기] 거절된 사용자 ${users.length}명 로드`);
       if (users.length === 0) {
         alert("거절된 사용자가 없습니다.");
       }
@@ -436,7 +438,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   // 탭 변경 핸들러
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    console.log(`[📊 탭] ${tab} 탭 선택`);
+    devLog(`[📊 탭] ${tab} 탭 선택`);
     // 🚀 선생님 목록은 classes에서 자동 생성되므로 별도 로드 불필요 (DB 읽기 0회)
   };
 
@@ -472,7 +474,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   const handleSyncClassesSummary = async () => {
     setSyncing(true);
     try {
-      console.log('[📊 동기화] 학급 정보 동기화 시작');
+      devLog('[📊 동기화] 학급 정보 동기화 시작');
       const syncFn = httpsCallable(functions, 'syncClassesSummary');
       await syncFn();
       alert('동기화 완료! 페이지를 새로고침합니다.');
@@ -1216,7 +1218,7 @@ ${result.data.message}`);
                       try {
                         const { checkSsakDBStatus } = await import('../utils/geminiAPI');
                         const status = await checkSsakDBStatus();
-                        console.log('[싹DB 현황]', status);
+                        devLog('[싹DB 현황]', status);
 
                         let message = '싹DB 현황:\n\n';
                         for (const [collection, data] of Object.entries(status)) {
@@ -1305,7 +1307,7 @@ ${result.data.message}`);
                                   const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
                                   const result = await uploadFn({ collection, documents: chunk });
                                   uploaded += result.data.count;
-                                  console.log(`${collection} 업로드 진행: ${uploaded}/${entries.length}`);
+                                  devLog(`${collection} 업로드 진행: ${uploaded}/${entries.length}`);
                                 }
 
                                 alert(`✅ ${collection} 업로드 완료!\n총 ${uploaded}개 문서`);
@@ -1376,7 +1378,7 @@ ${result.data.message}`);
                               const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
                               const result = await uploadFn({ collection, documents: chunk });
                               totalUploaded += result.data.count;
-                              console.log(`${collection} 업로드: ${result.data.count}개`);
+                              devLog(`${collection} 업로드: ${result.data.count}개`);
                             }
                           }
 
