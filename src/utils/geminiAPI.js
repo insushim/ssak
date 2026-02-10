@@ -21,20 +21,6 @@ export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWo
   }
 }
 
-export async function detectPlagiarism(text, previousSubmissions) {
-  try {
-    const detectPlagiarismFn = httpsCallable(functions, 'detectPlagiarism');
-    const result = await detectPlagiarismFn({
-      text,
-      previousSubmissions
-    });
-    return result.data;
-  } catch (error) {
-    console.error('표절 검사 에러:', error);
-    throw error;
-  }
-}
-
 export async function getWritingHelp(text, topic, helpType = 'hint') {
   try {
     const getWritingHelpFn = httpsCallable(functions, 'getWritingHelp');
@@ -46,20 +32,6 @@ export async function getWritingHelp(text, topic, helpType = 'hint') {
     return result.data;
   } catch (error) {
     console.error('AI 도움 요청 에러:', error);
-    throw error;
-  }
-}
-
-export async function detectAIUsage(text, topic) {
-  try {
-    const detectAIUsageFn = httpsCallable(functions, 'detectAIUsage');
-    const result = await detectAIUsageFn({
-      text,
-      topic
-    });
-    return result.data;
-  } catch (error) {
-    console.error('AI 사용 감지 에러:', error);
     throw error;
   }
 }

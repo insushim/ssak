@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react"
 // 🚀 useDebounce 제거 - 자동저장 기능 제거로 더 이상 필요 없음
 const Confetti = lazy(() => import("react-confetti"));
 // 🚀 경량 차트 사용 (recharts 524KB → 5KB)
-import { SimpleLineChart, SimpleRadarChart } from "../components/LightweightCharts";
+import { SimpleLineChart } from "../components/LightweightCharts";
 import { signOut, updateUserData } from "../services/authService";
 import { getClassByCode } from "../services/classService";
 import {
@@ -33,6 +33,17 @@ import {
   DEFAULT_EQUIPPED_ITEMS,
   DEFAULT_ROOM_ITEMS
 } from "../config/shopItems";
+
+// 카테고리 매핑 상수 (컴포넌트 외부에 한 번만 정의)
+const AVATAR_CATEGORY_MAP = {
+  faces: 'face', hair: 'hair', hairColor: 'hairColor',
+  clothes: 'clothes', accessories: 'accessory',
+  backgrounds: 'background', frames: 'frame'
+};
+const ROOM_CATEGORY_MAP = {
+  furniture: 'furniture', electronics: 'electronics',
+  vehicles: 'vehicle', pets: 'pet', wallpaper: 'wallpaper'
+};
 
 export default function StudentDashboard({ user, userData }) {
   const [classInfo, setClassInfo] = useState(null);
@@ -206,6 +217,11 @@ export default function StudentDashboard({ user, userData }) {
     if (!userData.nicknameChanged) {
       setShowNicknameAlert(true);
     }
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
   }, []);
 
   // 🚀 페이지 로드 시 임시저장 자동 복구 + 예약된 저장 실행
@@ -1099,7 +1115,7 @@ export default function StudentDashboard({ user, userData }) {
   };
 
   const handleContentChange = (e) => {
-    const content = e.target.value;
+    const content = e.target.value.length > 10000 ? e.target.value.slice(0, 10000) : e.target.value;
     const wordCount = content.replace(/\s/g, "").length;
     setCurrentWriting({
       ...currentWriting,
@@ -1193,6 +1209,12 @@ export default function StudentDashboard({ user, userData }) {
   const handleSubmit = async () => {
     if (!currentWriting.topic || !currentWriting.content) {
       alert("주제와 내용을 모두 입력해 주세요.");
+      return;
+    }
+
+    // 글 최대 길이 제한 (10,000자)
+    if (currentWriting.content.length > 10000) {
+      alert("글의 최대 길이는 10,000자입니다. 현재 " + currentWriting.content.length.toLocaleString() + "자를 입력하셨습니다.");
       return;
     }
 
@@ -1442,16 +1464,7 @@ export default function StudentDashboard({ user, userData }) {
       alert('먼저 아이템을 구매해주세요.');
       return;
     }
-    const categoryMap = {
-      faces: 'face',
-      hair: 'hair',
-      hairColor: 'hairColor',
-      clothes: 'clothes',
-      accessories: 'accessory',
-      backgrounds: 'background',
-      frames: 'frame'
-    };
-    const categoryKey = categoryMap[category] || category;
+    const categoryKey = AVATAR_CATEGORY_MAP[category] || category;
     const newEquippedItems = { ...equippedItems, [categoryKey]: item.id };
 
     try {
@@ -1469,14 +1482,7 @@ export default function StudentDashboard({ user, userData }) {
       alert('먼저 아이템을 구매해주세요.');
       return;
     }
-    const categoryMap = {
-      furniture: 'furniture',
-      electronics: 'electronics',
-      vehicles: 'vehicle',
-      pets: 'pet',
-      wallpaper: 'wallpaper'
-    };
-    const categoryKey = categoryMap[category];
+    const categoryKey = ROOM_CATEGORY_MAP[category];
 
     let newRoomItems;
     if (category === 'decorations') {
@@ -1499,44 +1505,30 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  // 현재 장착 아이템 가져오기
-  const getEquippedFace = () => AVATAR_ITEMS.faces.find(f => f.id === equippedItems.face) || AVATAR_ITEMS.faces[0];
-  const getEquippedHair = () => AVATAR_ITEMS.hair.find(h => h.id === equippedItems.hair) || AVATAR_ITEMS.hair[0];
-  const getEquippedHairColor = () => AVATAR_ITEMS.hairColor.find(h => h.id === equippedItems.hairColor) || AVATAR_ITEMS.hairColor[0];
-  const getEquippedClothes = () => AVATAR_ITEMS.clothes.find(c => c.id === equippedItems.clothes) || AVATAR_ITEMS.clothes[0];
-  const getEquippedAccessory = () => AVATAR_ITEMS.accessories.find(a => a.id === equippedItems.accessory) || AVATAR_ITEMS.accessories[0];
-  const getEquippedBackground = () => AVATAR_ITEMS.backgrounds.find(b => b.id === equippedItems.background) || AVATAR_ITEMS.backgrounds[0];
-  const getEquippedFrame = () => AVATAR_ITEMS.frames.find(f => f.id === equippedItems.frame) || AVATAR_ITEMS.frames[0];
+  // 현재 장착 아이템 가져오기 (제네릭)
+  const getEquipped = (items, key) =>
+    items?.find(i => i.id === equippedItems[key]) || items?.[0];
 
-  // 미리보기용 아이템 가져오기 (미리보기가 있으면 미리보기 아이템 사용)
-  const getPreviewFace = () => {
-    if (previewItem?.category === 'faces') return previewItem.item;
-    return getEquippedFace();
-  };
-  const getPreviewHair = () => {
-    if (previewItem?.category === 'hair') return previewItem.item;
-    return getEquippedHair();
-  };
-  const getPreviewHairColor = () => {
-    if (previewItem?.category === 'hairColor') return previewItem.item;
-    return getEquippedHairColor();
-  };
-  const getPreviewClothes = () => {
-    if (previewItem?.category === 'clothes') return previewItem.item;
-    return getEquippedClothes();
-  };
-  const getPreviewAccessory = () => {
-    if (previewItem?.category === 'accessories') return previewItem.item;
-    return getEquippedAccessory();
-  };
-  const getPreviewBackground = () => {
-    if (previewItem?.category === 'backgrounds') return previewItem.item;
-    return getEquippedBackground();
-  };
-  const getPreviewFrame = () => {
-    if (previewItem?.category === 'frames') return previewItem.item;
-    return getEquippedFrame();
-  };
+  // 미리보기용 아이템 가져오기 (제네릭 - 미리보기가 있으면 미리보기 아이템 사용)
+  const getPreview = (items, key, category) =>
+    previewItem?.category === category ? previewItem.item : getEquipped(items, key);
+
+  // 기존 호출 호환용 래퍼 함수
+  const getEquippedFace = () => getEquipped(AVATAR_ITEMS.faces, 'face');
+  const getEquippedHair = () => getEquipped(AVATAR_ITEMS.hair, 'hair');
+  const getEquippedHairColor = () => getEquipped(AVATAR_ITEMS.hairColor, 'hairColor');
+  const getEquippedClothes = () => getEquipped(AVATAR_ITEMS.clothes, 'clothes');
+  const getEquippedAccessory = () => getEquipped(AVATAR_ITEMS.accessories, 'accessory');
+  const getEquippedBackground = () => getEquipped(AVATAR_ITEMS.backgrounds, 'background');
+  const getEquippedFrame = () => getEquipped(AVATAR_ITEMS.frames, 'frame');
+
+  const getPreviewFace = () => getPreview(AVATAR_ITEMS.faces, 'face', 'faces');
+  const getPreviewHair = () => getPreview(AVATAR_ITEMS.hair, 'hair', 'hair');
+  const getPreviewHairColor = () => getPreview(AVATAR_ITEMS.hairColor, 'hairColor', 'hairColor');
+  const getPreviewClothes = () => getPreview(AVATAR_ITEMS.clothes, 'clothes', 'clothes');
+  const getPreviewAccessory = () => getPreview(AVATAR_ITEMS.accessories, 'accessory', 'accessories');
+  const getPreviewBackground = () => getPreview(AVATAR_ITEMS.backgrounds, 'background', 'backgrounds');
+  const getPreviewFrame = () => getPreview(AVATAR_ITEMS.frames, 'frame', 'frames');
 
   // 아이템 미리보기 설정
   const handlePreviewItem = (item, category) => {
@@ -1602,28 +1594,12 @@ export default function StudentDashboard({ user, userData }) {
   // 아이템이 장착되었는지 확인
   const isItemEquipped = (item, category) => {
     if (shopCategory === 'avatar') {
-      const categoryMap = {
-        faces: 'face',
-        hair: 'hair',
-        hairColor: 'hairColor',
-        clothes: 'clothes',
-        accessories: 'accessory',
-        backgrounds: 'background',
-        frames: 'frame'
-      };
-      return equippedItems[categoryMap[category]] === item.id;
+      return equippedItems[AVATAR_CATEGORY_MAP[category]] === item.id;
     } else {
-      const categoryMap = {
-        furniture: 'furniture',
-        electronics: 'electronics',
-        vehicles: 'vehicle',
-        pets: 'pet',
-        wallpaper: 'wallpaper'
-      };
       if (category === 'decorations') {
         return (roomItems.decorations || []).includes(item.id);
       }
-      return roomItems[categoryMap[category]] === item.id;
+      return roomItems[ROOM_CATEGORY_MAP[category]] === item.id;
     }
   };
 

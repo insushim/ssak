@@ -46,7 +46,7 @@ function saveToLocalStorage(key, data) {
   try {
     const item = { data, timestamp: Date.now() };
     localStorage.setItem(LS_PREFIX + key, JSON.stringify(item));
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 // 🔥 LocalStorage에서 클래스 데이터 로드
@@ -59,7 +59,7 @@ function loadFromLocalStorage(key, ttl) {
       return parsed.data;
     }
     localStorage.removeItem(LS_PREFIX + key);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
   return null;
 }
 
@@ -68,7 +68,7 @@ export function invalidateClassCache(classCode) {
   classCache.delete(classCode);
   try {
     localStorage.removeItem(LS_PREFIX + classCode);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 // 선생님 클래스 캐시 무효화
@@ -76,7 +76,7 @@ export function invalidateTeacherClassesCache(teacherId) {
   teacherClassesCache.delete(teacherId);
   try {
     localStorage.removeItem(LS_PREFIX + `teacher_${teacherId}`);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 export async function createClass(teacherId, className, gradeLevel, description = '') {

@@ -29,7 +29,7 @@ function saveToLocalStorage(key, data) {
   try {
     const item = { data, timestamp: Date.now() };
     localStorage.setItem(LS_PREFIX + key, JSON.stringify(item));
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 // 🔥 LocalStorage에서 과제 데이터 로드
@@ -42,7 +42,7 @@ function loadFromLocalStorage(key, ttl) {
       return parsed.data;
     }
     localStorage.removeItem(LS_PREFIX + key);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
   return null;
 }
 
@@ -53,7 +53,7 @@ export function invalidateAssignmentsCache(classCode) {
     studentAssignmentsCache.delete(classCode);
     try {
       localStorage.removeItem(LS_PREFIX + classCode);
-    } catch (e) {}
+    } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
   } else {
     assignmentsCache.clear();
     studentAssignmentsCache.clear();

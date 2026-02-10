@@ -15,7 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { analyzeWriting, detectPlagiarism } from '../utils/geminiAPI'; // 🚀 detectAIUsage 제거 (analyzeWriting에 통합)
+import { analyzeWriting } from '../utils/geminiAPI';
 import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS, normalizeGradeLevel } from '../config/auth';
 import { updateAssignmentSubmission } from './assignmentService';
 
@@ -103,7 +103,8 @@ function clearOldLocalStorageCache() {
     try {
       const parsed = JSON.parse(localStorage.getItem(k));
       return { key: k, timestamp: parsed?.timestamp || 0 };
-    } catch {
+    } catch (e) {
+      if (import.meta.env.DEV) console.warn('localStorage error:', e?.message);
       return { key: k, timestamp: 0 };
     }
   }).sort((a, b) => a.timestamp - b.timestamp);
@@ -127,7 +128,7 @@ export function invalidateStudentWritingsCache(studentId) {
   cache.studentWritings.delete(studentId);
   try {
     localStorage.removeItem(LS_PREFIX + `writings_${studentId}`);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 // 특정 반의 캐시 무효화
@@ -589,7 +590,7 @@ export function invalidateStudentStatsCache(studentId) {
   cache.studentStats.delete(studentId);
   try {
     localStorage.removeItem(LS_PREFIX + `stats_${studentId}`);
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
 // 🚀 사용자 닉네임 캐싱 가져오기 (읽기 최적화)

@@ -5,6 +5,7 @@ import { auth } from './config/firebase';
 import { getUserData, updateUserData } from './services/authService';
 import { ROLES, SUPER_ADMIN_UID } from './config/auth';
 import PrivacyConsent from './components/PrivacyConsent';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // 🚀 Lazy Loading - 대시보드는 필요할 때만 로드 (초기 로딩 속도 향상)
 const Login = lazy(() => import('./pages/Login'));
@@ -108,6 +109,7 @@ function App() {
 
   return (
     <Router>
+      <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route
@@ -212,6 +214,7 @@ function App() {
         />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Router>
   );
 }

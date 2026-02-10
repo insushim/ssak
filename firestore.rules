@@ -51,7 +51,7 @@ service cloud.firestore {
       // Security: users cannot change their own role or approved status
       allow update: if isAuthenticated() &&
                        ((request.auth.uid == userId &&
-                         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved'])) ||
+                         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved', 'isTestStudent'])) ||
                         isSuperAdmin() ||
                         (isApprovedTeacher() &&
                          resource.data.role == 'student' &&
@@ -168,14 +168,24 @@ service cloud.firestore {
 
     // Scheduler settings collection
     match /schedulers/{classCode} {
-      // Teachers and super admin can read/write scheduler settings
-      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+      // Teachers and super admin can read scheduler settings
+      allow read: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+      // Only the teacher who owns the class or super admin can write
+      allow write: if isAuthenticated() &&
+        (isSuperAdmin() ||
+         (isApprovedTeacher() &&
+          get(/databases/$(database)/documents/classes/$(classCode)).data.teacherId == request.auth.uid));
     }
 
     // Auto assignment logs collection
     match /autoAssignmentLogs/{logId} {
-      // Teachers and super admin can read/write auto assignment logs
-      allow read, write: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+      // Teachers and super admin can read auto assignment logs
+      allow read: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+      // Only the teacher who owns the class or super admin can write
+      allow write: if isAuthenticated() &&
+        (isSuperAdmin() ||
+         (isApprovedTeacher() &&
+          get(/databases/$(database)/documents/classes/$(logId)).data.teacherId == request.auth.uid));
     }
 
     // Drafts collection (임시 저장)
