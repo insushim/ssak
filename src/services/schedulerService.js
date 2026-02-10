@@ -3,6 +3,8 @@ import { db } from '../config/firebase';
 import { generateTopics } from '../utils/geminiAPI';
 import { createAssignment, getAssignmentsByClass } from './assignmentService';
 
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 // ============================================
 // 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
 // ============================================
@@ -81,21 +83,21 @@ export async function getSchedulerSettings(classCode, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = schedulerCache.get(classCode);
       if (cached && isCacheValid(cached.timestamp)) {
-        console.log(`[📊 DB읽기] getSchedulerSettings 메모리 캐시 히트`);
+        devLog(`[📊 DB읽기] getSchedulerSettings 메모리 캐시 히트`);
         return cached.data;
       }
 
       // 🔥 2. LocalStorage 캐시 확인
       const lsData = loadFromLocalStorage(classCode);
       if (lsData) {
-        console.log(`[📊 DB읽기] getSchedulerSettings LocalStorage 캐시 히트`);
+        devLog(`[📊 DB읽기] getSchedulerSettings LocalStorage 캐시 히트`);
         schedulerCache.set(classCode, { data: lsData, timestamp: Date.now() });
         return lsData;
       }
     }
 
     // 🔥 3. DB에서 조회 (캐시 미스 시에만)
-    console.log(`[📊 DB읽기] getSchedulerSettings DB 조회 - classCode: ${classCode}`);
+    devLog(`[📊 DB읽기] getSchedulerSettings DB 조회 - classCode: ${classCode}`);
     const schedulerDoc = await getDoc(doc(db, 'schedulers', classCode));
     const result = schedulerDoc.exists() ? schedulerDoc.data() : null;
 
@@ -253,13 +255,13 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
     const kstDate = new Date(now.getTime() + kstOffset);
     const today = kstDate.toISOString().split('T')[0];
 
-    console.log(`[스케줄러] 오늘 날짜(KST): ${today}`);
+    devLog(`[스케줄러] 오늘 날짜(KST): ${today}`);
 
     // 캐시 확인 (같은 날짜면 캐시 사용, forceRefresh가 아닐 때만)
     if (!forceRefresh) {
       const cached = autoAssignmentTodayCache.get(classCode);
       if (cached && cached.date === today) {
-        console.log(`[📊 DB읽기] hasAutoAssignmentToday 캐시 히트`);
+        devLog(`[📊 DB읽기] hasAutoAssignmentToday 캐시 히트`);
         return cached.result;
       }
     }
@@ -271,9 +273,9 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
     const todayStartUTC = new Date(todayStart).toISOString();
     const todayEndUTC = new Date(todayEnd).toISOString();
 
-    console.log(`[스케줄러] 검색 범위: ${todayStartUTC} ~ ${todayEndUTC}`);
+    devLog(`[스케줄러] 검색 범위: ${todayStartUTC} ~ ${todayEndUTC}`);
 
-    console.log(`[📊 DB읽기] hasAutoAssignmentToday DB 조회 - classCode: ${classCode}`);
+    devLog(`[📊 DB읽기] hasAutoAssignmentToday DB 조회 - classCode: ${classCode}`);
     // 🚀 Firestore에서 직접 필터링 (클라이언트 필터링 제거)
     const q = query(
       collection(db, 'autoAssignmentLogs'),
@@ -307,11 +309,11 @@ export async function checkAndRunScheduler(classCode, gradeLevel, teacherId, cac
     // 🚀 캐시된 설정이 있으면 사용, 없으면 DB 조회
     const settings = cachedSettings || await getSchedulerSettings(classCode);
 
-    console.log(`[스케줄러] 체크 시작 - classCode: ${classCode}`);
-    console.log(`[스케줄러] 설정:`, settings);
+    devLog(`[스케줄러] 체크 시작 - classCode: ${classCode}`);
+    devLog(`[스케줄러] 설정:`, settings);
 
     if (!settings || !settings.enabled) {
-      console.log(`[스케줄러] 비활성화 상태`);
+      devLog(`[스케줄러] 비활성화 상태`);
       return { executed: false, reason: '스케줄러 비활성화' };
     }
 
@@ -319,12 +321,12 @@ export async function checkAndRunScheduler(classCode, gradeLevel, teacherId, cac
     const currentDay = now.getDay(); // 0 = 일요일
     const currentHour = now.getHours();
 
-    console.log(`[스케줄러] 현재: ${now.toLocaleString()}, 요일: ${currentDay}, 시간: ${currentHour}시`);
-    console.log(`[스케줄러] 설정된 요일: ${settings.selectedDays}, 설정된 시간: ${settings.scheduledTime}`);
+    devLog(`[스케줄러] 현재: ${now.toLocaleString()}, 요일: ${currentDay}, 시간: ${currentHour}시`);
+    devLog(`[스케줄러] 설정된 요일: ${settings.selectedDays}, 설정된 시간: ${settings.scheduledTime}`);
 
     // 요일 확인 (selectedDays: [1, 2, 3, 4, 5] = 월~금)
     if (!settings.selectedDays || !settings.selectedDays.includes(currentDay)) {
-      console.log(`[스케줄러] 오늘(${currentDay})은 출제 요일이 아님 (설정: ${settings.selectedDays})`);
+      devLog(`[스케줄러] 오늘(${currentDay})은 출제 요일이 아님 (설정: ${settings.selectedDays})`);
       return { executed: false, reason: `오늘은 출제 요일이 아님 (현재: ${currentDay}, 설정: ${settings.selectedDays})` };
     }
 

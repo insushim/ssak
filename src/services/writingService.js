@@ -19,12 +19,34 @@ import { analyzeWriting } from '../utils/geminiAPI';
 import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS, normalizeGradeLevel } from '../config/auth';
 import { updateAssignmentSubmission } from './assignmentService';
 
+// Dev-only logging (stripped in production builds)
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
+
 // ============================================
 // 🚀 캐싱 시스템 - Firestore 읽기 최적화 (10,000명 대응)
 // ============================================
 
 // LocalStorage 키 접두사
 const LS_PREFIX = 'ssak_cache_';
+
+// 캐시 최대 크기 (항목 수) - 메모리 무한 증가 방지
+const MAX_CACHE_SIZE = 200;
+
+// 캐시 맵 크기 초과 시 가장 오래된 항목 제거
+function evictIfNeeded(map, maxSize = MAX_CACHE_SIZE) {
+  if (map.size <= maxSize) return;
+  // timestamp 기준 정렬하여 오래된 항목부터 삭제
+  const entries = [...map.entries()];
+  entries.sort((a, b) => {
+    const tsA = a[1]?.timestamp || a[1]?.data?.timestamp || 0;
+    const tsB = b[1]?.timestamp || b[1]?.data?.timestamp || 0;
+    return tsA - tsB;
+  });
+  const toDelete = entries.slice(0, map.size - maxSize);
+  for (const [key] of toDelete) {
+    map.delete(key);
+  }
+}
 
 // 캐시 저장소 (메모리 캐시 + LocalStorage 영속화)
 const cache = {
@@ -231,7 +253,7 @@ export async function cleanupOldFailedWritings(studentId, writings, passingScore
       oldFailedWritings.map(w => deleteDoc(doc(db, 'writings', w.writingId)))
     );
 
-    console.log(`[자동 정리] 1시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
+    devLog(`[자동 정리] 1시간 지난 미달성 글 ${oldFailedWritings.length}개 삭제됨`);
 
     // 캐시 무효화
     invalidateStudentWritingsCache(studentId);
@@ -264,6 +286,7 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
       if (lsData) {
         // 🔇 디버그 로그 감소
         cache.studentWritings.set(studentId, { data: lsData, timestamp: Date.now() });
+        evictIfNeeded(cache.studentWritings);
         return lsData;
       }
     }
@@ -288,6 +311,7 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
       data: writings,
       timestamp: Date.now()
     });
+    evictIfNeeded(cache.studentWritings);
     saveToLocalStorage(`writings_${studentId}`, writings);
 
     return writings;
@@ -378,16 +402,16 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       // 도달 점수: 기준점수 + 5 ~ 기준점수 + 20 사이 랜덤
       newScore = minScore + Math.floor(Math.random() * 16) + 5;
       if (newScore > 100) newScore = 100;
-      console.log(`[🧪 테스트] 도달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+      devLog(`[🧪 테스트] 도달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
     } else if (testScoreMode === 'fail') {
       // 미달 점수: 기준점수 - 20 ~ 기준점수 - 1 사이 랜덤
       newScore = minScore - Math.floor(Math.random() * 20) - 1;
       if (newScore < 30) newScore = 30;
-      console.log(`[🧪 테스트] 미달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+      devLog(`[🧪 테스트] 미달 점수 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
     } else if (testScoreMode === 'custom' && customTestScore !== null) {
       // 직접 입력 점수: 0~100 사이로 제한
       newScore = Math.min(100, Math.max(0, customTestScore));
-      console.log(`[🧪 테스트] 직접 입력 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
+      devLog(`[🧪 테스트] 직접 입력 모드: ${analysisResult.score} → ${newScore} (기준: ${minScore})`);
     }
 
     // 🚀 동일 주제 미제출글 비교 로직 (DB 사용량 최소화)
@@ -408,11 +432,11 @@ export async function submitWriting(studentId, writingData, isRewrite = false, c
       if (sameTopic) {
         if (newScore <= sameTopic.score) {
           // 기존 미제출글보다 점수가 같거나 낮음 → 저장 안함
-          console.log(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 낮거나 같음(${newScore}점) - 저장 안함`);
+          devLog(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 낮거나 같음(${newScore}점) - 저장 안함`);
           shouldSave = false;
         } else {
           // 기존 미제출글보다 점수가 높음 → 기존 글 삭제
-          console.log(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 높음(${newScore}점) - 기존 글 삭제`);
+          devLog(`[중복 방지] 기존 미제출글(${sameTopic.score}점)보다 높음(${newScore}점) - 기존 글 삭제`);
           try {
             await deleteDoc(doc(db, 'writings', sameTopic.writingId));
             deletedOldWritingId = sameTopic.writingId;
@@ -562,6 +586,7 @@ export async function getStudentStats(studentId, forceRefresh = false) {
       const lsData = loadFromLocalStorage(`stats_${studentId}`, CACHE_TTL.studentStats);
       if (lsData) {
         cache.studentStats.set(studentId, { data: lsData, timestamp: Date.now() });
+        evictIfNeeded(cache.studentStats);
         return lsData;
       }
     }
@@ -575,6 +600,7 @@ export async function getStudentStats(studentId, forceRefresh = false) {
 
     // 캐시 저장 (메모리 + LocalStorage)
     cache.studentStats.set(studentId, { data: result, timestamp: Date.now() });
+    evictIfNeeded(cache.studentStats);
     saveToLocalStorage(`stats_${studentId}`, result);
 
     return result;
@@ -612,6 +638,7 @@ async function getCachedUserNickname(studentId) {
       nickname,
       timestamp: Date.now()
     });
+    evictIfNeeded(cache.userNicknames);
 
     return nickname;
   } catch (error) {
@@ -629,7 +656,8 @@ async function getAllClassWritingsBatch(classCode, studentIds = [], forTeacher =
     const q = query(
       collection(db, 'writings'),
       where('classCode', '==', classCode),
-      where('isDraft', '==', false)
+      where('isDraft', '==', false),
+      limit(500)
     );
 
     const snapshot = await getDocs(q);
@@ -765,6 +793,7 @@ export async function getClassWritingsSummary(classCode, forceRefresh = false) {
       data: result,
       timestamp: Date.now()
     });
+    evictIfNeeded(cache.classWritings);
     // 🔇 디버그 로그 감소
 
     return result;
@@ -807,6 +836,7 @@ export async function getClassWritings(classCode, forceRefresh = false, forTeach
       }
       classData = classDoc.data();
       cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
+      evictIfNeeded(cache.classData);
     }
 
     const students = classData.students || [];
@@ -868,6 +898,7 @@ export async function getClassWritings(classCode, forceRefresh = false, forTeach
       data: sortedWritings,
       timestamp: Date.now()
     });
+    evictIfNeeded(cache.classWritings);
     // 🔇 디버그 로그 감소
 
     return sortedWritings;
@@ -1028,6 +1059,7 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
     }
 
     rankingCache.set(`${cacheKey}_loading`, true);
+    evictIfNeeded(rankingCache);
 
     // 🚀 classes 문서에서 미리 계산된 랭킹 데이터 가져오기 (1회 읽기!)
     const classDoc = await getDoc(doc(db, 'classes', classCode));
@@ -1038,6 +1070,7 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
 
     const classData = classDoc.data();
     cache.classData.set(classCode, { data: classData, timestamp: Date.now() });
+    evictIfNeeded(cache.classData);
 
     const students = classData.students || [];
     if (students.length === 0) {
@@ -1056,6 +1089,7 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
       // 🔇 디버그 로그 감소
       const result = savedRanking.data;
       rankingCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      evictIfNeeded(rankingCache);
       rankingCache.delete(`${cacheKey}_loading`);
       return result;
     }
@@ -1064,6 +1098,7 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
     // 글 제출 시 updateStudentRankingOnSubmit에서 증분 업데이트됨
     // 🔇 디버그 로그 감소
     rankingCache.set(cacheKey, { data: [], timestamp: Date.now() });
+    evictIfNeeded(rankingCache);
     rankingCache.delete(`${cacheKey}_loading`);
 
     return [];
@@ -1443,6 +1478,7 @@ export async function getWritingDetail(writingId) {
       const data = writingDoc.data();
       // 🚀 캐시 저장
       cache.writingDetail.set(writingId, { data, timestamp: Date.now() });
+      evictIfNeeded(cache.writingDetail);
       return data;
     }
     return null;

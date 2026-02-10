@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 // 🚀 useDebounce 제거 - 자동저장 기능 제거로 더 이상 필요 없음
 const Confetti = lazy(() => import("react-confetti"));
+// Dev-only logging (stripped in production builds)
+const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
 // 🚀 경량 차트 사용 (recharts 524KB → 5KB)
 import { SimpleLineChart } from "../components/LightweightCharts";
 import { signOut, updateUserData } from "../services/authService";
@@ -67,7 +69,7 @@ export default function StudentDashboard({ user, userData }) {
   });
 
   // 🚀 탭 이동 시 경고창 함수 - 작성 중인 글 보호
-  const handleTabChange = (newTab) => {
+  const handleTabChange = useCallback((newTab) => {
     // 글쓰기 탭에서 다른 탭으로 이동하려 하고, 작성 중인 글이 있는 경우
     if (activeTab === "write" && newTab !== "write" && currentWriting.content && currentWriting.content.trim().length > 0) {
       const confirmMove = window.confirm(
@@ -98,17 +100,17 @@ export default function StudentDashboard({ user, userData }) {
 
     // 🚀 탭별 DB 읽기 로그
     if (newTab === 'statistics') {
-      console.log('[📊 탭] 통계 탭 - DB 읽기 0회 (이미 로드된 stats 사용)');
+      devLog('[📊 탭] 통계 탭 - DB 읽기 0회 (이미 로드된 stats 사용)');
     } else if (newTab === 'profile') {
-      console.log('[📊 탭] 내 프로필 탭 - DB 읽기 0회 (이미 로드된 userData 사용)');
+      devLog('[📊 탭] 내 프로필 탭 - DB 읽기 0회 (이미 로드된 userData 사용)');
     } else if (newTab === 'ranking') {
-      console.log('[📊 탭] 랭킹 탭 - DB 읽기 0회 (classInfo 캐시 사용)');
+      devLog('[📊 탭] 랭킹 탭 - DB 읽기 0회 (classInfo 캐시 사용)');
     } else if (newTab === 'history') {
-      console.log('[📊 탭] 제출기록 탭 - DB 읽기 0회 (userData.writingSummary 사용)');
+      devLog('[📊 탭] 제출기록 탭 - DB 읽기 0회 (userData.writingSummary 사용)');
     } else if (newTab === 'write') {
-      console.log('[📊 탭] 글쓰기 탭 - DB 읽기 0회');
+      devLog('[📊 탭] 글쓰기 탭 - DB 읽기 0회');
     }
-  };
+  }, [activeTab, currentWriting, userData.gradeLevel, userData.name]);
 
   // 🚀 자동저장 제거 - Firestore 비용 최적화 (주제 이동 시 경고창으로 대체)
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -241,7 +243,7 @@ export default function StudentDashboard({ user, userData }) {
                 content: draftData.content,
                 wordCount: draftData.wordCount
               });
-              console.log(`[복구 저장] "${draftData.topic}" 서버 저장 완료`);
+              devLog(`[복구 저장] "${draftData.topic}" 서버 저장 완료`);
             }
             localStorage.removeItem(pendingSaveKey);
           } catch (e) {
@@ -258,7 +260,7 @@ export default function StudentDashboard({ user, userData }) {
             const draftData = JSON.parse(sessionDraft);
             // 30분 이내의 데이터만 복구
             if (Date.now() - draftData.timestamp < 30 * 60 * 1000 && draftData.content?.trim().length > 0) {
-              console.log(`[세션복구] "${draftData.topic}" 자동 복구 (${draftData.wordCount}자)`);
+              devLog(`[세션복구] "${draftData.topic}" 자동 복구 (${draftData.wordCount}자)`);
               setActiveTab('write');
               setSelectedTopic({ title: draftData.topic });
               setCurrentWriting({
@@ -331,7 +333,7 @@ export default function StudentDashboard({ user, userData }) {
                 wordCount: latestDraft.wordCount,
                 isAssignment: false
               });
-              console.log(`[자동복구] "${latestDraft.topic}" 복구 완료 (${latestDraft.wordCount}자)`);
+              devLog(`[자동복구] "${latestDraft.topic}" 복구 완료 (${latestDraft.wordCount}자)`);
             }
           }
         }
@@ -360,7 +362,7 @@ export default function StudentDashboard({ user, userData }) {
             minScore: currentWriting.minScore,
             timestamp: Date.now()
           }));
-          console.log(`[세션저장] "${currentWriting.topic}" 저장됨 (${currentWriting.wordCount}자)`);
+          devLog(`[세션저장] "${currentWriting.topic}" 저장됨 (${currentWriting.wordCount}자)`);
         } catch (e) {
           // 무시
         }
@@ -590,13 +592,13 @@ export default function StudentDashboard({ user, userData }) {
 
       if (classInfo?.[rankingField]?.data) {
         fullRanking = classInfo[rankingField].data;
-        console.log(`[📊 캐시] 랭킹 - classInfo.${rankingField}에서 로드 (DB 읽기 0회)`);
+        devLog(`[📊 캐시] 랭킹 - classInfo.${rankingField}에서 로드 (DB 읽기 0회)`);
       } else if (forceRefresh) {
         // 강제 새로고침 시에만 DB 조회
-        console.log(`[📊 DB읽기] 랭킹 강제 새로고침 - classCode: ${classCode}`);
+        devLog(`[📊 DB읽기] 랭킹 강제 새로고침 - classCode: ${classCode}`);
         fullRanking = await getClassRanking(classCode, period, { forceRefresh: true });
       } else {
-        console.log(`[📊 캐시] 랭킹 데이터 없음 - 빈 배열 반환`);
+        devLog(`[📊 캐시] 랭킹 데이터 없음 - 빈 배열 반환`);
       }
 
       setRankingData(fullRanking);
@@ -689,7 +691,7 @@ export default function StudentDashboard({ user, userData }) {
           try {
             recognition.start();
           } catch (e) {
-            console.log('음성 인식 재시작 실패:', e);
+            devLog('음성 인식 재시작 실패:', e);
           }
         }
       };
@@ -699,7 +701,7 @@ export default function StudentDashboard({ user, userData }) {
   };
 
   // 음성 입력 토글
-  const toggleSpeechRecognition = () => {
+  const toggleSpeechRecognition = useCallback(() => {
     if (!speechSupported) {
       alert('이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 브라우저를 사용해주세요.');
       return;
@@ -720,7 +722,7 @@ export default function StudentDashboard({ user, userData }) {
         isListeningRef.current = false;
       }
     }
-  };
+  }, [speechSupported, isListening]);
 
   // 템플릿 적용
   const applyTemplate = (template) => {
@@ -814,7 +816,7 @@ export default function StudentDashboard({ user, userData }) {
 
     setLoadingWritingDetail(true);
     try {
-      console.log(`[📊 DB읽기] 제출기록 상세 조회 - writingId: ${writingId}`);
+      devLog(`[📊 DB읽기] 제출기록 상세 조회 - writingId: ${writingId}`);
       const detail = await getWritingDetail(writingId);
       setSelectedWritingDetail(detail);
     } catch (error) {
@@ -844,8 +846,8 @@ export default function StudentDashboard({ user, userData }) {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           currentUserData = userDoc.data();
-          console.log(`[📊 DB읽기] users 문서 새로고침 - writingSummary 개수: ${currentUserData.writingSummary?.length || 0}`);
-          console.log(`[📊 DB읽기] writingSummary 내용:`, currentUserData.writingSummary);
+          devLog(`[📊 DB읽기] users 문서 새로고침 - writingSummary 개수: ${currentUserData.writingSummary?.length || 0}`);
+          devLog(`[📊 DB읽기] writingSummary 내용:`, currentUserData.writingSummary);
         }
       }
 
@@ -853,11 +855,11 @@ export default function StudentDashboard({ user, userData }) {
       // writingSummary가 있으면 그대로 사용, 없으면 빈 배열로 초기화
       const hasWritingSummary = currentUserData.writingSummary && Array.isArray(currentUserData.writingSummary);
 
-      console.log(`[loadData] writingSummary 상태: ${hasWritingSummary ? `${currentUserData.writingSummary.length}개 있음` : '없음'}`);
+      devLog(`[loadData] writingSummary 상태: ${hasWritingSummary ? `${currentUserData.writingSummary.length}개 있음` : '없음'}`);
 
       // writingSummary가 없는 경우에만 초기화 (마이그레이션 없이 빈 배열로)
       if (!hasWritingSummary) {
-        console.log('[loadData] writingSummary 없음 - 빈 배열로 초기화');
+        devLog('[loadData] writingSummary 없음 - 빈 배열로 초기화');
         currentUserData.writingSummary = [];
         // DB에도 빈 배열 저장 (다음 로드 시 초기화 반복 방지)
         try {
@@ -871,7 +873,7 @@ export default function StudentDashboard({ user, userData }) {
 
       // 🚀 userData에서 글 요약 추출 (DB 읽기 0회!)
       studentWritings = getWritingSummaryFromUserData(currentUserData);
-      console.log(`[📊 캐시] 글 ${studentWritings.length}개 - userData에서 로드`);
+      devLog(`[📊 캐시] 글 ${studentWritings.length}개 - userData에서 로드`);
 
       // 🚀 1시간 지난 미달성 글은 Cloud Function(autoCleanupFailedWritings)에서 자동 삭제됨
       // 클라이언트에서는 화면에서만 필터링 (권한 문제 없이 처리)
@@ -897,7 +899,7 @@ export default function StudentDashboard({ user, userData }) {
           : 0,
         scores: submittedWritings.map(w => w.score || 0)
       };
-      console.log(`[📊 캐시] 통계 - writingSummary에서 계산 (DB 읽기 0회)`);
+      devLog(`[📊 캐시] 통계 - writingSummary에서 계산 (DB 읽기 0회)`);
 
       // 즉시 UI 업데이트
       setWritings(studentWritings);
@@ -907,14 +909,14 @@ export default function StudentDashboard({ user, userData }) {
       // 과제는 교사가 언제든 추가/삭제할 수 있으므로 캐시만 사용하면 안됨
       if (userData.classCode) {
         try {
-          console.log(`[📊 DB읽기] 학급 정보 - classes 문서 조회 (과제 최신화)`);
+          devLog(`[📊 DB읽기] 학급 정보 - classes 문서 조회 (과제 최신화)`);
           cls = await getClassByCode(userData.classCode, true); // forceRefresh로 최신 데이터
         } catch (err) {
           console.error('학급 정보 조회 에러:', err);
           // 에러 시 캐시 사용
           if (currentUserData.classInfo) {
             cls = currentUserData.classInfo;
-            console.log(`[📊 캐시] 학급 정보 - 에러로 인해 캐시 사용`);
+            devLog(`[📊 캐시] 학급 정보 - 에러로 인해 캐시 사용`);
           }
         }
       }
@@ -931,12 +933,12 @@ export default function StudentDashboard({ user, userData }) {
 
         if (!hasAllFields || !localStorage.getItem(migrationKey)) {
           try {
-            console.log('[마이그레이션 v5] assignmentSummary minScore 추가');
+            devLog('[마이그레이션 v5] assignmentSummary minScore 추가');
             const result = await migrateAssignmentSummary(userData.classCode);
             if (result.migrated) {
               cls = await getClassByCode(userData.classCode);
               setClassInfo(cls);
-              console.log('[마이그레이션 v5] assignmentSummary 업데이트 완료');
+              devLog('[마이그레이션 v5] assignmentSummary 업데이트 완료');
             }
             localStorage.setItem(migrationKey, 'true');
           } catch (e) {
@@ -948,10 +950,10 @@ export default function StudentDashboard({ user, userData }) {
         const minScoreMigrationKey = `writings_minScore_v1_${userData.classCode}`;
         if (!localStorage.getItem(minScoreMigrationKey)) {
           try {
-            console.log('[마이그레이션 v6] writings minScore 추가');
+            devLog('[마이그레이션 v6] writings minScore 추가');
             const result = await migrateWritingsMinScore(userData.classCode);
             if (result.migratedCount > 0 || result.summaryUpdatedCount > 0) {
-              console.log(`[마이그레이션 v6] writings: ${result.migratedCount}개, writingSummary: ${result.summaryUpdatedCount}명 업데이트`);
+              devLog(`[마이그레이션 v6] writings: ${result.migratedCount}개, writingSummary: ${result.summaryUpdatedCount}명 업데이트`);
             }
             localStorage.setItem(minScoreMigrationKey, 'true');
           } catch (e) {
@@ -968,11 +970,11 @@ export default function StudentDashboard({ user, userData }) {
           const expiresAt = createdAt + (7 * 24 * 60 * 60 * 1000);
           return Date.now() < expiresAt;
         });
-        console.log(`[📊 최적화] 과제 ${classAssignments.length}개 (만료 제외) - classes 문서에서 로드 (DB 읽기 0회)`);
+        devLog(`[📊 최적화] 과제 ${classAssignments.length}개 (만료 제외) - classes 문서에서 로드 (DB 읽기 0회)`);
 
         // 목표에 도달한 과제 필터링
-        console.log('[과제 필터링] 전체 과제:', classAssignments.map(a => ({ title: a.title, minScore: a.minScore })));
-        console.log('[과제 필터링] 학생 글:', studentWritings.map(w => ({ topic: w.topic, score: w.score, isDraft: w.isDraft })));
+        devLog('[과제 필터링] 전체 과제:', classAssignments.map(a => ({ title: a.title, minScore: a.minScore })));
+        devLog('[과제 필터링] 학생 글:', studentWritings.map(w => ({ topic: w.topic, score: w.score, isDraft: w.isDraft })));
 
         const pendingAssignments = classAssignments.filter(assignment => {
           const assignmentMinScore = assignment.minScore !== undefined ? assignment.minScore : PASSING_SCORE;
@@ -981,7 +983,7 @@ export default function StudentDashboard({ user, userData }) {
                  w.topic === assignment.title &&
                  w.score >= assignmentMinScore
           );
-          console.log(`[과제 필터링] "${assignment.title}" - minScore: ${assignmentMinScore}, 통과: ${hasPassingSubmission}`);
+          devLog(`[과제 필터링] "${assignment.title}" - minScore: ${assignmentMinScore}, 통과: ${hasPassingSubmission}`);
           return !hasPassingSubmission;
         });
 
@@ -993,13 +995,13 @@ export default function StudentDashboard({ user, userData }) {
       }
 
       // 🚀 로그인 시 총 DB 읽기 요약
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(`[📊 로그인 완료] 총 DB 읽기: 2회`);
-      console.log('  - users 문서: 1회 (App.jsx에서 로드)');
-      console.log('  - classes 문서: 1회 (과제 최신화)');
-      console.log('  - studentStats: 0회 (writingSummary에서 계산)');
-      console.log('  - writings 컬렉션: 0회 (userData.writingSummary 캐시)');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      devLog(`[📊 로그인 완료] 총 DB 읽기: 2회`);
+      devLog('  - users 문서: 1회 (App.jsx에서 로드)');
+      devLog('  - classes 문서: 1회 (과제 최신화)');
+      devLog('  - studentStats: 0회 (writingSummary에서 계산)');
+      devLog('  - writings 컬렉션: 0회 (userData.writingSummary 캐시)');
+      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
       console.error("데이터 로드 에러:", error);
     }
@@ -1245,8 +1247,8 @@ export default function StudentDashboard({ user, userData }) {
     try {
       // 🚀 최적화: classCode와 userData 전달하여 Firestore 읽기 2회 감소
       const classCode = userData.classCode || classInfo?.classCode;
-      console.log(`[제출] classCode: ${classCode}, topic: "${currentWriting.topic}"`);
-      console.log(`[제출] userData:`, userData);
+      devLog(`[제출] classCode: ${classCode}, topic: "${currentWriting.topic}"`);
+      devLog(`[제출] userData:`, userData);
 
       // 🚀 자동 고쳐쓰기 모드: 같은 주제로 이전에 제출한 글이 있으면 자동 적용
       let isAutoRewrite = !!rewriteMode;
@@ -1259,7 +1261,7 @@ export default function StudentDashboard({ user, userData }) {
         if (previousSubmission) {
           isAutoRewrite = true;
           previousScoreForRewrite = previousSubmission.score;
-          console.log(`[자동 고쳐쓰기] 같은 주제 발견 - 이전 점수: ${previousScoreForRewrite}점`);
+          devLog(`[자동 고쳐쓰기] 같은 주제 발견 - 이전 점수: ${previousScoreForRewrite}점`);
         }
       }
 
@@ -1606,6 +1608,40 @@ export default function StudentDashboard({ user, userData }) {
   const wordCountStatus = getWordCountStatus();
   const standard = wordCountStatus.standard || WORD_COUNT_STANDARDS[userData.gradeLevel];
 
+  // 🚀 useMemo - 레벨 정보 (totalPoints 변경 시에만 재계산)
+  const levelInfo = useMemo(() => getLevelInfo(totalPoints), [totalPoints]);
+  const nextLevelInfo = useMemo(() => getNextLevelInfo(totalPoints), [totalPoints]);
+
+  // 🚀 useMemo - 업적 체크 (writings, stats, totalPoints, userData.streakDays 변경 시에만 재계산)
+  const headerAchievementData = useMemo(() => {
+    const scores = writings.map(w => w.score || 0);
+    const wordCounts = writings.map(w => (w.content || '').length);
+    return checkAchievements({
+      totalSubmissions: writings.length,
+      highestScore: scores.length > 0 ? Math.max(...scores) : 0,
+      totalPoints: totalPoints,
+      maxWordCount: wordCounts.length > 0 ? Math.max(...wordCounts) : 0
+    });
+  }, [writings, totalPoints]);
+
+  const profileAchievementData = useMemo(() => {
+    const userStats = {
+      totalSubmissions: stats?.totalSubmissions || 0,
+      highestScore: Math.max(...(stats?.scores || [0])),
+      totalPoints: totalPoints,
+      streakDays: userData.streakDays || 0,
+      maxWordCount: Math.max(...writings.map(w => w.wordCount || 0), 0),
+      hasPassedOnce: (stats?.scores || []).some(s => s >= 80)
+    };
+    return checkAchievements(userStats);
+  }, [stats, writings, totalPoints, userData.streakDays]);
+
+  // 🚀 useMemo - 학년별 글자 수 기준 (gradeLevel 변경 시에만 재계산)
+  const currentWordStandard = useMemo(() =>
+    WORD_COUNT_STANDARDS[userData.gradeLevel] || WORD_COUNT_STANDARDS['3'],
+    [userData.gradeLevel]
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       {showConfetti && <Suspense fallback={null}><Confetti /></Suspense>}
@@ -1784,33 +1820,17 @@ export default function StudentDashboard({ user, userData }) {
                 })()}
               </div>
 
-              {/* 레벨 표시 */}
-              {(() => {
-                const levelInfo = getLevelInfo(totalPoints); // 누적 포인트로 레벨 계산
-                return (
-                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
-                    <span className="text-xs sm:text-sm">{levelInfo.emoji}</span>
-                    <span className="text-[10px] sm:text-xs font-bold text-white whitespace-nowrap">Lv.{levelInfo.level}</span>
-                  </div>
-                );
-              })()}
+              {/* 레벨 표시 (useMemo로 최적화) */}
+              <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-gradient-to-r ${levelInfo.color} shadow-md`}>
+                <span className="text-xs sm:text-sm">{levelInfo.emoji}</span>
+                <span className="text-[10px] sm:text-xs font-bold text-white whitespace-nowrap">Lv.{levelInfo.level}</span>
+              </div>
 
               {/* 🚀 비용 최적화: 메달 표시 제거 (랭킹 탭에서만 확인) */}
 
-              {/* 업적 표시 - 가장 좋은 업적만 */}
+              {/* 업적 표시 - 가장 좋은 업적만 (useMemo로 최적화) */}
               {(() => {
-                const scores = writings.map(w => w.score || 0);
-                const wordCounts = writings.map(w => (w.content || '').length);
-
-                const earnedAchievements = checkAchievements({
-                  totalSubmissions: writings.length,
-                  highestScore: scores.length > 0 ? Math.max(...scores) : 0,
-                  totalPoints: totalPoints, // 누적 포인트 사용
-                  maxWordCount: wordCounts.length > 0 ? Math.max(...wordCounts) : 0
-                });
-
-                // 가장 좋은 업적 (배열 끝에서부터 선택)
-                const bestAchievement = earnedAchievements.length > 0 ? earnedAchievements[earnedAchievements.length - 1] : null;
+                const bestAchievement = headerAchievementData.length > 0 ? headerAchievementData[headerAchievementData.length - 1] : null;
 
                 return bestAchievement ? (
                   <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-white/10 backdrop-blur border border-white/20 shadow-md">
@@ -3609,52 +3629,47 @@ export default function StudentDashboard({ user, userData }) {
                   <span className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center text-white text-sm">⭐</span>
                   내 레벨
                 </h3>
-                {(() => {
-                  const levelInfo = getLevelInfo(totalPoints); // 누적 포인트로 레벨 계산
-                  const nextLevelInfo = getNextLevelInfo(totalPoints); // 누적 포인트로 다음 레벨 계산
-                  return (
-                    <div className="text-center">
-                      {/* 레벨 뱃지 */}
-                      <div className={`inline-block px-6 py-3 rounded-2xl bg-gradient-to-r ${levelInfo.color} shadow-lg mb-4`}>
-                        <span className="text-4xl">{levelInfo.emoji}</span>
-                        <div className="text-white font-bold text-lg mt-1">{levelInfo.name}</div>
-                        <div className="text-white/80 text-sm">Lv.{levelInfo.level}</div>
-                      </div>
+                {/* useMemo로 최적화된 levelInfo/nextLevelInfo 사용 */}
+                <div className="text-center">
+                  {/* 레벨 뱃지 */}
+                  <div className={`inline-block px-6 py-3 rounded-2xl bg-gradient-to-r ${levelInfo.color} shadow-lg mb-4`}>
+                    <span className="text-4xl">{levelInfo.emoji}</span>
+                    <div className="text-white font-bold text-lg mt-1">{levelInfo.name}</div>
+                    <div className="text-white/80 text-sm">Lv.{levelInfo.level}</div>
+                  </div>
 
-                      {/* 포인트 표시 */}
-                      <div className="mt-3 text-gray-700">
-                        <span className="text-2xl font-bold text-amber-600">{points.toLocaleString()}</span>
-                        <span className="text-sm text-gray-500 ml-1">포인트</span>
-                      </div>
+                  {/* 포인트 표시 */}
+                  <div className="mt-3 text-gray-700">
+                    <span className="text-2xl font-bold text-amber-600">{points.toLocaleString()}</span>
+                    <span className="text-sm text-gray-500 ml-1">포인트</span>
+                  </div>
 
-                      {/* 다음 레벨 진행바 */}
-                      {nextLevelInfo.nextLevel && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-xl">
-                          <div className="flex justify-between items-center text-sm mb-2">
-                            <span className="text-gray-500">다음 레벨</span>
-                            <span className="font-medium text-gray-700">
-                              {nextLevelInfo.nextLevel.emoji} {nextLevelInfo.nextLevel.name}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3">
-                            <div
-                              className={`h-3 rounded-full bg-gradient-to-r ${nextLevelInfo.nextLevel.color} transition-all duration-500`}
-                              style={{ width: `${nextLevelInfo.progress}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {nextLevelInfo.pointsNeeded.toLocaleString()}P 더 필요 ({nextLevelInfo.progress}%)
-                          </p>
-                        </div>
-                      )}
-                      {!nextLevelInfo.nextLevel && (
-                        <div className="mt-4 p-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl">
-                          <p className="text-amber-800 font-bold">🎉 최고 레벨 달성!</p>
-                        </div>
-                      )}
+                  {/* 다음 레벨 진행바 */}
+                  {nextLevelInfo.nextLevel && (
+                    <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+                      <div className="flex justify-between items-center text-sm mb-2">
+                        <span className="text-gray-500">다음 레벨</span>
+                        <span className="font-medium text-gray-700">
+                          {nextLevelInfo.nextLevel.emoji} {nextLevelInfo.nextLevel.name}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full bg-gradient-to-r ${nextLevelInfo.nextLevel.color} transition-all duration-500`}
+                          style={{ width: `${nextLevelInfo.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {nextLevelInfo.pointsNeeded.toLocaleString()}P 더 필요 ({nextLevelInfo.progress}%)
+                      </p>
                     </div>
-                  );
-                })()}
+                  )}
+                  {!nextLevelInfo.nextLevel && (
+                    <div className="mt-4 p-3 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl">
+                      <p className="text-amber-800 font-bold">🎉 최고 레벨 달성!</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 아바타 카드 */}
@@ -3881,53 +3896,41 @@ export default function StudentDashboard({ user, userData }) {
                   <span className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm">🏆</span>
                   업적
                 </h3>
-                {(() => {
-                  const userStats = {
-                    totalSubmissions: stats?.totalSubmissions || 0,
-                    highestScore: Math.max(...(stats?.scores || [0])),
-                    totalPoints: totalPoints, // 누적 포인트 사용
-                    streakDays: userData.streakDays || 0,
-                    maxWordCount: Math.max(...writings.map(w => w.wordCount || 0), 0),
-                    hasPassedOnce: (stats?.scores || []).some(s => s >= 80)
-                  };
-                  const earnedAchievements = checkAchievements(userStats);
-                  return (
-                    <div className="space-y-3">
-                      {/* 획득한 업적 */}
-                      <div className="flex flex-wrap gap-2">
-                        {earnedAchievements.length > 0 ? (
-                          earnedAchievements.slice(0, 8).map(achievement => (
-                            <div
-                              key={achievement.id}
-                              className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl border border-amber-200"
-                              title={achievement.description}
-                            >
-                              <span className="text-xl">{achievement.emoji}</span>
-                              <span className="text-xs font-medium text-amber-800">{achievement.name}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500">아직 획득한 업적이 없어요. 글을 제출하면 업적을 얻을 수 있어요!</p>
-                        )}
-                      </div>
-                      {earnedAchievements.length > 8 && (
-                        <p className="text-xs text-gray-500 text-center">+{earnedAchievements.length - 8}개 더...</p>
-                      )}
-                      <div className="pt-2 border-t border-gray-100">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">획득한 업적</span>
-                          <span className="font-bold text-amber-600">{earnedAchievements.length} / {ACHIEVEMENTS.length}</span>
+                {/* useMemo로 최적화된 profileAchievementData 사용 */}
+                <div className="space-y-3">
+                  {/* 획득한 업적 */}
+                  <div className="flex flex-wrap gap-2">
+                    {profileAchievementData.length > 0 ? (
+                      profileAchievementData.slice(0, 8).map(achievement => (
+                        <div
+                          key={achievement.id}
+                          className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-amber-100 to-yellow-100 rounded-xl border border-amber-200"
+                          title={achievement.description}
+                        >
+                          <span className="text-xl">{achievement.emoji}</span>
+                          <span className="text-xs font-medium text-amber-800">{achievement.name}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                          <div
-                            className="h-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400"
-                            style={{ width: `${(earnedAchievements.length / ACHIEVEMENTS.length) * 100}%` }}
-                          />
-                        </div>
-                      </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">아직 획득한 업적이 없어요. 글을 제출하면 업적을 얻을 수 있어요!</p>
+                    )}
+                  </div>
+                  {profileAchievementData.length > 8 && (
+                    <p className="text-xs text-gray-500 text-center">+{profileAchievementData.length - 8}개 더...</p>
+                  )}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">획득한 업적</span>
+                      <span className="font-bold text-amber-600">{profileAchievementData.length} / {ACHIEVEMENTS.length}</span>
                     </div>
-                  );
-                })()}
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div
+                        className="h-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400"
+                        style={{ width: `${(profileAchievementData.length / ACHIEVEMENTS.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* 마이룸 미리보기 - 3D 스타일 */}
