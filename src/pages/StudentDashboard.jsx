@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 // 🚀 useDebounce 제거 - 자동저장 기능 제거로 더 이상 필요 없음
-import Confetti from "react-confetti";
+const Confetti = lazy(() => import("react-confetti"));
 // 🚀 경량 차트 사용 (recharts 524KB → 5KB)
 import { SimpleLineChart, SimpleRadarChart } from "../components/LightweightCharts";
 import { signOut, updateUserData } from "../services/authService";
@@ -1632,7 +1632,7 @@ export default function StudentDashboard({ user, userData }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-      {showConfetti && <Confetti />}
+      {showConfetti && <Suspense fallback={null}><Confetti /></Suspense>}
 
       {/* 닉네임 변경 알림 모달 */}
       {showNicknameAlert && (
@@ -2148,7 +2148,14 @@ export default function StudentDashboard({ user, userData }) {
                                   `<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">${item.original}</mark>`
                                 );
                               });
-                              return <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />;
+                              // XSS 방지: mark 태그만 허용하고 나머지 HTML은 이스케이프
+                              const sanitized = highlightedContent
+                                .replace(/<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">/g, '{{MARK_OPEN}}')
+                                .replace(/<\/mark>/g, '{{MARK_CLOSE}}')
+                                .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                                .replace(/\{\{MARK_OPEN\}\}/g, '<mark class="bg-red-200 text-red-800 px-1 rounded font-medium">')
+                                .replace(/\{\{MARK_CLOSE\}\}/g, '</mark>');
+                              return <div dangerouslySetInnerHTML={{ __html: sanitized }} />;
                             })()}
                           </div>
                         </div>
@@ -3456,21 +3463,18 @@ export default function StudentDashboard({ user, userData }) {
             {stats && stats.scores && stats.scores.length > 0 && (
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-4">점수 추이</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart
-                    data={stats.scores.map((score, idx) => ({
-                      name: `${idx + 1}회차`,
-                      score
-                    }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="score" stroke="#4f46e5" strokeWidth={2} name="점수" />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SimpleLineChart
+                  data={stats.scores.map((score, idx) => ({
+                    name: `${idx + 1}회차`,
+                    score
+                  }))}
+                  dataKey="score"
+                  xAxisKey="name"
+                  height={300}
+                  strokeColor="#4f46e5"
+                  showArea={true}
+                  fillColor="rgba(79, 70, 229, 0.1)"
+                />
               </div>
             )}
           </div>

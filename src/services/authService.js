@@ -6,7 +6,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { SUPER_ADMIN_UID, ROLES } from '../config/auth';
-import { CacheManager, DEFAULT_TTL, LS_PREFIX } from '../utils/cacheUtils';
+import { CacheManager, DEFAULT_TTL, LS_PREFIX, clearLocalStorageByPrefix } from '../utils/cacheUtils';
 
 // ============================================
 // 캐시 관리자 - 공통 유틸리티 사용
@@ -133,6 +133,14 @@ export async function loginUser(email, password) {
 
 export async function signOut() {
   try {
+    // 로그아웃 시 모든 캐시 정리 (보안: 세션 데이터 잔류 방지)
+    userCache.clear();
+    clearLocalStorageByPrefix(LS_PREFIX.USER);
+    clearLocalStorageByPrefix(LS_PREFIX.CLASS);
+    clearLocalStorageByPrefix(LS_PREFIX.ASSIGNMENT);
+    clearLocalStorageByPrefix(LS_PREFIX.WRITING);
+    clearLocalStorageByPrefix(LS_PREFIX.SCHEDULER);
+    clearLocalStorageByPrefix('ssak_cache_');
     await firebaseSignOut(auth);
   } catch (error) {
     console.error('로그아웃 에러:', error);

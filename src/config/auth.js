@@ -51,5 +51,6 @@ export {
   WORD_COUNT_STANDARDS,
   WRITING_TYPE_MULTIPLIERS,
   detectWritingType,
-  getAdjustedWordCount
+  getAdjustedWordCount,
+  normalizeGradeLevel
 } from './wordCount';

@@ -66,7 +66,7 @@ export function detectWritingType(topic) {
  * @param {string} gradeLevel - 원본 gradeLevel
  * @returns {string} 정규화된 gradeLevel
  */
-function normalizeGradeLevel(gradeLevel) {
+export function normalizeGradeLevel(gradeLevel) {
   if (!gradeLevel) return 'elementary-4';
 
   // elementary_1_2, elementary_3_4, elementary_5_6, middle, high 형식 처리

@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   updateDoc,
   deleteDoc,
   documentId,
@@ -15,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { analyzeWriting, detectPlagiarism } from '../utils/geminiAPI'; // 🚀 detectAIUsage 제거 (analyzeWriting에 통합)
-import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS } from '../config/auth';
+import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS, normalizeGradeLevel } from '../config/auth';
 import { updateAssignmentSubmission } from './assignmentService';
 
 // ============================================
@@ -271,7 +272,8 @@ export async function getStudentWritings(studentId, forceRefresh = false) {
     const q = query(
       collection(db, 'writings'),
       where('studentId', '==', studentId),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
     const querySnapshot = await getDocs(q);
     const writings = [];
@@ -315,16 +317,8 @@ export async function getWritingById(writingId) {
 // 🚀 aiHelpHistory: AI 도움 기록 (표절 검사용)
 export async function submitWriting(studentId, writingData, isRewrite = false, classCode = null, userData = null, testScoreMode = null, customTestScore = null, aiHelpHistory = []) {
   try {
-    // 글자 수 기준 가져오기 (gradeLevel 형식 변환 포함)
-    let normalizedGrade = writingData.gradeLevel;
-    if (normalizedGrade) {
-      // elementary_1_2, elementary_3_4, elementary_5_6, middle, high 형식 처리
-      if (normalizedGrade === 'elementary_1_2') normalizedGrade = 'elementary-2';
-      else if (normalizedGrade === 'elementary_3_4') normalizedGrade = 'elementary-4';
-      else if (normalizedGrade === 'elementary_5_6') normalizedGrade = 'elementary-6';
-      else if (normalizedGrade === 'middle') normalizedGrade = 'middle-2';
-      else if (normalizedGrade === 'high') normalizedGrade = 'high-2';
-    }
+    // 글자 수 기준 가져오기 (공통 normalizeGradeLevel 사용)
+    const normalizedGrade = normalizeGradeLevel(writingData.gradeLevel);
     const standard = WORD_COUNT_STANDARDS[normalizedGrade] || WORD_COUNT_STANDARDS['elementary-4'] || { min: 200, ideal: 350, max: 500 };
     const wordCount = writingData.wordCount;
 
@@ -1561,7 +1555,7 @@ export async function migrateWritingsMinScore(classCode) {
 
     // 3. minScore가 없는 글 찾아서 업데이트
     let migratedCount = 0;
-    const batch = writeBatch(db);
+    let batch = writeBatch(db);
     let batchCount = 0;
 
     for (const docSnap of writingsSnapshot.docs) {
@@ -1579,10 +1573,10 @@ export async function migrateWritingsMinScore(classCode) {
         migratedCount++;
         batchCount++;
 
-        // Firestore batch 제한 (500개)
+        // Firestore batch 제한 (500개) - 커밋 후 새 batch 생성
         if (batchCount >= 450) {
           await batch.commit();
-          // 🔇 디버그 로그 감소
+          batch = writeBatch(db);
           batchCount = 0;
         }
       }

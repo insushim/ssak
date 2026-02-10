@@ -12,7 +12,6 @@
   "dependencies": {
     "autoprefixer": "^10.4.16",
     "firebase": "^10.14.1",
-    "firebase-admin": "^13.6.0",
     "framer-motion": "^10.16.16",
     "lucide-react": "^0.563.0",
     "postcss": "^8.4.32",
@@ -20,7 +19,6 @@
     "react-confetti": "^6.1.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
-    "recharts": "^2.10.3",
     "tailwindcss": "^3.4.0",
     "use-debounce": "^10.0.0"
   },

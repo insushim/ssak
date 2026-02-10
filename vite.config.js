@@ -90,8 +90,6 @@ export default defineConfig({
           'vendor-firebase-auth': ['firebase/auth'],
           'vendor-firebase-firestore': ['firebase/firestore'],
           'vendor-firebase-functions': ['firebase/functions'],
-          // 차트 라이브러리 분리 (선생님 대시보드에서만 사용)
-          'vendor-charts': ['recharts'],
           // 애니메이션 라이브러리 분리
           'vendor-motion': ['framer-motion'],
           // React 코어

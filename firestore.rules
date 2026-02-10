@@ -39,14 +39,19 @@ service cloud.firestore {
 
       // Users can create their own document during registration
       // OR approved teachers can create student accounts (batch creation)
+      // Security: role must be 'student' or 'teacher' only (prevent privilege escalation)
       allow create: if isAuthenticated() &&
-                       ((request.auth.uid == userId && request.resource.data.uid == userId) ||
+                       ((request.auth.uid == userId &&
+                         request.resource.data.uid == userId &&
+                         request.resource.data.role in ['student', 'teacher']) ||
                         (isApprovedTeacher() && request.resource.data.role == 'student'));
 
       // Users can update their own document OR super admin can update any
       // OR approved teachers can update student classCode (for class operations)
+      // Security: users cannot change their own role or approved status
       allow update: if isAuthenticated() &&
-                       (request.auth.uid == userId ||
+                       ((request.auth.uid == userId &&
+                         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'approved'])) ||
                         isSuperAdmin() ||
                         (isApprovedTeacher() &&
                          resource.data.role == 'student' &&
@@ -68,10 +73,12 @@ service cloud.firestore {
                        request.resource.data.maxStudents == 40;
 
       // Only the teacher who owns the class or super admin can update
+      // Students can only modify the students array (joining/leaving class)
       allow update: if isAuthenticated() &&
                        (resource.data.teacherId == request.auth.uid ||
                         isSuperAdmin() ||
-                        isStudent()); // Students can join classes
+                        (isStudent() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['students'])));
 
       // Only the teacher who owns the class or super admin can delete
       allow delete: if isAuthenticated() &&
@@ -251,6 +258,26 @@ service cloud.firestore {
     match /ssakdb_meta/{docId} {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
+    }
+
+    // API 사용량 추적 (Cloud Functions에서 기록, 관리자만 읽기)
+    match /usage/{docId} {
+      allow read: if isAuthenticated() && (isTeacher() || isSuperAdmin());
+      allow write: if isSuperAdmin();
+    }
+
+    // API 비용 추적
+    match /apiCosts/{docId} {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // 가정통신문 컬렉션
+    match /newsletters/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isApprovedTeacher();
+      allow update, delete: if isAuthenticated() &&
+                               (resource.data.teacherId == request.auth.uid || isSuperAdmin());
     }
   }
 }
