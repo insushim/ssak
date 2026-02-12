@@ -23,7 +23,7 @@ import { getAssignmentsFromClassInfo, migrateAssignmentSummary } from "../servic
 import { getWritingHelp, getQuickAdvice } from "../utils/geminiAPI";
 import { WORD_COUNT_STANDARDS, PASSING_SCORE, GRADE_LEVELS, getAdjustedWordCount } from "../config/auth";
 import { FaceSVG, AnimalFaceSVG, HairSVG, ClothesSVG, AccessorySVG, BackgroundSVG } from "../components/AvatarSVG";
-import { FurnitureSVG, ElectronicsSVG, VehicleSVG, PetSVG, DecorationSVG } from "../components/RoomSVG";
+import { FurnitureSVG, ElectronicsSVG, VehicleSVG, PetSVG, DecorationSVG, preloadRoomSVG } from "../components/LazyRoomSVG";
 import { LEVELS, getLevelInfo, getNextLevelInfo, ACHIEVEMENTS, checkAchievements, WRITING_TEMPLATES } from "../config/levels";
 // 🚀 상점 아이템 데이터 분리 (번들 최적화)
 import {
@@ -102,6 +102,7 @@ export default function StudentDashboard({ user, userData }) {
     if (newTab === 'statistics') {
       devLog('[📊 탭] 통계 탭 - DB 읽기 0회 (이미 로드된 stats 사용)');
     } else if (newTab === 'profile') {
+      preloadRoomSVG(); // 🚀 RoomSVG 사전 로드
       devLog('[📊 탭] 내 프로필 탭 - DB 읽기 0회 (이미 로드된 userData 사용)');
     } else if (newTab === 'ranking') {
       devLog('[📊 탭] 랭킹 탭 - DB 읽기 0회 (classInfo 캐시 사용)');

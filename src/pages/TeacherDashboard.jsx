@@ -530,7 +530,7 @@ export default function TeacherDashboard({ user, userData }) {
           setSchedulerSettings(cachedSettings);
           devLog(`[📊 캐시] 스케줄러 설정 - LocalStorage에서 로드 (DB 읽기 0회)`);
           return cachedSettings; // 🚀 설정 반환
-        } catch (e) {}
+        } catch (e) { if (import.meta.env.DEV) console.warn("스케줄러 캐시 파싱 실패:", e.message); }
       }
 
       // 캐시가 없으면 DB에서 로드

@@ -31,6 +31,14 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
     }
 
+    // Helper function: Check if teacher owns the class that a student belongs to
+    // Looks up the student classCode from users, then checks teacher owns that class
+    function isTeacherOfStudent(studentId) {
+      let studentData = get(/databases/$(database)/documents/users/$(studentId)).data;
+      return studentData.classCode != null &&
+             get(/databases/$(database)/documents/classes/$(studentData.classCode)).data.teacherId == request.auth.uid;
+    }
+
     // Users collection
     match /users/{userId} {
       // Users can read their own document, teachers/admins can read any
@@ -109,18 +117,27 @@ service cloud.firestore {
                        (isApprovedTeacher() &&
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed', 'reviewedAt']));
 
-      // Student, their teacher, or super admin can delete
+      // Student can delete their own writing
+      // Teacher can only delete writings from their own class (cross-class restriction)
+      // Super admin can delete any
       allow delete: if isAuthenticated() &&
                        (resource.data.studentId == request.auth.uid ||
                         isSuperAdmin() ||
-                        isTeacher());
+                        (isTeacher() && (
+                          resource.data.classCode == null ||
+                          get(/databases/$(database)/documents/classes/$(resource.data.classCode)).data.teacherId == request.auth.uid
+                        )));
     }
 
     // Student stats collection
     match /studentStats/{studentId} {
-      // Students can only read their own stats, teachers/admins can read all
+      // Students can only read their own stats
+      // Teachers can only read stats of students in their own class (cross-class restriction)
+      // Super admins can read all
       allow read: if isAuthenticated() &&
-                     (request.auth.uid == studentId || isTeacher() || isSuperAdmin());
+                     (request.auth.uid == studentId ||
+                      isSuperAdmin() ||
+                      (isTeacher() && isTeacherOfStudent(studentId)));
 
       // Only the student themselves or system can write stats
       allow write: if isAuthenticated() &&
@@ -152,25 +169,29 @@ service cloud.firestore {
 
     // Assignment submissions collection
     match /submissions/{submissionId} {
-      // Students can read their own submissions, teachers/admins can read all
+      // Students can read their own submissions
+      // Teachers can only read submissions from students in their class (cross-class restriction)
+      // Super admins can read all
       allow read: if isAuthenticated() &&
-                     (resource.data.studentId == request.auth.uid || isTeacher() || isSuperAdmin());
+                     (resource.data.studentId == request.auth.uid ||
+                      isSuperAdmin() ||
+                      (isTeacher() && isTeacherOfStudent(resource.data.studentId)));
 
       // Only students can create submissions (for themselves)
       allow create: if isStudent() &&
                        request.resource.data.studentId == request.auth.uid;
 
-      // Only the student who submitted or their teacher can update
+      // Only the student who submitted, their class teacher, or super admin can update
       allow update: if isAuthenticated() &&
                        (resource.data.studentId == request.auth.uid ||
-                        isApprovedTeacher() ||
-                        isSuperAdmin());
+                        isSuperAdmin() ||
+                        (isApprovedTeacher() && isTeacherOfStudent(resource.data.studentId)));
 
-      // Student, their teacher, or super admin can delete
+      // Only the student who submitted, their class teacher, or super admin can delete
       allow delete: if isAuthenticated() &&
                        (resource.data.studentId == request.auth.uid ||
-                        isApprovedTeacher() ||
-                        isSuperAdmin());
+                        isSuperAdmin() ||
+                        (isApprovedTeacher() && isTeacherOfStudent(resource.data.studentId)));
     }
 
     // Scheduler settings collection

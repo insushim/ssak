@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, getDoc, setDoc, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { generateTopics } from '../utils/geminiAPI';
 import { createAssignment, getAssignmentsByClass } from './assignmentService';
@@ -281,7 +281,8 @@ export async function hasAutoAssignmentToday(classCode, forceRefresh = false) {
       collection(db, 'autoAssignmentLogs'),
       where('classCode', '==', classCode),
       where('createdAt', '>=', todayStartUTC),
-      where('createdAt', '<=', todayEndUTC)
+      where('createdAt', '<=', todayEndUTC),
+      limit(1) // only need to check existence
     );
     const snapshot = await getDocs(q);
 

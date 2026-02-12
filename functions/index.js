@@ -14,6 +14,16 @@ const MAX_STUDENTS_PER_CLASS = 40;
 // Gemini API 키 (Firebase Secret Manager)
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
+// 🚀 Gemini model 캐시 (warm start 시 재사용 - 인스턴스 생성 비용 절감)
+let _cachedGenAI = null;
+let _cachedModel = null;
+function getGeminiModel(apiKey) {
+  if (!_cachedGenAI) {
+    _cachedGenAI = new GoogleGenerativeAI(apiKey);
+    _cachedModel = _cachedGenAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+  }
+  return _cachedModel;
+}
 // ============================================
 // 💰 비용 최적화 & 사용량 추적 시스템
 // ============================================
@@ -454,6 +464,104 @@ const syncStudentClassInfo = async (classCode) => {
   }
 };
 
+
+// ============================================
+// Helper: Delete all students in a class (Auth + Firestore + writings + stats + drafts)
+// Used by deleteClassWithStudents and autoDeleteAllClassesOnMarch1
+// ============================================
+async function deleteStudentsInClass(students) {
+  let deletedStudents = 0;
+  let deletedWritings = 0;
+  const errors = [];
+
+  for (const student of students) {
+    try {
+      const studentId = student.studentId;
+
+      // Firebase Auth delete
+      try {
+        await auth.deleteUser(studentId);
+      } catch (authError) {
+        if (authError.code !== 'auth/user-not-found') {
+          console.warn(`[학급 삭제] Auth 삭제 실패 - ${studentId}:`, authError.message);
+        }
+      }
+
+      // Firestore users document delete
+      await db.doc(`users/${studentId}`).delete();
+
+      // Student writings delete
+      const writingsQuery = db.collection('writings').where('studentId', '==', studentId);
+      const writingsSnapshot = await writingsQuery.get();
+
+      if (!writingsSnapshot.empty) {
+        const batch = db.batch();
+        writingsSnapshot.forEach((docSnap) => {
+          batch.delete(docSnap.ref);
+          deletedWritings++;
+        });
+        await batch.commit();
+      }
+
+      // studentStats delete
+      try {
+        await db.doc(`studentStats/${studentId}`).delete();
+      } catch (e) {
+        // ignore - may not exist
+      }
+
+      // drafts delete
+      const draftsQuery = db.collection('drafts').where('studentId', '==', studentId);
+      const draftsSnapshot = await draftsQuery.get();
+      if (!draftsSnapshot.empty) {
+        const draftBatch = db.batch();
+        draftsSnapshot.forEach((docSnap) => draftBatch.delete(docSnap.ref));
+        await draftBatch.commit();
+      }
+
+      deletedStudents++;
+    } catch (studentError) {
+      console.error(`[학급 삭제] 학생 삭제 실패 - ${student.studentId}:`, studentError);
+      errors.push({ studentId: student.studentId, error: studentError.message });
+    }
+  }
+
+  return { deletedStudents, deletedWritings, errors };
+}
+
+// Helper: Delete assignments for a class
+async function deleteClassAssignments(classCode) {
+  const assignmentsQuery = db.collection('assignments').where('classCode', '==', classCode);
+  const assignmentsSnapshot = await assignmentsQuery.get();
+  let deletedAssignments = 0;
+  if (!assignmentsSnapshot.empty) {
+    const assignmentBatch = db.batch();
+    assignmentsSnapshot.forEach((docSnap) => {
+      assignmentBatch.delete(docSnap.ref);
+      deletedAssignments++;
+    });
+    await assignmentBatch.commit();
+  }
+  return deletedAssignments;
+}
+
+// Helper: Remove classCode from teacher's user document
+async function removeTeacherClassCode(teacherId, classCode) {
+  if (!teacherId) return;
+  try {
+    const teacherRef = db.doc(`users/${teacherId}`);
+    const teacherDoc = await teacherRef.get();
+    if (teacherDoc.exists) {
+      const teacherData = teacherDoc.data();
+      if (teacherData.classCode === classCode) {
+        await teacherRef.update({ classCode: admin.firestore.FieldValue.delete() });
+      }
+    }
+  } catch (e) {
+    console.warn(`[학급 삭제] 선생님 classCode 업데이트 실패:`, e);
+  }
+}
+
 exports.batchCreateStudents = onCall(async (request) => {
   // In v2, auth is in request.auth
   if (!request.auth) {
@@ -490,6 +598,11 @@ exports.batchCreateStudents = onCall(async (request) => {
 
   if (!isAdmin && teacherData.role !== 'teacher') {
     throw new HttpsError('permission-denied', '교사만 학생 계정을 생성할 수 있습니다.');
+  }
+
+  // Security: 승인된 교사만 학생 생성 가능 (미승인 교사의 학생 생성 방지)
+  if (!isAdmin && teacherData.approved !== true) {
+    throw new HttpsError('permission-denied', '승인된 교사만 학생 계정을 생성할 수 있습니다. 관리자에게 승인을 요청하세요.');
   }
 
   const classRef = db.doc(`classes/${classCode}`);
@@ -653,20 +766,25 @@ exports.batchDeleteUsers = onCall(async (request) => {
     throw new HttpsError('permission-denied', '슈퍼 관리자만 사용자를 삭제할 수 있습니다.');
   }
 
+  // 🚀 Parallel delete with concurrency limit of 5
+  const CONCURRENCY = 5;
   const results = [];
-
-  for (const userId of userIds) {
-    try {
-      // Delete from Firebase Auth
-      await auth.deleteUser(userId);
-
-      // Delete from Firestore
-      await db.doc(`users/${userId}`).delete();
-
-      results.push({userId, status: 'deleted'});
-    } catch (error) {
-      results.push({userId, status: 'failed', error: error.message});
-    }
+  for (let i = 0; i < userIds.length; i += CONCURRENCY) {
+    const batch = userIds.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (userId) => {
+        await auth.deleteUser(userId);
+        await db.doc(`users/${userId}`).delete();
+        return {userId, status: 'deleted'};
+      })
+    );
+    batchResults.forEach((result, idx) => {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      } else {
+        results.push({userId: batch[idx], status: 'failed', error: result.reason?.message || 'Unknown error'});
+      }
+    });
   }
 
   const deleted = results.filter((r) => r.status === 'deleted').length;
@@ -705,6 +823,11 @@ exports.resetStudentPassword = onCall(async (request) => {
 
   if (!isAdmin && teacherData.role !== 'teacher') {
     throw new HttpsError('permission-denied', '교사만 학생 비밀번호를 초기화할 수 있습니다.');
+  }
+
+  // Security: 승인된 교사만 비밀번호 초기화 가능
+  if (!isAdmin && teacherData.approved !== true) {
+    throw new HttpsError('permission-denied', '승인된 교사만 학생 비밀번호를 초기화할 수 있습니다.');
   }
 
   // Verify teacher owns this class
@@ -761,7 +884,7 @@ exports.resetStudentPassword = onCall(async (request) => {
 // 🚀 글쓰기 품질 검사 함수 (반복문장, 무의미한 글 감지)
 function checkWritingQuality(text, idealWordCount = 100) {
   // 0. 최소 글자 수 체크 (너무 짧은 글은 바로 0점)
-  const cleanText = text.replace(/s/g, '');
+  const cleanText = text.replace(/\s/g, '');
   const minLength = 20; // 최소 20자
 
   if (cleanText.length < minLength) {
@@ -1016,8 +1139,7 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
       try {
         const apiKey = geminiApiKey.value();
         if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+        const model = getGeminiModel(apiKey); // 🚀 cached
         const result = await model.generateContent(prompt);
         const response = await result.response;
         responseText = response.text();
@@ -1061,13 +1183,6 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
         aiCheck: { probability: 10, verdict: 'LOW', reason: '학생 글로 판단' },
         _fallback: true // 폴백 응답 표시
       };
-    }
-
-    // 🔍 응답이 비어있는 경우 (이미 위에서 폴백 처리되었으므로 여기 도달하면 정상)
-    if (!responseText || responseText.trim().length === 0) {
-      console.error(`[AI 응답 비어있음] 프롬프트 길이: ${prompt.length}자`);
-      // 이미 위에서 처리되어 여기 도달하지 않지만 안전장치
-      throw new HttpsError('internal', '분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.');
     }
 
     // Parse JSON from response - 더 강력한 파싱
@@ -1376,8 +1491,7 @@ ${previousTexts}
 
     const apiKey = geminiApiKey.value();
     if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+    const model = getGeminiModel(apiKey); // 🚀 cached
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1646,8 +1760,7 @@ JSON만 응답:
 
     const apiKey = geminiApiKey.value();
     if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+    const model = getGeminiModel(apiKey); // 🚀 cached
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1762,8 +1875,7 @@ JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"pa
     const prompt = prompts[helpType] || prompts.default;
     const apiKey = geminiApiKey.value();
     if (!apiKey) throw new Error('API 키 없음');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+    const model = getGeminiModel(apiKey); // 🚀 cached
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1813,8 +1925,7 @@ ${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언
 
     const apiKey = geminiApiKey.value();
     if (!apiKey) throw new Error('API 키 없음');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+    const model = getGeminiModel(apiKey); // 🚀 cached
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const responseText = response.text();
@@ -1885,8 +1996,7 @@ ${categoryText}
 
     const apiKey = geminiApiKey.value();
     if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+    const model = getGeminiModel(apiKey); // 🚀 cached
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
@@ -2269,94 +2379,12 @@ exports.deleteClassWithStudents = onCall(async (request) => {
 
     console.log(`[학급 삭제] 학생 ${students.length}명, 선생님 ID: ${teacherId}`);
 
-    let deletedStudents = 0;
-    let deletedWritings = 0;
-    const errors = [];
+    // Use shared helpers to delete students, assignments, and teacher classCode
+    const { deletedStudents, deletedWritings, errors } = await deleteStudentsInClass(students);
+    const deletedAssignments = await deleteClassAssignments(classCode);
+    await removeTeacherClassCode(teacherId, classCode);
 
-    // 2. 학생 계정 삭제 (Auth + Firestore)
-    for (const student of students) {
-      try {
-        const studentId = student.studentId;
-
-        // Firebase Auth에서 삭제
-        try {
-          await auth.deleteUser(studentId);
-        } catch (authError) {
-          if (authError.code !== 'auth/user-not-found') {
-            console.warn(`[학급 삭제] Auth 삭제 실패 - ${studentId}:`, authError.message);
-          }
-        }
-
-        // Firestore users 문서 삭제
-        await db.doc(`users/${studentId}`).delete();
-
-        // 해당 학생의 글 삭제
-        const writingsQuery = db.collection('writings').where('studentId', '==', studentId);
-        const writingsSnapshot = await writingsQuery.get();
-        
-        const batch = db.batch();
-        writingsSnapshot.forEach((docSnap) => {
-          batch.delete(docSnap.ref);
-          deletedWritings++;
-        });
-        if (!writingsSnapshot.empty) {
-          await batch.commit();
-        }
-
-        // studentStats 삭제
-        try {
-          await db.doc(`studentStats/${studentId}`).delete();
-        } catch (e) {
-          // 무시
-        }
-
-        // drafts 삭제
-        const draftsQuery = db.collection('drafts').where('studentId', '==', studentId);
-        const draftsSnapshot = await draftsQuery.get();
-        if (!draftsSnapshot.empty) {
-          const draftBatch = db.batch();
-          draftsSnapshot.forEach((docSnap) => draftBatch.delete(docSnap.ref));
-          await draftBatch.commit();
-        }
-
-        deletedStudents++;
-      } catch (studentError) {
-        console.error(`[학급 삭제] 학생 삭제 실패 - ${student.studentId}:`, studentError);
-        errors.push({ studentId: student.studentId, error: studentError.message });
-      }
-    }
-
-    // 3. 학급 과제 삭제
-    let deletedAssignments = 0;
-    const assignmentsQuery = db.collection('assignments').where('classCode', '==', classCode);
-    const assignmentsSnapshot = await assignmentsQuery.get();
-    if (!assignmentsSnapshot.empty) {
-      const assignmentBatch = db.batch();
-      assignmentsSnapshot.forEach((docSnap) => {
-        assignmentBatch.delete(docSnap.ref);
-        deletedAssignments++;
-      });
-      await assignmentBatch.commit();
-    }
-
-    // 4. 선생님의 classCode 제거 (선생님은 삭제하지 않음)
-    if (teacherId) {
-      try {
-        const teacherRef = db.doc(`users/${teacherId}`);
-        const teacherDoc = await teacherRef.get();
-        if (teacherDoc.exists) {
-          const teacherData = teacherDoc.data();
-          // 선생님이 이 학급만 담당하는 경우 classCode 제거
-          if (teacherData.classCode === classCode) {
-            await teacherRef.update({ classCode: admin.firestore.FieldValue.delete() });
-          }
-        }
-      } catch (e) {
-        console.warn(`[학급 삭제] 선생님 classCode 업데이트 실패:`, e);
-      }
-    }
-
-    // 5. 학급 문서 삭제
+    // 학급 문서 삭제
     await classRef.delete();
 
     // 🚀 학급 삭제 후 슈퍼관리자 classesSummary 동기화
@@ -2469,93 +2497,17 @@ exports.autoDeleteAllClassesOnMarch1 = onSchedule({
 
       console.log(`[연간 자동 삭제] 학급 ${classCode} 처리 중 - 학생 ${students.length}명`);
 
-      let deletedStudentsInClass = 0;
-      let deletedWritingsInClass = 0;
-
-      // 학생 계정 삭제
-      for (const student of students) {
-        try {
-          const studentId = student.studentId;
-
-          // Firebase Auth에서 삭제
-          try {
-            await auth.deleteUser(studentId);
-          } catch (authError) {
-            if (authError.code !== 'auth/user-not-found') {
-              console.warn(`[연간 자동 삭제] Auth 삭제 실패 - ${studentId}:`, authError.message);
-            }
-          }
-
-          // Firestore users 문서 삭제
-          await db.doc(`users/${studentId}`).delete();
-
-          // 해당 학생의 글 삭제
-          const writingsQuery = db.collection('writings').where('studentId', '==', studentId);
-          const writingsSnapshot = await writingsQuery.get();
-
-          if (!writingsSnapshot.empty) {
-            const batch = db.batch();
-            writingsSnapshot.forEach((docSnap) => {
-              batch.delete(docSnap.ref);
-              deletedWritingsInClass++;
-            });
-            await batch.commit();
-          }
-
-          // studentStats 삭제
-          try {
-            await db.doc(`studentStats/${studentId}`).delete();
-          } catch (e) {
-            // 무시
-          }
-
-          // drafts 삭제
-          const draftsQuery = db.collection('drafts').where('studentId', '==', studentId);
-          const draftsSnapshot = await draftsQuery.get();
-          if (!draftsSnapshot.empty) {
-            const draftBatch = db.batch();
-            draftsSnapshot.forEach((docSnap) => draftBatch.delete(docSnap.ref));
-            await draftBatch.commit();
-          }
-
-          deletedStudentsInClass++;
-        } catch (studentError) {
-          console.error(`[연간 자동 삭제] 학생 삭제 실패 - ${student.studentId}:`, studentError);
-          errors.push({ classCode, studentId: student.studentId, error: studentError.message });
-        }
-      }
-
-      // 학급 과제 삭제
-      let deletedAssignmentsInClass = 0;
-      const assignmentsQuery = db.collection('assignments').where('classCode', '==', classCode);
-      const assignmentsSnapshot = await assignmentsQuery.get();
-      if (!assignmentsSnapshot.empty) {
-        const assignmentBatch = db.batch();
-        assignmentsSnapshot.forEach((docSnap) => {
-          assignmentBatch.delete(docSnap.ref);
-          deletedAssignmentsInClass++;
-        });
-        await assignmentBatch.commit();
-      }
-
-      // 선생님 classCode 제거 (선생님 계정은 유지)
-      if (teacherId) {
-        try {
-          const teacherRef = db.doc(`users/${teacherId}`);
-          const teacherDoc = await teacherRef.get();
-          if (teacherDoc.exists) {
-            const teacherData = teacherDoc.data();
-            if (teacherData.classCode === classCode) {
-              await teacherRef.update({ classCode: admin.firestore.FieldValue.delete() });
-            }
-          }
-        } catch (e) {
-          console.warn(`[연간 자동 삭제] 선생님 classCode 업데이트 실패:`, e);
-        }
-      }
+      // Use shared helpers
+      const result = await deleteStudentsInClass(students);
+      const deletedAssignmentsInClass = await deleteClassAssignments(classCode);
+      await removeTeacherClassCode(teacherId, classCode);
 
       // 학급 문서 삭제
       await db.doc(`classes/${classCode}`).delete();
+
+      const deletedStudentsInClass = result.deletedStudents;
+      const deletedWritingsInClass = result.deletedWritings;
+      if (result.errors.length > 0) errors.push(...result.errors.map(e => ({ classCode, ...e })));
 
       totalDeletedClasses++;
       totalDeletedStudents += deletedStudentsInClass;
@@ -2970,8 +2922,7 @@ async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, 
 
   // AI로 주제 생성
   const apiKey = geminiApiKey.value();
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
+  const model = getGeminiModel(apiKey); // 🚀 cached
 
   const gradeLevelNames = {
     'elementary_1': '초등학교 1학년',
@@ -3083,13 +3034,13 @@ async function generateAutoAssignmentInternal(classCode, gradeLevel, teacherId, 
  */
 exports.checkSsakDBStatus = onCall(async (request) => {
   if (!request.auth) {
-    throw new functions.https.HttpsError('unauthenticated', '로그인이 필요합니다.');
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
   }
 
   // 슈퍼 관리자 확인
   const userDoc = await db.collection('users').doc(request.auth.uid).get();
   if (!userDoc.exists || userDoc.data().role !== 'super_admin') {
-    throw new functions.https.HttpsError('permission-denied', '관리자 권한이 필요합니다.');
+    throw new HttpsError('permission-denied', '관리자 권한이 필요합니다.');
   }
 
   const collections = ['rubrics', 'examples', 'feedbackPatterns', 'writingTheory', 'aiDetection', 'topics', 'learningPaths', 'evaluationTools', 'system', 'metadata'];

@@ -10,7 +10,8 @@ import {
   arrayUnion,
   arrayRemove,
   deleteDoc,
-  documentId
+  documentId,
+  limit
 } from 'firebase/firestore';
 import { db, functions } from '../config/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -191,7 +192,7 @@ export async function getTeacherClasses(teacherId, forceRefresh = false) {
 
     // 🔥 3. DB에서 조회 (캐시 미스 시에만)
     devLog(`[📊 DB읽기] getTeacherClasses DB 조회 - teacherId: ${teacherId}`);
-    const q = query(collection(db, 'classes'), where('teacherId', '==', teacherId));
+    const q = query(collection(db, 'classes'), where('teacherId', '==', teacherId), limit(50));
     const querySnapshot = await getDocs(q);
     const classes = [];
     querySnapshot.forEach((docSnap) => {

@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, getDoc, orderBy, limit, arrayUnion, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 const devLog = import.meta.env.DEV ? console.log.bind(console) : () => {};
@@ -280,7 +280,8 @@ export async function migrateAssignmentSummary(classCode) {
     // assignments 컬렉션에서 요약 생성
     const q = query(
       collection(db, 'assignments'),
-      where('classCode', '==', classCode)
+      where('classCode', '==', classCode),
+      limit(200) // safety limit
     );
     const snapshot = await getDocs(q);
 
@@ -614,7 +615,8 @@ export async function migrateAssignmentSubmissions(classCode) {
     // 1. 해당 클래스의 모든 과제 가져오기 (minScore 정보 포함)
     const assignmentsQuery = query(
       collection(db, 'assignments'),
-      where('classCode', '==', classCode)
+      where('classCode', '==', classCode),
+      limit(200)
     );
     const assignmentsSnapshot = await getDocs(assignmentsQuery);
 

@@ -1,4 +1,4 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
 
 export async function analyzeWriting(text, gradeLevel, topic, wordCount, idealWordCount, isRewrite = false, previousScore = null, previousText = null) {

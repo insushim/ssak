@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { analyzeWriting } from '../utils/geminiAPI';
-import { PASSING_SCORE, PLAGIARISM_THRESHOLD, WORD_COUNT_STANDARDS, normalizeGradeLevel } from '../config/auth';
+import { PASSING_SCORE, WORD_COUNT_STANDARDS, normalizeGradeLevel } from '../config/auth';
 import { updateAssignmentSubmission } from './assignmentService';
 
 // Dev-only logging (stripped in production builds)
@@ -619,33 +619,6 @@ export function invalidateStudentStatsCache(studentId) {
   } catch (e) { if (import.meta.env.DEV) console.warn('localStorage error:', e.message); }
 }
 
-// 🚀 사용자 닉네임 캐싱 가져오기 (읽기 최적화)
-async function getCachedUserNickname(studentId) {
-  // 캐시 확인
-  const cached = cache.userNicknames.get(studentId);
-  if (cached && isCacheValid(cached.timestamp, CACHE_TTL.userNicknames)) {
-    return cached.nickname;
-  }
-
-  // DB에서 가져오기
-  try {
-    const studentDoc = await getDoc(doc(db, 'users', studentId));
-    const studentData = studentDoc.exists() ? studentDoc.data() : {};
-    const nickname = studentData.nickname || studentData.name || '익명';
-
-    // 캐시 저장
-    cache.userNicknames.set(studentId, {
-      nickname,
-      timestamp: Date.now()
-    });
-    evictIfNeeded(cache.userNicknames);
-
-    return nickname;
-  } catch (error) {
-    return '익명';
-  }
-}
-
 // 🚀 배치 쿼리: classCode로 모든 글을 한 번에 가져오기 (전체 글 조회용)
 // 🔧 migrateWritingsClassCode 함수 실행 후에는 폴백이 거의 사용되지 않음
 // (안전장치로 폴백 로직 유지)
@@ -686,7 +659,8 @@ async function getAllClassWritingsBatch(classCode, studentIds = [], forTeacher =
           const fallbackQ = query(
             collection(db, 'writings'),
             where('studentId', 'in', batchIds),
-            where('isDraft', '==', false)
+            where('isDraft', '==', false),
+            limit(500)
           );
           const fallbackSnapshot = await getDocs(fallbackQ);
           fallbackSnapshot.forEach((docSnap) => {
@@ -742,7 +716,8 @@ export async function getClassWritingsSummary(classCode, forceRefresh = false) {
     const q = query(
       collection(db, 'writings'),
       where('classCode', '==', classCode),
-      where('isDraft', '==', false)
+      where('isDraft', '==', false),
+      limit(1000) // 🚀 최대 1000개 제한 (비용 최적화)
     );
 
     const snapshot = await getDocs(q);
@@ -1109,113 +1084,6 @@ export async function getClassRanking(classCode, period = 'weekly', options = {}
   }
 }
 
-// 🚀 랭킹 재계산 및 저장 (마이그레이션 또는 새 기간 시작 시)
-async function recalculateClassRanking(classCode, period, classData = null) {
-  try {
-    // classData가 없으면 조회
-    if (!classData) {
-      const classDoc = await getDoc(doc(db, 'classes', classCode));
-      if (!classDoc.exists()) return [];
-      classData = classDoc.data();
-    }
-
-    const students = classData.students || [];
-    if (students.length === 0) return [];
-
-    const startDate = getRankingPeriodStart(period);
-    const studentIds = students.map(s => s.studentId);
-
-    // 사용자 데이터 배치 조회
-    const userDataMap = new Map();
-    const batchSize = 30;
-    for (let i = 0; i < studentIds.length; i += batchSize) {
-      const batchIds = studentIds.slice(i, i + batchSize);
-      const q = query(
-        collection(db, 'users'),
-        where(documentId(), 'in', batchIds)
-      );
-      const snapshot = await getDocs(q);
-      snapshot.forEach((docSnap) => {
-        userDataMap.set(docSnap.id, docSnap.data());
-      });
-    }
-
-    // 글 데이터 조회
-    // 🔇 디버그 로그 감소
-    const writingsQuery = query(
-      collection(db, 'writings'),
-      where('classCode', '==', classCode),
-      where('isDraft', '==', false),
-      where('submittedAt', '>=', startDate.toISOString())
-    );
-    const writingsSnapshot = await getDocs(writingsQuery);
-
-    const writingsByStudent = new Map();
-    writingsSnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (!writingsByStudent.has(data.studentId)) {
-        writingsByStudent.set(data.studentId, []);
-      }
-      writingsByStudent.get(data.studentId).push(data);
-    });
-    // 🔇 디버그 로그 감소
-
-    // 랭킹 계산
-    const rankingResults = studentIds.map((studentId) => {
-      const userData = userDataMap.get(studentId) || {};
-      const nickname = userData.nickname || userData.name || '익명';
-      const periodWritings = writingsByStudent.get(studentId) || [];
-
-      const submissionCount = periodWritings.length;
-      const totalScore = periodWritings.reduce((sum, w) => sum + (w.score || 0), 0);
-      const averageScore = submissionCount > 0 ? Math.round(totalScore / submissionCount) : 0;
-      const passCount = periodWritings.filter(w => w.score >= 70).length;  // 🚀 통과 기준 70점
-      const highScore = Math.max(...periodWritings.map(w => w.score || 0), 0);
-      // 🚀 랭킹 점수: 평균 점수 × 3 + 통과 횟수 × 20 (제출 수 제외!)
-      const rankingScore = averageScore * 3 + passCount * 20;
-
-      return {
-        studentId,
-        nickname,
-        points: userData.points || 0,
-        submissionCount,
-        averageScore,
-        passCount,
-        highScore,
-        rankingScore,
-        streakDays: userData.streakDays || 0
-      };
-    });
-
-    // 정렬 및 순위 부여
-    rankingResults.sort((a, b) => b.rankingScore - a.rankingScore);
-    const result = rankingResults.map((student, index) => ({
-      ...student,
-      rank: index + 1
-    }));
-
-    // 🚀 classes 문서에 랭킹 저장
-    const periodKey = getRankingPeriodKey(period);
-    const rankingField = period === 'weekly' ? 'weeklyRanking' : 'monthlyRanking';
-
-    await updateDoc(doc(db, 'classes', classCode), {
-      [rankingField]: {
-        periodKey,
-        data: result,
-        updatedAt: new Date().toISOString()
-      }
-    });
-    // 🔇 디버그 로그 감소
-
-    // 캐시 무효화
-    invalidateClassDataCache(classCode);
-
-    return result;
-  } catch (error) {
-    console.error('랭킹 재계산 에러:', error);
-    return [];
-  }
-}
 
 // 🚀 글 제출 시 랭킹 업데이트 (증분 업데이트)
 // 🚀 최적화: 주간/월간 한 번에 업데이트 (쓰기 2회 → 1회)
@@ -1586,7 +1454,8 @@ export async function migrateWritingsMinScore(classCode) {
     // 2. 해당 클래스의 모든 글 가져오기
     const writingsQuery = query(
       collection(db, 'writings'),
-      where('classCode', '==', classCode)
+      where('classCode', '==', classCode),
+      limit(2000) // safety limit for migration
     );
     const writingsSnapshot = await getDocs(writingsQuery);
 
