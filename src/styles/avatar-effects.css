@@ -1,0 +1,234 @@
+/* ============================================
+   🎨 아바타 시스템 프리미엄 이펙트
+   희귀도별 글로우, 시머, 파티클 애니메이션
+   ============================================ */
+
+/* ── 희귀도 글로우 (Rare+) ── */
+.rarity-glow-rare {
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.1);
+}
+.rarity-glow-epic {
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5), 0 0 25px rgba(168, 85, 247, 0.15);
+}
+.rarity-glow-legendary {
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 30px rgba(245, 158, 11, 0.2);
+  animation: legendaryPulse 3s ease-in-out infinite;
+}
+.rarity-glow-mythic {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), 0 0 35px rgba(239, 68, 68, 0.25);
+  animation: mythicPulse 2s ease-in-out infinite;
+}
+
+@keyframes legendaryPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 30px rgba(245, 158, 11, 0.2); }
+  50% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.8), 0 0 40px rgba(245, 158, 11, 0.3); }
+}
+
+@keyframes mythicPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), 0 0 35px rgba(239, 68, 68, 0.25); }
+  50% { box-shadow: 0 0 22px rgba(239, 68, 68, 0.9), 0 0 50px rgba(239, 68, 68, 0.4); }
+}
+
+/* ── 시머 이펙트 (Epic+) ── */
+.shimmer-effect {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-effect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 45%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.15) 55%,
+    transparent 100%
+  );
+  transform: rotate(30deg);
+  animation: shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: rotate(30deg) translateX(-100%); }
+  100% { transform: rotate(30deg) translateX(100%); }
+}
+
+/* ── 희귀도 보더 애니메이션 ── */
+.rarity-border-legendary {
+  border-image: linear-gradient(135deg, #fde68a, #d97706, #fde68a) 1;
+  animation: borderShift 4s linear infinite;
+}
+.rarity-border-mythic {
+  background: linear-gradient(var(--bg, white), var(--bg, white)) padding-box,
+              linear-gradient(135deg, #ef4444, #ec4899, #a855f7, #3b82f6, #ef4444) border-box;
+  border: 3px solid transparent;
+  animation: mythicBorder 3s linear infinite;
+  background-size: 100% 100%, 300% 300%;
+}
+
+@keyframes mythicBorder {
+  0% { background-position: 100% 100%, 0% 0%; }
+  100% { background-position: 100% 100%, 100% 100%; }
+}
+
+/* ── 파티클 이펙트 (Legendary+) ── */
+.particle-container {
+  position: relative;
+}
+.particle-container::before,
+.particle-container::after {
+  content: '✨';
+  position: absolute;
+  font-size: 10px;
+  animation: particleFloat 3s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0;
+}
+.particle-container::before {
+  top: -5px;
+  right: -5px;
+  animation-delay: 0s;
+}
+.particle-container::after {
+  bottom: -5px;
+  left: -5px;
+  animation-delay: 1.5s;
+}
+
+@keyframes particleFloat {
+  0%, 100% { opacity: 0; transform: translateY(0) scale(0.5); }
+  20% { opacity: 1; transform: translateY(-5px) scale(1); }
+  80% { opacity: 0.6; transform: translateY(-15px) scale(0.8); }
+}
+
+/* ── 구매 리빌 애니메이션 ── */
+@keyframes revealBounce {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.1); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes revealGlow {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8); }
+  50% { box-shadow: 0 0 60px 30px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+@keyframes revealShine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes confettiFall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(50px) rotate(720deg); opacity: 0; }
+}
+@keyframes starBurst {
+  0% { transform: scale(0) rotate(0deg); opacity: 1; }
+  100% { transform: scale(3) rotate(180deg); opacity: 0; }
+}
+
+.reveal-bounce { animation: revealBounce 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards; }
+.reveal-glow { animation: revealGlow 1s ease-out; }
+.reveal-shine {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  background-size: 200% 100%;
+  animation: revealShine 1.5s ease-in-out;
+}
+
+/* ── 희귀도별 리빌 배경 ── */
+.reveal-bg-common { background: linear-gradient(135deg, #f3f4f6, #d1d5db); }
+.reveal-bg-uncommon { background: linear-gradient(135deg, #dcfce7, #86efac); }
+.reveal-bg-rare { background: linear-gradient(135deg, #dbeafe, #93c5fd); }
+.reveal-bg-epic { background: linear-gradient(135deg, #f3e8ff, #c084fc); }
+.reveal-bg-legendary { background: linear-gradient(135deg, #fef3c7, #fbbf24, #f59e0b); }
+.reveal-bg-mythic { background: linear-gradient(135deg, #fecaca, #f87171, #ec4899, #a855f7); background-size: 200% 200%; animation: mythicRevealBg 2s ease infinite; }
+
+@keyframes mythicRevealBg {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ── 아이템 카드 호버 ── */
+.shop-item-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.shop-item-card:hover {
+  transform: translateY(-4px);
+}
+.shop-item-card:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+/* ── 세트 진행률 바 ── */
+.set-progress-bar {
+  background: linear-gradient(90deg, var(--progress-color) var(--progress), transparent var(--progress));
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 업적 잠금 해제 애니메이션 ── */
+@keyframes achievementUnlock {
+  0% { transform: scale(0.5) rotateY(180deg); opacity: 0; }
+  60% { transform: scale(1.2) rotateY(0deg); opacity: 1; }
+  100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+}
+.achievement-unlock {
+  animation: achievementUnlock 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
+/* ── 세트 완성 이펙트 ── */
+@keyframes setComplete {
+  0% { transform: scale(1); }
+  10% { transform: scale(1.05); }
+  20% { transform: scale(1); }
+  30% { transform: scale(1.03); }
+  40% { transform: scale(1); }
+}
+.set-complete-celebration {
+  animation: setComplete 1s ease-out;
+}
+
+/* ── 카드 래리티 스트라이프 ── */
+.rarity-stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+}
+.rarity-stripe-common { background: #9CA3AF; }
+.rarity-stripe-uncommon { background: #22C55E; }
+.rarity-stripe-rare { background: #3B82F6; }
+.rarity-stripe-epic { background: linear-gradient(90deg, #A855F7, #7C3AED); }
+.rarity-stripe-legendary { background: linear-gradient(90deg, #FDE68A, #F59E0B, #D97706); }
+.rarity-stripe-mythic { background: linear-gradient(90deg, #EF4444, #EC4899, #A855F7, #3B82F6); background-size: 200% 100%; animation: mythicStripe 2s linear infinite; }
+
+@keyframes mythicStripe {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ── 탭 하이라이트 ── */
+.tab-active-glow {
+  box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.4);
+}
+
+/* ── 스크롤바 스타일 ── */
+.shop-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.shop-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.shop-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+.shop-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}

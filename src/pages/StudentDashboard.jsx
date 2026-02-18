@@ -33,19 +33,12 @@ import {
   CATEGORY_NAMES,
   DEFAULT_OWNED_ITEMS,
   DEFAULT_EQUIPPED_ITEMS,
-  DEFAULT_ROOM_ITEMS
+  DEFAULT_ROOM_ITEMS,
+  AVATAR_CATEGORY_MAP,
+  ROOM_CATEGORY_MAP
 } from "../config/shopItems";
-
-// 카테고리 매핑 상수 (컴포넌트 외부에 한 번만 정의)
-const AVATAR_CATEGORY_MAP = {
-  faces: 'face', hair: 'hair', hairColor: 'hairColor',
-  clothes: 'clothes', accessories: 'accessory',
-  backgrounds: 'background', frames: 'frame'
-};
-const ROOM_CATEGORY_MAP = {
-  furniture: 'furniture', electronics: 'electronics',
-  vehicles: 'vehicle', pets: 'pet', wallpaper: 'wallpaper'
-};
+// 🎨 프리미엄 아바타 상점 컴포넌트
+const AvatarShop = lazy(() => import("../components/shop/AvatarShop"));
 
 export default function StudentDashboard({ user, userData }) {
   const [classInfo, setClassInfo] = useState(null);
@@ -164,8 +157,6 @@ export default function StudentDashboard({ user, userData }) {
     wallpaper: 'wall1',
     decorations: []
   });
-  const [shopCategory, setShopCategory] = useState('avatar');
-  const [avatarTab, setAvatarTab] = useState('faces');
   const [showPassedWritings, setShowPassedWritings] = useState(true); // 달성 글 펼침 상태 (기본: 펼침)
   // 아바타 미리보기 상태
   const [previewItem, setPreviewItem] = useState(null); // { item, category }
@@ -1429,8 +1420,8 @@ export default function StudentDashboard({ user, userData }) {
     }
   };
 
-  // 아이템 구매
-  const handlePurchaseItem = async (item, category) => {
+  // 아이템 구매 (리빌 콜백 지원)
+  const handlePurchaseItem = async (item, category, onReveal) => {
     if (ownedItems.includes(item.id)) {
       alert('이미 보유한 아이템입니다.');
       return;
@@ -1450,11 +1441,15 @@ export default function StudentDashboard({ user, userData }) {
         points: newPoints
       });
 
-      // 로컬 state 즉시 업데이트
       setOwnedItems(newOwnedItems);
       setPoints(newPoints);
 
-      alert(`${item.name}을(를) 구매했습니다!\n이제 '장착' 버튼을 눌러 아바타에 적용하세요.`);
+      // 리빌 콜백이 있으면 리빌 모달 표시, 없으면 기본 알림
+      if (onReveal) {
+        onReveal();
+      } else {
+        alert(`${item.name}을(를) 구매했습니다!`);
+      }
     } catch (error) {
       console.error('구매 실패:', error);
       alert('구매에 실패했습니다: ' + error.message);
@@ -1583,27 +1578,6 @@ export default function StudentDashboard({ user, userData }) {
       }
     }
     return roomItems.decorations || [];
-  };
-
-  // 상점 아이템 가져오기
-  const getShopItems = () => {
-    if (shopCategory === 'avatar') {
-      return AVATAR_ITEMS[avatarTab] || [];
-    } else {
-      return ROOM_ITEMS[avatarTab] || [];
-    }
-  };
-
-  // 아이템이 장착되었는지 확인
-  const isItemEquipped = (item, category) => {
-    if (shopCategory === 'avatar') {
-      return equippedItems[AVATAR_CATEGORY_MAP[category]] === item.id;
-    } else {
-      if (category === 'decorations') {
-        return (roomItems.decorations || []).includes(item.id);
-      }
-      return roomItems[ROOM_CATEGORY_MAP[category]] === item.id;
-    }
   };
 
   const wordCountStatus = getWordCountStatus();
@@ -4228,210 +4202,35 @@ export default function StudentDashboard({ user, userData }) {
               </div>
             </div>
 
-            {/* 오른쪽: 상점 */}
+            {/* 오른쪽: 프리미엄 상점 */}
             <div className="lg:col-span-2">
-              <div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100">
-                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm">🛒</span>
-                  상점
-                </h3>
-
-                {/* 대분류 탭 (아바타/마이룸) */}
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => { setShopCategory('avatar'); setAvatarTab('faces'); }}
-                    className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                      shopCategory === 'avatar'
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    👤 아바타
-                  </button>
-                  <button
-                    onClick={() => { setShopCategory('room'); setAvatarTab('furniture'); }}
-                    className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                      shopCategory === 'room'
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    🏠 마이룸
-                  </button>
-                </div>
-
-                {/* 소분류 탭 */}
-                <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-100">
-                  {(shopCategory === 'avatar' ? SHOP_CATEGORIES.avatar.subcategories : SHOP_CATEGORIES.room.subcategories).map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setAvatarTab(cat)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        avatarTab === cat
-                          ? 'bg-blue-500 text-white shadow'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {CATEGORY_NAMES[cat]}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 아이템 목록 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto pr-2">
-                  {getShopItems().map((item) => {
-                    const owned = ownedItems.includes(item.id);
-                    const equipped = isItemEquipped(item, avatarTab);
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`relative rounded-xl border-2 p-3 transition-all hover:shadow-md ${
-                          equipped
-                            ? 'border-blue-500 bg-blue-50'
-                            : owned
-                            ? 'border-emerald-300 bg-emerald-50/50'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        {/* 뱃지 */}
-                        {equipped && (
-                          <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
-                            착용중
-                          </div>
-                        )}
-                        {owned && !equipped && (
-                          <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
-                            보유
-                          </div>
-                        )}
-
-                        {/* 미리보기 - 카테고리별로 적절한 SVG 표시 */}
-                        <div className="flex justify-center mb-2 h-12 items-center">
-                          {shopCategory === 'room' ? (
-                            // 마이룸 아이템은 SVG로 표시
-                            (() => {
-                              const svgTypeMap = {
-                                furniture: { 'furn1': 'sofa', 'furn2': 'bed', 'furn3': 'chair', 'furn4': 'desk', 'furn5': 'bookshelf', 'furn6': 'desk', 'furn7': 'chair', 'furn8': 'sofa', 'furn9': 'bed', 'furn10': 'throne' },
-                                electronics: { 'elec1': 'tv', 'elec2': 'computer', 'elec3': 'gameConsole', 'elec4': 'speaker', 'elec5': 'aircon', 'elec6': 'bigTv', 'elec7': 'homeTheater', 'elec8': 'aiRobot', 'elec9': 'vr' },
-                                vehicles: { 'car1': 'car', 'car2': 'suv', 'car3': 'sportsCar', 'car4': 'camper', 'car5': 'motorcycle', 'car6': 'helicopter', 'car7': 'yacht', 'car8': 'privateJet', 'car9': 'rocket' },
-                                pets: { 'pet1': 'dog', 'pet2': 'cat', 'pet3': 'hamster', 'pet4': 'rabbit', 'pet5': 'parrot', 'pet6': 'fish', 'pet7': 'fox', 'pet8': 'unicorn', 'pet9': 'dragon', 'pet10': 'eagle' },
-                                decorations: { 'deco1': 'painting', 'deco2': 'plant', 'deco3': 'trophy', 'deco4': 'tent', 'deco5': 'christmasTree', 'deco6': 'fountain', 'deco7': 'statue', 'deco8': 'rainbow', 'deco9': 'gem', 'deco10': 'castle' }
-                              };
-                              if (avatarTab === 'furniture' && svgTypeMap.furniture[item.id]) {
-                                return <FurnitureSVG type={svgTypeMap.furniture[item.id]} size={40} />;
-                              } else if (avatarTab === 'electronics' && svgTypeMap.electronics[item.id]) {
-                                return <ElectronicsSVG type={svgTypeMap.electronics[item.id]} size={40} />;
-                              } else if (avatarTab === 'vehicles' && svgTypeMap.vehicles[item.id]) {
-                                return <VehicleSVG type={svgTypeMap.vehicles[item.id]} size={40} />;
-                              } else if (avatarTab === 'pets' && svgTypeMap.pets[item.id]) {
-                                return <PetSVG type={svgTypeMap.pets[item.id]} size={40} />;
-                              } else if (avatarTab === 'decorations' && svgTypeMap.decorations[item.id]) {
-                                return <DecorationSVG type={svgTypeMap.decorations[item.id]} size={40} />;
-                              } else {
-                                return <span className="text-3xl">{item.emoji}</span>;
-                              }
-                            })()
-                          ) : item.emoji ? (
-                            <span className="text-3xl">{item.emoji}</span>
-                          ) : item.color && typeof item.color === 'string' && item.color.includes('#') ? (
-                            // 벽지 색상 (새 형식: "#color1, #color2, #color3")
-                            <div
-                              className="w-10 h-10 rounded-lg border border-gray-200"
-                              style={{
-                                background: (() => {
-                                  const colors = item.color.split(', ');
-                                  if (colors.length === 3) {
-                                    return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`;
-                                  }
-                                  return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`;
-                                })()
-                              }}
-                            ></div>
-                          ) : item.style ? (
-                            <div className={`w-10 h-10 rounded-full bg-gray-100 ${item.style}`}></div>
-                          ) : item.color ? (
-                            <div className="w-10 h-10 rounded-full border border-gray-200" style={{ background: item.color }}></div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-200"></div>
-                          )}
-                        </div>
-
-                        {/* 정보 */}
-                        <div className="text-center">
-                          <p className="font-medium text-gray-800 text-xs truncate">{item.name}</p>
-                          {!owned && (
-                            <p className={`text-xs font-bold ${item.price === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {item.price === 0 ? '무료' : `${item.price.toLocaleString()}P`}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* 버튼 */}
-                        <div className="mt-2 space-y-1">
-                          {/* 아바타 카테고리에서 미리보기 버튼 표시 */}
-                          {shopCategory === 'avatar' && (
-                            <button
-                              onClick={() => handlePreviewItem(item, avatarTab)}
-                              className={`w-full py-1 text-xs font-medium rounded-lg transition-all ${
-                                previewItem?.item.id === item.id
-                                  ? 'bg-purple-500 text-white'
-                                  : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                              }`}
-                            >
-                              {previewItem?.item.id === item.id ? '👀 미리보기중' : '👀 미리보기'}
-                            </button>
-                          )}
-                          {/* 마이룸 카테고리에서 미리보기 버튼 표시 */}
-                          {shopCategory === 'room' && (
-                            <button
-                              onClick={() => handlePreviewRoomItem(item, avatarTab)}
-                              className={`w-full py-1 text-xs font-medium rounded-lg transition-all ${
-                                previewRoomItem?.item.id === item.id
-                                  ? 'bg-purple-500 text-white'
-                                  : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                              }`}
-                            >
-                              {previewRoomItem?.item.id === item.id ? '👀 미리보기중' : '👀 미리보기'}
-                            </button>
-                          )}
-                          {owned ? (
-                            <button
-                              onClick={() => shopCategory === 'avatar' ? handleEquipItem(item, avatarTab) : handleEquipRoomItem(item, avatarTab)}
-                              disabled={equipped}
-                              className={`w-full py-1.5 text-xs font-medium rounded-lg transition-all ${
-                                equipped
-                                  ? 'bg-blue-100 text-blue-600 cursor-default'
-                                  : 'bg-blue-500 text-white hover:bg-blue-600'
-                              }`}
-                            >
-                              {equipped ? '착용중' : '장착'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handlePurchaseItem(item, avatarTab)}
-                              disabled={points < item.price}
-                              className={`w-full py-1.5 text-xs font-medium rounded-lg transition-all ${
-                                points >= item.price
-                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow'
-                                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                              }`}
-                            >
-                              {item.price === 0 ? '획득' : '구매'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* 하단 정보 */}
-                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                  <span>보유 아이템: {ownedItems.length}개</span>
-                  <span>💎 {points.toLocaleString()}P 보유중</span>
-                </div>
-              </div>
+              <Suspense fallback={<div className="bg-white/90 backdrop-blur shadow-xl rounded-2xl p-6 border border-blue-100 animate-pulse h-96" />}>
+                <AvatarShop
+                  ownedItems={ownedItems}
+                  equippedItems={equippedItems}
+                  roomItems={roomItems}
+                  points={points}
+                  stats={{
+                    totalWritings: writings?.length || 0,
+                    highestScore: Math.max(0, ...(writings || []).map(w => w.score || 0)),
+                    maxStreak: userData.streakDays || 0
+                  }}
+                  onPurchase={handlePurchaseItem}
+                  onEquipAvatar={handleEquipItem}
+                  onEquipRoom={handleEquipRoomItem}
+                  onPreviewAvatar={handlePreviewItem}
+                  onPreviewRoom={handlePreviewRoomItem}
+                  previewItem={previewItem}
+                  previewRoomItem={previewRoomItem}
+                  RoomSVGComponents={{
+                    furniture: FurnitureSVG,
+                    electronics: ElectronicsSVG,
+                    vehicles: VehicleSVG,
+                    pets: PetSVG,
+                    decorations: DecorationSVG
+                  }}
+                />
+              </Suspense>
             </div>
           </div>
         )}
