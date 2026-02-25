@@ -18,7 +18,7 @@ const openaiApiKey = defineSecret("OPENAI_API_KEY");
 let _cachedOpenAI = null;
 function getOpenAIClient(apiKey) {
   if (!_cachedOpenAI) {
-    _cachedOpenAI = new OpenAI({ apiKey });
+    _cachedOpenAI = new OpenAI({ apiKey: apiKey.trim() });
   }
   return _cachedOpenAI;
 }
@@ -27,16 +27,33 @@ function getOpenAIClient(apiKey) {
 async function callOpenAI(
   client,
   prompt,
-  { temperature = 0.7, maxTokens = 2048 } = {},
+  { temperature = 0.7, maxTokens = 2048, systemPrompt } = {},
 ) {
+  const messages = [];
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  messages.push({ role: "user", content: prompt });
   const result = await client.chat.completions.create({
     model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
+    messages,
     temperature,
     max_tokens: maxTokens,
   });
   return result.choices[0].message.content;
 }
+
+// 공통 시스템 프롬프트
+const SYSTEM_PROMPTS = {
+  writingHelper:
+    "당신은 초등학생 글쓰기를 도와주는 전문 교사입니다. 반드시 요청된 JSON 형식으로만 응답하세요. JSON 외의 텍스트는 절대 포함하지 마세요. 한국어로 답변하세요.",
+  writingAnalyzer:
+    "당신은 초등학생 글쓰기를 평가하는 전문가입니다. 반드시 요청된 JSON 형식으로만 응답하세요. JSON 외의 텍스트는 절대 포함하지 마세요. 한국어로 답변하세요. 평가는 공정하고 구체적이어야 합니다.",
+  quickAdvice:
+    "당신은 초등학생을 격려하는 친근한 글쓰기 선생님입니다. 반드시 요청된 JSON 형식으로만 응답하세요. 구체적이고 실질적인 조언을 주세요. 한국어로 답변하세요.",
+  topicGenerator:
+    "당신은 초등학생 글쓰기 주제를 만드는 전문가입니다. 반드시 요청된 JSON 형식으로만 응답하세요. 학년에 맞는 흥미롭고 창의적인 주제를 제안하세요. 한국어로 답변하세요.",
+};
 // ============================================
 // 💰 비용 최적화 & 사용량 추적 시스템
 // ============================================
@@ -1363,7 +1380,10 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
           const apiKey = openaiApiKey.value();
           if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
           const client = getOpenAIClient(apiKey); // 🚀 cached
-          responseText = await callOpenAI(client, prompt, { maxTokens: 4096 });
+          responseText = await callOpenAI(client, prompt, {
+            maxTokens: 4096,
+            systemPrompt: SYSTEM_PROMPTS.writingAnalyzer,
+          });
           console.log(
             `[AI 응답] 시도 ${attempt}/${MAX_RETRIES}, 길이: ${responseText.length}자`,
           );
@@ -1853,7 +1873,9 @@ ${previousTexts}
       const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
       const client = getOpenAIClient(apiKey); // 🚀 cached
-      const responseText = await callOpenAI(client, prompt);
+      const responseText = await callOpenAI(client, prompt, {
+        systemPrompt: SYSTEM_PROMPTS.writingAnalyzer,
+      });
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -2142,7 +2164,9 @@ JSON만 응답:
     const apiKey = openaiApiKey.value();
     if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
     const client = getOpenAIClient(apiKey); // 🚀 cached
-    const responseText = await callOpenAI(client, prompt);
+    const responseText = await callOpenAI(client, prompt, {
+      systemPrompt: SYSTEM_PROMPTS.writingAnalyzer,
+    });
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -2269,7 +2293,9 @@ JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"pa
       const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("API 키 없음");
       const client = getOpenAIClient(apiKey); // 🚀 cached
-      const responseText = await callOpenAI(client, prompt);
+      const responseText = await callOpenAI(client, prompt, {
+        systemPrompt: SYSTEM_PROMPTS.writingHelper,
+      });
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("파싱 실패");
@@ -2329,7 +2355,9 @@ ${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언
       const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("API 키 없음");
       const client = getOpenAIClient(apiKey); // 🚀 cached
-      const responseText = await callOpenAI(client, prompt);
+      const responseText = await callOpenAI(client, prompt, {
+        systemPrompt: SYSTEM_PROMPTS.quickAdvice,
+      });
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return { advice: "좋아요! 계속 써보세요.", emoji: "📝" };
@@ -2409,7 +2437,9 @@ ${categoryText}
       const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
       const client = getOpenAIClient(apiKey); // 🚀 cached
-      const text = await callOpenAI(client, prompt);
+      const text = await callOpenAI(client, prompt, {
+        systemPrompt: SYSTEM_PROMPTS.topicGenerator,
+      });
 
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -3506,7 +3536,9 @@ async function generateAutoAssignmentInternal(
 - 글쓰기 유형(${randomType})에 적합한 주제
 - 분야(${randomCategory})와 관련된 내용`;
 
-  const responseText = await callOpenAI(client, prompt);
+  const responseText = await callOpenAI(client, prompt, {
+    systemPrompt: SYSTEM_PROMPTS.topicGenerator,
+  });
   const jsonMatch = responseText.match(/\[[\s\S]*\]/);
 
   if (!jsonMatch) {
