@@ -26,7 +26,7 @@ import {
   getAssignmentsByClass,
   deleteAssignment,
 } from "../services/assignmentService";
-import { generateTopics } from "../utils/geminiAPI";
+import { generateTopics } from "../utils/aiAPI";
 import {
   getSchedulerSettings,
   saveSchedulerSettings,
@@ -109,14 +109,14 @@ function downloadConsentForm(teacherName, schoolName, className) {
 
 <h2>3. AI 평가를 위한 제3자 제공</h2>
 <div class="warning">
-  <strong>⚠️ 중요 안내:</strong> 글쓰기 평가를 위해 학생이 작성한 <strong>글 내용</strong>이 AI 서비스(Google Gemini API)로 전송됩니다.
+  <strong>⚠️ 중요 안내:</strong> 글쓰기 평가를 위해 학생이 작성한 <strong>글 내용</strong>이 AI 서비스(OpenAI API)로 전송됩니다.
 </div>
 <table>
-  <tr><th>제공받는 자</th><td>Google LLC (미국 소재)</td></tr>
+  <tr><th>제공받는 자</th><td>OpenAI, Inc. (미국 소재)</td></tr>
   <tr><th>전송 항목</th><td>작성한 글 내용, 학년 정보, 글쓰기 주제 <strong>(이름·학번 등 개인식별정보 제외)</strong></td></tr>
   <tr><th>전송 목적</th><td>AI 기반 글쓰기 평가 및 피드백 생성</td></tr>
-  <tr><th>보유 기간</th><td>평가 완료 후 Google 서버에 보관하지 않음 (유료 API 정책)</td></tr>
-  <tr><th>AI 학습 사용</th><td><strong>사용하지 않음</strong> (Google API 유료 서비스 정책에 따라 AI 모델 학습에 미사용)</td></tr>
+  <tr><th>보유 기간</th><td>평가 완료 후 30일 이내 삭제 (OpenAI API 정책)</td></tr>
+  <tr><th>AI 학습 사용</th><td><strong>사용하지 않음</strong> (OpenAI API 정책에 따라 전송된 데이터는 AI 모델 학습에 미사용)</td></tr>
 </table>
 
 <h2>4. 개인정보 보호 조치</h2>
@@ -146,7 +146,7 @@ function downloadConsentForm(teacherName, schoolName, className) {
 
   <div class="checkbox-area">
     <label><input type="checkbox"> <strong>[필수]</strong> 개인정보(닉네임, 글쓰기 내용) 수집·이용에 동의합니다.</label>
-    <label><input type="checkbox"> <strong>[필수]</strong> AI 평가를 위해 글 내용이 Google(Gemini API)로 전송되는 것에 동의합니다.</label>
+    <label><input type="checkbox"> <strong>[필수]</strong> AI 평가를 위해 글 내용이 OpenAI API로 전송되는 것에 동의합니다.</label>
     <label><input type="checkbox"> [선택] 서비스 개선 및 학습 관련 안내를 받는 것에 동의합니다.</label>
   </div>
 

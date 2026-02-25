@@ -1,7 +1,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
 if (admin.apps.length === 0) {
   admin.initializeApp();
@@ -11,20 +11,31 @@ const db = admin.firestore();
 const auth = admin.auth();
 const MAX_STUDENTS_PER_CLASS = 40;
 
-// Gemini API 키 (Firebase Secret Manager)
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+// OpenAI API 키 (Firebase Secret Manager)
+const openaiApiKey = defineSecret("OPENAI_API_KEY");
 
-// 🚀 Gemini model 캐시 (warm start 시 재사용 - 인스턴스 생성 비용 절감)
-let _cachedGenAI = null;
-let _cachedModel = null;
-function getGeminiModel(apiKey) {
-  if (!_cachedGenAI) {
-    _cachedGenAI = new GoogleGenerativeAI(apiKey);
-    _cachedModel = _cachedGenAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
-    });
+// 🚀 OpenAI client 캐시 (warm start 시 재사용 - 인스턴스 생성 비용 절감)
+let _cachedOpenAI = null;
+function getOpenAIClient(apiKey) {
+  if (!_cachedOpenAI) {
+    _cachedOpenAI = new OpenAI({ apiKey });
   }
-  return _cachedModel;
+  return _cachedOpenAI;
+}
+
+// OpenAI 호출 헬퍼 (모든 함수에서 공통 사용)
+async function callOpenAI(
+  client,
+  prompt,
+  { temperature = 0.7, maxTokens = 2048 } = {},
+) {
+  const result = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    temperature,
+    max_tokens: maxTokens,
+  });
+  return result.choices[0].message.content;
 }
 // ============================================
 // 💰 비용 최적화 & 사용량 추적 시스템
@@ -137,8 +148,8 @@ async function trackApiCost(userId, schoolId, tokenCount = 0) {
   const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
   const costKey = `cost_${yearMonth}`;
 
-  // 예상 비용 계산 (Gemini 1.5 Flash 기준: $0.075/1M input tokens)
-  const estimatedCost = (tokenCount / 1000000) * 0.075;
+  // 예상 비용 계산 (GPT-4o-mini 기준: $0.15/1M input tokens)
+  const estimatedCost = (tokenCount / 1000000) * 0.15;
 
   try {
     await db
@@ -1199,9 +1210,9 @@ function getAnalysisCacheKey(text, topic, gradeLevel) {
   return hash;
 }
 
-// Analyze writing using Gemini AI - 🚀 최적화: 토큰 50% 절감 + 캐싱 + 사용량 제한
+// Analyze writing using OpenAI - 🚀 최적화: 토큰 50% 절감 + 캐싱 + 사용량 제한
 exports.analyzeWriting = onCall(
-  { secrets: [geminiApiKey] },
+  { secrets: [openaiApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -1349,12 +1360,10 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const apiKey = geminiApiKey.value();
-          if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
-          const model = getGeminiModel(apiKey); // 🚀 cached
-          const result = await model.generateContent(prompt);
-          const response = await result.response;
-          responseText = response.text();
+          const apiKey = openaiApiKey.value();
+          if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
+          const client = getOpenAIClient(apiKey); // 🚀 cached
+          responseText = await callOpenAI(client, prompt, { maxTokens: 4096 });
           console.log(
             `[AI 응답] 시도 ${attempt}/${MAX_RETRIES}, 길이: ${responseText.length}자`,
           );
@@ -1796,7 +1805,7 @@ AI판단: 잘쓴글≠AI, 낮은확률(10-20%)기본
 
 // Detect plagiarism
 exports.detectPlagiarism = onCall(
-  { secrets: [geminiApiKey] },
+  { secrets: [openaiApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -1841,12 +1850,10 @@ ${previousTexts}
   "details": "분석 결과 설명"
 }`;
 
-      const apiKey = geminiApiKey.value();
-      if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
-      const model = getGeminiModel(apiKey); // 🚀 cached
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
+      const apiKey = openaiApiKey.value();
+      if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
+      const client = getOpenAIClient(apiKey); // 🚀 cached
+      const responseText = await callOpenAI(client, prompt);
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -2063,7 +2070,7 @@ function calculateAiDetectionScore(text) {
 }
 
 // Detect AI usage - GPTZero/Turnitin 기법 기반 강화 버전
-exports.detectAIUsage = onCall({ secrets: [geminiApiKey] }, async (request) => {
+exports.detectAIUsage = onCall({ secrets: [openaiApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
   }
@@ -2132,12 +2139,10 @@ JSON만 응답:
   }
 }`;
 
-    const apiKey = geminiApiKey.value();
-    if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
-    const model = getGeminiModel(apiKey); // 🚀 cached
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const responseText = response.text();
+    const apiKey = openaiApiKey.value();
+    if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
+    const client = getOpenAIClient(apiKey); // 🚀 cached
+    const responseText = await callOpenAI(client, prompt);
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -2209,7 +2214,7 @@ const HELP_CACHE_TTL = 600000; // 10분
 
 // Get writing help - 🚀 최적화: 토큰 40% 절감 + 캐싱
 exports.getWritingHelp = onCall(
-  { secrets: [geminiApiKey] },
+  { secrets: [openaiApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -2261,12 +2266,10 @@ JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"pa
       };
 
       const prompt = prompts[helpType] || prompts.default;
-      const apiKey = geminiApiKey.value();
+      const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("API 키 없음");
-      const model = getGeminiModel(apiKey); // 🚀 cached
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
+      const client = getOpenAIClient(apiKey); // 🚀 cached
+      const responseText = await callOpenAI(client, prompt);
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("파싱 실패");
@@ -2292,7 +2295,7 @@ JSON:{"expandIdeas":["구체적아이디어1","2","3"],"detailSuggestions":[{"pa
 
 // Get quick advice - 🚀 최적화: 토큰 50% 절감
 exports.getQuickAdvice = onCall(
-  { secrets: [geminiApiKey] },
+  { secrets: [openaiApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -2323,12 +2326,10 @@ exports.getQuickAdvice = onCall(
       const prompt = `${grade} "${topic}" 글:"""${text.slice(0, 300)}"""
 ${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언","emoji":"이모지1개","nextHint":"다음에쓸수있는내용힌트"}`;
 
-      const apiKey = geminiApiKey.value();
+      const apiKey = openaiApiKey.value();
       if (!apiKey) throw new Error("API 키 없음");
-      const model = getGeminiModel(apiKey); // 🚀 cached
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
+      const client = getOpenAIClient(apiKey); // 🚀 cached
+      const responseText = await callOpenAI(client, prompt);
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return { advice: "좋아요! 계속 써보세요.", emoji: "📝" };
@@ -2341,9 +2342,9 @@ ${mode}. 친근하고 구체적으로 1-2문장. JSON:{"advice":"구체적조언
   },
 );
 
-// Generate writing topics using Gemini AI
+// Generate writing topics using OpenAI
 exports.generateTopics = onCall(
-  { secrets: [geminiApiKey] },
+  { secrets: [openaiApiKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
@@ -2405,12 +2406,10 @@ ${categoryText}
   ]
 }`;
 
-      const apiKey = geminiApiKey.value();
-      if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
-      const model = getGeminiModel(apiKey); // 🚀 cached
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const apiKey = openaiApiKey.value();
+      if (!apiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다.");
+      const client = getOpenAIClient(apiKey); // 🚀 cached
+      const text = await callOpenAI(client, prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -3304,7 +3303,7 @@ exports.autoAssignmentScheduler = onSchedule(
   {
     schedule: "0 8 * * 1-5", // 월-금 매일 오전 8시 (KST)
     timeZone: "Asia/Seoul",
-    secrets: [geminiApiKey],
+    secrets: [openaiApiKey],
   },
   async (event) => {
     console.log("[자동 출제 스케줄러] 실행 시작:", new Date().toISOString());
@@ -3472,8 +3471,8 @@ async function generateAutoAssignmentInternal(
   const combinedCategory = `${randomType} - ${randomCategory}`;
 
   // AI로 주제 생성
-  const apiKey = geminiApiKey.value();
-  const model = getGeminiModel(apiKey); // 🚀 cached
+  const apiKey = openaiApiKey.value();
+  const client = getOpenAIClient(apiKey); // 🚀 cached
 
   const gradeLevelNames = {
     elementary_1: "초등학교 1학년",
@@ -3507,8 +3506,7 @@ async function generateAutoAssignmentInternal(
 - 글쓰기 유형(${randomType})에 적합한 주제
 - 분야(${randomCategory})와 관련된 내용`;
 
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
+  const responseText = await callOpenAI(client, prompt);
   const jsonMatch = responseText.match(/\[[\s\S]*\]/);
 
   if (!jsonMatch) {

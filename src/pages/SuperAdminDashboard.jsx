@@ -1,5 +1,17 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy, limit, startAfter, getDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  deleteDoc,
+  orderBy,
+  limit,
+  startAfter,
+  getDoc,
+} from "firebase/firestore";
 import { db, auth, functions } from "../config/firebase";
 import { signOut, ensureSuperAdminAccess } from "../services/authService";
 import { ROLES, GRADE_LEVELS } from "../config/auth";
@@ -42,30 +54,32 @@ export default function SuperAdminDashboard({ user, userData }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      devLog('[📊 SuperAdmin] 데이터 로드 시작');
+      devLog("[📊 SuperAdmin] 데이터 로드 시작");
 
       // 1. 🚀 학급 요약은 userData에서 가져옴 (DB 읽기 0회!)
       if (userData.classesSummary && userData.classesSummary.length > 0) {
-        devLog('[📊 캐시] userData.classesSummary 사용 (DB 읽기 0회!)');
+        devLog("[📊 캐시] userData.classesSummary 사용 (DB 읽기 0회!)");
         const classes = userData.classesSummary;
         setClassSummaries(classes);
 
         // 고유 선생님 수 계산
         const uniqueTeacherIds = new Set();
-        classes.forEach(cls => {
+        classes.forEach((cls) => {
           if (cls.teacherId) {
             uniqueTeacherIds.add(cls.teacherId);
           }
         });
         setTeacherCount(uniqueTeacherIds.size);
-        devLog(`[📊 캐시] 학급 ${classes.length}개, 선생님 ${uniqueTeacherIds.size}명 (캐시에서 로드)`);
+        devLog(
+          `[📊 캐시] 학급 ${classes.length}개, 선생님 ${uniqueTeacherIds.size}명 (캐시에서 로드)`,
+        );
       } else {
         // classesSummary가 없는 경우 (최초 1회만) - DB에서 로드 후 동기화 트리거
-        devLog('[📊 DB읽기] classesSummary 없음 - 동기화 실행');
+        devLog("[📊 DB읽기] classesSummary 없음 - 동기화 실행");
         try {
-          const syncFn = httpsCallable(functions, 'syncClassesSummary');
+          const syncFn = httpsCallable(functions, "syncClassesSummary");
           await syncFn();
-          devLog('[📊 동기화] classesSummary 동기화 완료 - 새로고침 필요');
+          devLog("[📊 동기화] classesSummary 동기화 완료 - 새로고침 필요");
 
           // 동기화 후 classes에서 직접 로드 (1회성)
           const classesQuery = query(collection(db, "classes"));
@@ -79,10 +93,10 @@ export default function SuperAdminDashboard({ user, userData }) {
               classCode: docSnap.id,
               className: data.className || docSnap.id,
               teacherId: data.teacherId,
-              teacherName: data.teacherName || '알 수 없음',
+              teacherName: data.teacherName || "알 수 없음",
               studentCount: data.students?.length || 0,
               gradeLevel: data.gradeLevel,
-              createdAt: data.createdAt
+              createdAt: data.createdAt,
             });
             if (data.teacherId) {
               uniqueTeacherIds.add(data.teacherId);
@@ -92,7 +106,7 @@ export default function SuperAdminDashboard({ user, userData }) {
           setClassSummaries(classes);
           setTeacherCount(uniqueTeacherIds.size);
         } catch (syncError) {
-          console.warn('[📊 동기화] 실패:', syncError);
+          console.warn("[📊 동기화] 실패:", syncError);
           setClassSummaries([]);
           setTeacherCount(0);
         }
@@ -100,11 +114,11 @@ export default function SuperAdminDashboard({ user, userData }) {
 
       // 2. 승인 대기 선생님 (보통 적음 - 1회 쿼리)
       // 🔧 수정: rejected가 true인 선생님은 제외
-      devLog('[📊 DB읽기] 승인 대기 선생님 조회');
+      devLog("[📊 DB읽기] 승인 대기 선생님 조회");
       const pendingQuery = query(
         collection(db, "users"),
         where("role", "==", ROLES.TEACHER),
-        where("approved", "==", false)
+        where("approved", "==", false),
       );
       const pendingSnapshot = await getDocs(pendingQuery);
       const pending = [];
@@ -119,13 +133,12 @@ export default function SuperAdminDashboard({ user, userData }) {
       devLog(`[📊 DB읽기] 승인 대기 선생님 ${pending.length}명 로드`);
 
       // 🚀 로그인 완료 요약
-      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      devLog('[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 1회');
-      devLog('  - users (승인대기): 1회 쿼리');
-      devLog('  - classes: 0회 (userData.classesSummary 캐시 사용)');
-      devLog('  - 학생 상세: 0회 (학급 클릭 시 로드)');
-      devLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
+      devLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      devLog("[📊 슈퍼관리자 로그인 완료] 총 DB 읽기: 1회");
+      devLog("  - users (승인대기): 1회 쿼리");
+      devLog("  - classes: 0회 (userData.classesSummary 캐시 사용)");
+      devLog("  - 학생 상세: 0회 (학급 클릭 시 로드)");
+      devLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     } catch (error) {
       console.error("데이터 로드 에러:", error);
     } finally {
@@ -148,7 +161,7 @@ export default function SuperAdminDashboard({ user, userData }) {
       const studentsQuery = query(
         collection(db, "users"),
         where("classCode", "==", classCode),
-        where("role", "==", ROLES.STUDENT)
+        where("role", "==", ROLES.STUDENT),
       );
       const snapshot = await getDocs(studentsQuery);
       const students = [];
@@ -169,12 +182,12 @@ export default function SuperAdminDashboard({ user, userData }) {
   // classSummaries가 변경될 때마다 선생님 목록 자동 생성
   const teachersFromClasses = (() => {
     const teacherMap = new Map();
-    classSummaries.forEach(cls => {
+    classSummaries.forEach((cls) => {
       if (cls.teacherId && !teacherMap.has(cls.teacherId)) {
         teacherMap.set(cls.teacherId, {
           id: cls.teacherId,
-          name: cls.teacherName || '알 수 없음',
-          role: 'teacher'
+          name: cls.teacherName || "알 수 없음",
+          role: "teacher",
         });
       }
     });
@@ -205,7 +218,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   const approveTeacher = async (teacherId) => {
     try {
       await updateDoc(doc(db, "users", teacherId), {
-        approved: true
+        approved: true,
       });
       alert("선생님 계정이 승인되었습니다.");
       loadData();
@@ -218,7 +231,7 @@ export default function SuperAdminDashboard({ user, userData }) {
   const rejectTeacher = async (teacherId, teacherEmail) => {
     const reason = prompt(
       "거절 사유를 입력해주세요 (선생님이 로그인할 때 이 메시지를 볼 수 있습니다):",
-      "선생님 인증 정보가 확인되지 않았습니다."
+      "선생님 인증 정보가 확인되지 않았습니다.",
     );
 
     if (reason === null) return; // 취소 누름
@@ -228,9 +241,11 @@ export default function SuperAdminDashboard({ user, userData }) {
         approved: false,
         rejected: true,
         rejectedReason: reason || "관리자에 의해 거절되었습니다.",
-        rejectedAt: new Date().toISOString()
+        rejectedAt: new Date().toISOString(),
       });
-      alert(`요청이 거절되었습니다.\n\n${teacherEmail}님이 로그인하면 거절 메시지를 확인할 수 있습니다.`);
+      alert(
+        `요청이 거절되었습니다.\n\n${teacherEmail}님이 로그인하면 거절 메시지를 확인할 수 있습니다.`,
+      );
       loadData();
     } catch (error) {
       console.error("거절 에러:", error);
@@ -242,11 +257,11 @@ export default function SuperAdminDashboard({ user, userData }) {
   const loadRejectedUsers = async () => {
     setLoadingRejected(true);
     try {
-      devLog('[📊 DB읽기] 거절된 사용자 조회');
+      devLog("[📊 DB읽기] 거절된 사용자 조회");
       // 🔧 인덱스 없이도 동작하도록 approved=false인 사용자를 가져와서 rejected 필터링
       const pendingQuery = query(
         collection(db, "users"),
-        where("approved", "==", false)
+        where("approved", "==", false),
       );
       const snapshot = await getDocs(pendingQuery);
       const users = [];
@@ -272,17 +287,21 @@ export default function SuperAdminDashboard({ user, userData }) {
 
   // 🚀 거절된 사용자를 학생으로 변경
   const convertRejectedToStudent = async (userId, userName) => {
-    if (!confirm(`${userName}님을 학생으로 변경하시겠습니까?\n\n변경 후 바로 로그인이 가능해집니다.`)) {
+    if (
+      !confirm(
+        `${userName}님을 학생으로 변경하시겠습니까?\n\n변경 후 바로 로그인이 가능해집니다.`,
+      )
+    ) {
       return;
     }
 
     try {
       await updateDoc(doc(db, "users", userId), {
-        role: 'student',
+        role: "student",
         approved: true,
         rejected: false,
         rejectedReason: null,
-        rejectedAt: null
+        rejectedAt: null,
       });
       alert(`${userName}님이 학생으로 변경되었습니다.`);
       loadRejectedUsers(); // 목록 새로고침
@@ -300,11 +319,11 @@ export default function SuperAdminDashboard({ user, userData }) {
 
     try {
       await updateDoc(doc(db, "users", userId), {
-        role: 'teacher',
+        role: "teacher",
         approved: true,
         rejected: false,
         rejectedReason: null,
-        rejectedAt: null
+        rejectedAt: null,
       });
       alert(`${userName}님이 선생님으로 승인되었습니다.`);
       loadRejectedUsers(); // 목록 새로고침
@@ -316,12 +335,16 @@ export default function SuperAdminDashboard({ user, userData }) {
   };
 
   const handleDeleteUser = async (userId, userName) => {
-    if (!confirm(`정말 ${userName} 사용자를 삭제하시겠습니까?\n\nFirebase Authentication과 Firestore 데이터가 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`)) {
+    if (
+      !confirm(
+        `정말 ${userName} 사용자를 삭제하시겠습니까?\n\nFirebase Authentication과 Firestore 데이터가 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`,
+      )
+    ) {
       return;
     }
 
     try {
-      const deleteUserFn = httpsCallable(functions, 'deleteUser');
+      const deleteUserFn = httpsCallable(functions, "deleteUser");
       await deleteUserFn({ userId });
 
       alert(`${userName} 사용자가 완전히 삭제되었습니다.`);
@@ -345,15 +368,21 @@ export default function SuperAdminDashboard({ user, userData }) {
     }
 
     const userIds = Array.from(selectedUsers);
-    if (!confirm(`선택한 ${userIds.length}명의 사용자를 삭제하시겠습니까?\n\nFirebase Authentication과 Firestore 데이터가 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`)) {
+    if (
+      !confirm(
+        `선택한 ${userIds.length}명의 사용자를 삭제하시겠습니까?\n\nFirebase Authentication과 Firestore 데이터가 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`,
+      )
+    ) {
       return;
     }
 
     try {
-      const batchDeleteFn = httpsCallable(functions, 'batchDeleteUsers');
+      const batchDeleteFn = httpsCallable(functions, "batchDeleteUsers");
       const result = await batchDeleteFn({ userIds });
 
-      alert(`${result.data.deleted}/${result.data.attempted}명의 사용자가 삭제되었습니다.`);
+      alert(
+        `${result.data.deleted}/${result.data.attempted}명의 사용자가 삭제되었습니다.`,
+      );
       setSelectedUsers(new Set());
       if (selectedClass) {
         loadClassStudents(selectedClass);
@@ -378,20 +407,22 @@ export default function SuperAdminDashboard({ user, userData }) {
   const handleUpdateUserRole = async (userId, currentRole) => {
     const newRole = prompt(
       `사용자 역할을 변경하세요:\n\n현재: ${currentRole}\n\n입력 가능: teacher, student, super_admin`,
-      currentRole
+      currentRole,
     );
 
     if (!newRole || newRole === currentRole) return;
 
-    if (!['teacher', 'student', 'super_admin'].includes(newRole)) {
-      alert('잘못된 역할입니다. teacher, student, super_admin 중 하나를 입력하세요.');
+    if (!["teacher", "student", "super_admin"].includes(newRole)) {
+      alert(
+        "잘못된 역할입니다. teacher, student, super_admin 중 하나를 입력하세요.",
+      );
       return;
     }
 
     try {
       await updateDoc(doc(db, "users", userId), {
         role: newRole,
-        approved: newRole === 'student' ? true : false
+        approved: newRole === "student" ? true : false,
       });
       alert("역할이 변경되었습니다.");
       if (selectedClass) {
@@ -408,16 +439,20 @@ export default function SuperAdminDashboard({ user, userData }) {
   const handleToggleTestStudent = async (userId, currentIsTest) => {
     const newIsTest = !currentIsTest;
     const message = newIsTest
-      ? '이 학생을 테스트 학생으로 지정하시겠습니까?\n\n테스트 학생은 글 제출 시 점수를 직접 선택할 수 있습니다.'
-      : '테스트 학생 지정을 해제하시겠습니까?';
+      ? "이 학생을 테스트 학생으로 지정하시겠습니까?\n\n테스트 학생은 글 제출 시 점수를 직접 선택할 수 있습니다."
+      : "테스트 학생 지정을 해제하시겠습니까?";
 
     if (!confirm(message)) return;
 
     try {
       await updateDoc(doc(db, "users", userId), {
-        isTestStudent: newIsTest
+        isTestStudent: newIsTest,
       });
-      alert(newIsTest ? '🧪 테스트 학생으로 지정되었습니다.' : '테스트 학생 지정이 해제되었습니다.');
+      alert(
+        newIsTest
+          ? "🧪 테스트 학생으로 지정되었습니다."
+          : "테스트 학생 지정이 해제되었습니다.",
+      );
       if (selectedClass) {
         loadClassStudents(selectedClass);
       }
@@ -447,7 +482,11 @@ export default function SuperAdminDashboard({ user, userData }) {
   const [migrateResult, setMigrateResult] = useState(null);
 
   const handleMigrateClassCode = async () => {
-    if (!confirm("기존 글에 classCode를 일괄 추가하시겠습니까?\n\n이 작업은 학급별 데이터 분리를 위해 필요합니다.")) {
+    if (
+      !confirm(
+        "기존 글에 classCode를 일괄 추가하시겠습니까?\n\n이 작업은 학급별 데이터 분리를 위해 필요합니다.",
+      )
+    ) {
       return;
     }
 
@@ -455,7 +494,7 @@ export default function SuperAdminDashboard({ user, userData }) {
     setMigrateResult(null);
 
     try {
-      const migrateFn = httpsCallable(functions, 'migrateWritingsClassCode');
+      const migrateFn = httpsCallable(functions, "migrateWritingsClassCode");
       const result = await migrateFn();
       setMigrateResult(result.data);
       alert(`마이그레이션 완료!\n\n${result.data.message}`);
@@ -474,10 +513,10 @@ export default function SuperAdminDashboard({ user, userData }) {
   const handleSyncClassesSummary = async () => {
     setSyncing(true);
     try {
-      devLog('[📊 동기화] 학급 정보 동기화 시작');
-      const syncFn = httpsCallable(functions, 'syncClassesSummary');
+      devLog("[📊 동기화] 학급 정보 동기화 시작");
+      const syncFn = httpsCallable(functions, "syncClassesSummary");
       await syncFn();
-      alert('동기화 완료! 페이지를 새로고침합니다.');
+      alert("동기화 완료! 페이지를 새로고침합니다.");
       window.location.reload();
     } catch (error) {
       console.error("동기화 에러:", error);
@@ -496,7 +535,11 @@ export default function SuperAdminDashboard({ user, userData }) {
   const [minScoreResult, setMinScoreResult] = useState(null);
 
   const handleMigrateMinScore = async () => {
-    if (!confirm("기존 글의 통과 점수를 70점으로 마이그레이션하시겠습니까?\n\n• 모든 writings의 minScore가 70점으로 업데이트됩니다\n• 모든 학생의 writingSummary가 업데이트됩니다\n• 모든 학급의 랭킹이 70점 기준으로 재계산됩니다")) {
+    if (
+      !confirm(
+        "기존 글의 통과 점수를 70점으로 마이그레이션하시겠습니까?\n\n• 모든 writings의 minScore가 70점으로 업데이트됩니다\n• 모든 학생의 writingSummary가 업데이트됩니다\n• 모든 학급의 랭킹이 70점 기준으로 재계산됩니다",
+      )
+    ) {
       return;
     }
 
@@ -504,7 +547,7 @@ export default function SuperAdminDashboard({ user, userData }) {
     setMinScoreResult(null);
 
     try {
-      const migrateFn = httpsCallable(functions, 'migrateMinScoreTo70');
+      const migrateFn = httpsCallable(functions, "migrateMinScoreTo70");
       const result = await migrateFn();
       setMinScoreResult(result.data);
       alert(`마이그레이션 완료!\n\n${result.data.message}`);
@@ -518,7 +561,11 @@ export default function SuperAdminDashboard({ user, userData }) {
   };
 
   const handleCleanupDuplicates = async () => {
-    if (!confirm("동일 주제의 중복 미제출글을 정리하시겠습니까?\n\n같은 주제에 여러 미제출글이 있는 경우, 가장 점수가 높은 글만 남기고 나머지는 삭제됩니다.")) {
+    if (
+      !confirm(
+        "동일 주제의 중복 미제출글을 정리하시겠습니까?\n\n같은 주제에 여러 미제출글이 있는 경우, 가장 점수가 높은 글만 남기고 나머지는 삭제됩니다.",
+      )
+    ) {
       return;
     }
 
@@ -526,7 +573,10 @@ export default function SuperAdminDashboard({ user, userData }) {
     setCleanupResult(null);
 
     try {
-      const cleanupFn = httpsCallable(functions, 'cleanupDuplicateFailedWritings');
+      const cleanupFn = httpsCallable(
+        functions,
+        "cleanupDuplicateFailedWritings",
+      );
       const result = await cleanupFn();
       setCleanupResult(result.data);
       alert(`정리 완료!
@@ -558,7 +608,7 @@ ${result.data.message}`);
     setDeletingClass(classCode);
 
     try {
-      const deleteClassFn = httpsCallable(functions, 'deleteClassWithStudents');
+      const deleteClassFn = httpsCallable(functions, "deleteClassWithStudents");
       const result = await deleteClassFn({ classCode });
 
       alert(`삭제 완료!\n\n${result.data.message}`);
@@ -576,7 +626,10 @@ ${result.data.message}`);
   };
 
   // 총 학생 수 계산
-  const totalStudents = classSummaries.reduce((sum, c) => sum + c.studentCount, 0);
+  const totalStudents = classSummaries.reduce(
+    (sum, c) => sum + c.studentCount,
+    0,
+  );
 
   if (loading) {
     return (
@@ -592,7 +645,9 @@ ${result.data.message}`);
       <header className="bg-gradient-to-r from-indigo-700 via-purple-600 to-sky-500 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-start justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-indigo-100">SSAK Admin</p>
+            <p className="text-xs uppercase tracking-[0.25em] text-indigo-100">
+              SSAK Admin
+            </p>
             <h1 className="text-2xl font-bold mt-1">싹 - 슈퍼 관리자</h1>
             <p className="text-sm text-indigo-100 mt-1">{userData.email}</p>
           </div>
@@ -611,19 +666,27 @@ ${result.data.message}`);
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow p-4">
             <p className="text-sm text-gray-500">총 학급</p>
-            <p className="text-2xl font-bold text-indigo-600">{classSummaries.length}개</p>
+            <p className="text-2xl font-bold text-indigo-600">
+              {classSummaries.length}개
+            </p>
           </div>
           <div className="bg-white rounded-xl shadow p-4">
             <p className="text-sm text-gray-500">총 학생</p>
-            <p className="text-2xl font-bold text-emerald-600">{totalStudents}명</p>
+            <p className="text-2xl font-bold text-emerald-600">
+              {totalStudents}명
+            </p>
           </div>
           <div className="bg-white rounded-xl shadow p-4">
             <p className="text-sm text-gray-500">승인 대기</p>
-            <p className="text-2xl font-bold text-amber-600">{pendingTeachers.length}명</p>
+            <p className="text-2xl font-bold text-amber-600">
+              {pendingTeachers.length}명
+            </p>
           </div>
           <div className="bg-white rounded-xl shadow p-4">
             <p className="text-sm text-gray-500">승인된 선생님</p>
-            <p className="text-2xl font-bold text-purple-600">{teacherCount}명</p>
+            <p className="text-2xl font-bold text-purple-600">
+              {teacherCount}명
+            </p>
           </div>
         </div>
 
@@ -632,37 +695,41 @@ ${result.data.message}`);
           <nav className="flex space-x-1 sm:space-x-2 bg-white/80 backdrop-blur p-1 sm:p-1.5 rounded-2xl shadow-sm border border-indigo-100 overflow-x-auto">
             <button
               onClick={() => handleTabChange("pending")}
-              className={`${activeTab === "pending"
+              className={`${
+                activeTab === "pending"
                   ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
                   : "text-gray-600 hover:bg-indigo-50"
-                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
+              } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               승인 대기 ({pendingTeachers.length})
             </button>
             <button
               onClick={() => handleTabChange("classes")}
-              className={`${activeTab === "classes"
+              className={`${
+                activeTab === "classes"
                   ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
                   : "text-gray-600 hover:bg-indigo-50"
-                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
+              } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               학급 관리 ({classSummaries.length})
             </button>
             <button
               onClick={() => handleTabChange("teachers")}
-              className={`${activeTab === "teachers"
+              className={`${
+                activeTab === "teachers"
                   ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
                   : "text-gray-600 hover:bg-indigo-50"
-                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
+              } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               선생님 관리
             </button>
             <button
               onClick={() => handleTabChange("system")}
-              className={`${activeTab === "system"
+              className={`${
+                activeTab === "system"
                   ? "bg-gradient-to-r from-indigo-600 to-purple-500 text-white shadow-md"
                   : "text-gray-600 hover:bg-indigo-50"
-                } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
+              } whitespace-nowrap px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium text-sm transition-all`}
             >
               시스템 관리
             </button>
@@ -673,18 +740,30 @@ ${result.data.message}`);
         {activeTab === "pending" && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">승인 대기 중인 선생님</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                승인 대기 중인 선생님
+              </h2>
             </div>
             {pendingTeachers.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">승인 대기 중인 선생님이 없습니다.</div>
+              <div className="px-6 py-8 text-center text-gray-500">
+                승인 대기 중인 선생님이 없습니다.
+              </div>
             ) : (
               <div className="divide-y divide-gray-200">
                 {pendingTeachers.map((teacher) => (
-                  <div key={teacher.id} className="px-6 py-4 flex justify-between items-center">
+                  <div
+                    key={teacher.id}
+                    className="px-6 py-4 flex justify-between items-center"
+                  >
                     <div>
-                      <p className="font-medium text-gray-900">{teacher.name}</p>
+                      <p className="font-medium text-gray-900">
+                        {teacher.name}
+                      </p>
                       <p className="text-sm text-gray-600">{teacher.email}</p>
-                      <p className="text-xs text-gray-500 mt-1">가입일: {new Date(teacher.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        가입일:{" "}
+                        {new Date(teacher.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="flex space-x-2">
                       <button
@@ -713,8 +792,12 @@ ${result.data.message}`);
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">학급별 사용자 관리</h2>
-                  <p className="text-sm text-gray-500">학급을 클릭하면 학생 목록이 로드됩니다 (DB 읽기 최적화)</p>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    학급별 사용자 관리
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    학급을 클릭하면 학생 목록이 로드됩니다 (DB 읽기 최적화)
+                  </p>
                 </div>
                 {selectedUsers.size > 0 && (
                   <button
@@ -727,7 +810,9 @@ ${result.data.message}`);
               </div>
 
               {classSummaries.length === 0 ? (
-                <div className="px-6 py-8 text-center text-gray-500">등록된 학급이 없습니다.</div>
+                <div className="px-6 py-8 text-center text-gray-500">
+                  등록된 학급이 없습니다.
+                </div>
               ) : (
                 <div className="divide-y divide-gray-200">
                   {classSummaries.map((cls) => (
@@ -736,32 +821,49 @@ ${result.data.message}`);
                       <button
                         onClick={() => loadClassStudents(cls.classCode)}
                         className={`w-full px-6 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors ${
-                          selectedClass === cls.classCode ? 'bg-indigo-50' : ''
+                          selectedClass === cls.classCode ? "bg-indigo-50" : ""
                         }`}
                       >
                         <div className="text-left">
-                          <p className="font-medium text-gray-900">{cls.className}</p>
-                          <p className="text-sm text-gray-600">
-                            담당: {cls.teacherName} · 학년: {cls.gradeLevel ? GRADE_LEVELS[cls.gradeLevel] : '-'}
+                          <p className="font-medium text-gray-900">
+                            {cls.className}
                           </p>
-                          <p className="text-xs text-gray-500">코드: {cls.classCode}</p>
+                          <p className="text-sm text-gray-600">
+                            담당: {cls.teacherName} · 학년:{" "}
+                            {cls.gradeLevel
+                              ? GRADE_LEVELS[cls.gradeLevel]
+                              : "-"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            코드: {cls.classCode}
+                          </p>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <p className="text-2xl font-bold text-indigo-600">{cls.studentCount}명</p>
+                            <p className="text-2xl font-bold text-indigo-600">
+                              {cls.studentCount}명
+                            </p>
                             <p className="text-xs text-gray-500">학생</p>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteClass(cls.classCode, cls.className, cls.studentCount);
+                              handleDeleteClass(
+                                cls.classCode,
+                                cls.className,
+                                cls.studentCount,
+                              );
                             }}
                             disabled={deletingClass === cls.classCode}
                             className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {deletingClass === cls.classCode ? '삭제 중...' : '학급 삭제'}
+                            {deletingClass === cls.classCode
+                              ? "삭제 중..."
+                              : "학급 삭제"}
                           </button>
-                          <span className={`text-gray-400 transition-transform ${selectedClass === cls.classCode ? 'rotate-180' : ''}`}>
+                          <span
+                            className={`text-gray-400 transition-transform ${selectedClass === cls.classCode ? "rotate-180" : ""}`}
+                          >
                             ▼
                           </span>
                         </div>
@@ -771,63 +873,123 @@ ${result.data.message}`);
                       {selectedClass === cls.classCode && (
                         <div className="bg-gray-50 border-t border-gray-200">
                           {loadingStudents ? (
-                            <div className="px-6 py-4 text-center text-gray-500">학생 로딩 중...</div>
+                            <div className="px-6 py-4 text-center text-gray-500">
+                              학생 로딩 중...
+                            </div>
                           ) : classStudents.length === 0 ? (
-                            <div className="px-6 py-4 text-center text-gray-500">학생이 없습니다.</div>
+                            <div className="px-6 py-4 text-center text-gray-500">
+                              학생이 없습니다.
+                            </div>
                           ) : (
                             <div className="overflow-x-auto">
                               <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-100">
                                   <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">선택</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름/닉네임</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">포인트</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">가입일</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">관리</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      선택
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      이름/닉네임
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      이메일
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      포인트
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      가입일
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                      관리
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                   {classStudents.map((student) => (
-                                    <tr key={student.id} className={selectedUsers.has(student.id) ? "bg-indigo-50" : "hover:bg-gray-50"}>
+                                    <tr
+                                      key={student.id}
+                                      className={
+                                        selectedUsers.has(student.id)
+                                          ? "bg-indigo-50"
+                                          : "hover:bg-gray-50"
+                                      }
+                                    >
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <input
                                           type="checkbox"
-                                          checked={selectedUsers.has(student.id)}
-                                          onChange={() => toggleSelectUser(student.id)}
+                                          checked={selectedUsers.has(
+                                            student.id,
+                                          )}
+                                          onChange={() =>
+                                            toggleSelectUser(student.id)
+                                          }
                                           className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                                         />
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap">
-                                        <p className="text-sm font-medium text-gray-900">{student.name}</p>
-                                        <p className="text-xs text-gray-500">{student.nickname || '-'}</p>
+                                        <p className="text-sm font-medium text-gray-900">
+                                          {student.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {student.nickname || "-"}
+                                        </p>
                                       </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{student.email}</td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{student.points || 0}P</td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "-"}
+                                        {student.email}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        {student.points || 0}P
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        {student.createdAt
+                                          ? new Date(
+                                              student.createdAt,
+                                            ).toLocaleDateString()
+                                          : "-"}
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex space-x-2">
                                           <button
-                                            onClick={() => handleToggleTestStudent(student.id, student.isTestStudent)}
+                                            onClick={() =>
+                                              handleToggleTestStudent(
+                                                student.id,
+                                                student.isTestStudent,
+                                              )
+                                            }
                                             className={`px-3 py-1.5 border rounded-lg transition-colors font-medium shadow-sm ${
                                               student.isTestStudent
-                                                ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200'
-                                                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                                                ? "bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200"
+                                                : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
                                             }`}
-                                            title={student.isTestStudent ? '테스트 모드 해제' : '테스트 학생 지정'}
+                                            title={
+                                              student.isTestStudent
+                                                ? "테스트 모드 해제"
+                                                : "테스트 학생 지정"
+                                            }
                                           >
-                                            {student.isTestStudent ? '🧪 테스트' : '테스트'}
+                                            {student.isTestStudent
+                                              ? "🧪 테스트"
+                                              : "테스트"}
                                           </button>
                                           <button
-                                            onClick={() => handleUpdateUserRole(student.id, student.role)}
+                                            onClick={() =>
+                                              handleUpdateUserRole(
+                                                student.id,
+                                                student.role,
+                                              )
+                                            }
                                             className="px-3 py-1.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-200 transition-colors font-medium shadow-sm"
                                           >
                                             역할 변경
                                           </button>
                                           <button
-                                            onClick={() => handleDeleteUser(student.id, student.name)}
+                                            onClick={() =>
+                                              handleDeleteUser(
+                                                student.id,
+                                                student.name,
+                                              )
+                                            }
                                             className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg hover:bg-red-200 transition-colors font-medium shadow-sm"
                                           >
                                             삭제
@@ -854,43 +1016,70 @@ ${result.data.message}`);
         {activeTab === "teachers" && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">승인된 선생님</h2>
-              <p className="text-sm text-gray-500">학급을 담당하는 선생님 목록 (DB 읽기 0회)</p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                승인된 선생님
+              </h2>
+              <p className="text-sm text-gray-500">
+                학급을 담당하는 선생님 목록 (DB 읽기 0회)
+              </p>
             </div>
             {teachersFromClasses.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">학급을 담당하는 선생님이 없습니다.</div>
+              <div className="px-6 py-8 text-center text-gray-500">
+                학급을 담당하는 선생님이 없습니다.
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">담당 학급</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">총 학생 수</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">관리</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        이름
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        담당 학급
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        총 학생 수
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        관리
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {teachersFromClasses.map((teacher) => {
-                      const teacherClasses = classSummaries.filter(c => c.teacherId === teacher.id);
-                      const totalStudents = teacherClasses.reduce((sum, c) => sum + c.studentCount, 0);
+                      const teacherClasses = classSummaries.filter(
+                        (c) => c.teacherId === teacher.id,
+                      );
+                      const totalStudents = teacherClasses.reduce(
+                        (sum, c) => sum + c.studentCount,
+                        0,
+                      );
                       return (
                         <tr key={teacher.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{teacher.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {teacherClasses.map(c => c.className).join(', ')}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {teacher.name}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{totalStudents}명</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {teacherClasses.map((c) => c.className).join(", ")}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {totalStudents}명
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => handleUpdateUserRole(teacher.id, teacher.role)}
+                                onClick={() =>
+                                  handleUpdateUserRole(teacher.id, teacher.role)
+                                }
                                 className="px-3 py-1.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-200 transition-colors font-medium shadow-sm"
                               >
                                 역할 변경
                               </button>
                               <button
-                                onClick={() => handleDeleteUser(teacher.id, teacher.name)}
+                                onClick={() =>
+                                  handleDeleteUser(teacher.id, teacher.name)
+                                }
                                 className="px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg hover:bg-red-200 transition-colors font-medium shadow-sm"
                               >
                                 삭제
@@ -913,36 +1102,52 @@ ${result.data.message}`);
             {/* classCode 마이그레이션 */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">데이터 마이그레이션</h2>
-                <p className="text-sm text-gray-500 mt-1">학급별 데이터 분리 및 최적화</p>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  데이터 마이그레이션
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  학급별 데이터 분리 및 최적화
+                </p>
               </div>
               <div className="px-6 py-6">
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-medium text-amber-800 mb-2">classCode 마이그레이션</h3>
+                  <h3 className="font-medium text-amber-800 mb-2">
+                    classCode 마이그레이션
+                  </h3>
                   <p className="text-sm text-amber-700 mb-3">
-                    기존 글(writings)에 classCode 필드를 일괄 추가합니다.<br/>
-                    이 작업을 통해 학급별 데이터가 완전히 분리되고 Firestore 읽기 비용이 절감됩니다.
+                    기존 글(writings)에 classCode 필드를 일괄 추가합니다.
+                    <br />이 작업을 통해 학급별 데이터가 완전히 분리되고
+                    Firestore 읽기 비용이 절감됩니다.
                   </p>
                   <ul className="text-xs text-amber-600 mb-4 list-disc list-inside space-y-1">
                     <li>users 컬렉션에서 학생별 classCode 조회</li>
                     <li>writings 컬렉션에서 classCode가 없는 글에 업데이트</li>
-                    <li>한 번만 실행하면 됩니다 (이미 완료된 경우 "업데이트할 글이 없습니다" 표시)</li>
+                    <li>
+                      한 번만 실행하면 됩니다 (이미 완료된 경우 "업데이트할 글이
+                      없습니다" 표시)
+                    </li>
                   </ul>
                   <button
                     onClick={handleMigrateClassCode}
                     disabled={migrating}
                     className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {migrating ? '마이그레이션 중...' : 'classCode 마이그레이션 실행'}
+                    {migrating
+                      ? "마이그레이션 중..."
+                      : "classCode 마이그레이션 실행"}
                   </button>
                   {migrateResult && (
-                    <div className={`mt-4 p-3 rounded-lg ${migrateResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    <div
+                      className={`mt-4 p-3 rounded-lg ${migrateResult.error ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                    >
                       {migrateResult.error ? (
                         <p>오류: {migrateResult.error}</p>
                       ) : (
                         <p>
-                          {migrateResult.message}<br/>
-                          {migrateResult.totalStudents && `(총 ${migrateResult.totalStudents}명의 학생 데이터 확인)`}
+                          {migrateResult.message}
+                          <br />
+                          {migrateResult.totalStudents &&
+                            `(총 ${migrateResult.totalStudents}명의 학생 데이터 확인)`}
                         </p>
                       )}
                     </div>
@@ -951,10 +1156,14 @@ ${result.data.message}`);
 
                 {/* 학생 classCode 마이그레이션 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-medium text-blue-800 mb-2">학생 classCode 마이그레이션</h3>
+                  <h3 className="font-medium text-blue-800 mb-2">
+                    학생 classCode 마이그레이션
+                  </h3>
                   <p className="text-sm text-blue-700 mb-3">
-                    특정 학급의 모든 학생에게 classCode를 일괄 적용합니다.<br/>
-                    학급 코드가 삭제되었다가 복구된 경우나 학생 데이터가 누락된 경우 사용합니다.
+                    특정 학급의 모든 학생에게 classCode를 일괄 적용합니다.
+                    <br />
+                    학급 코드가 삭제되었다가 복구된 경우나 학생 데이터가 누락된
+                    경우 사용합니다.
                   </p>
                   <div className="flex gap-2 items-center">
                     <select
@@ -963,27 +1172,38 @@ ${result.data.message}`);
                       defaultValue=""
                     >
                       <option value="">학급 선택...</option>
-                      {classSummaries.map(cls => (
+                      {classSummaries.map((cls) => (
                         <option key={cls.classCode} value={cls.classCode}>
-                          {cls.className} ({cls.classCode}) - {cls.studentCount || 0}명
+                          {cls.className} ({cls.classCode}) -{" "}
+                          {cls.studentCount || 0}명
                         </option>
                       ))}
                     </select>
                     <button
                       onClick={async () => {
-                        const selectEl = document.getElementById('migrateClassSelect');
+                        const selectEl =
+                          document.getElementById("migrateClassSelect");
                         const classCode = selectEl?.value;
                         if (!classCode) {
-                          alert('학급을 선택해주세요.');
+                          alert("학급을 선택해주세요.");
                           return;
                         }
-                        if (!confirm(`"${classSummaries.find(c => c.classCode === classCode)?.className}" 학급의 모든 학생에게 classCode를 적용하시겠습니까?`)) {
+                        if (
+                          !confirm(
+                            `"${classSummaries.find((c) => c.classCode === classCode)?.className}" 학급의 모든 학생에게 classCode를 적용하시겠습니까?`,
+                          )
+                        ) {
                           return;
                         }
                         try {
-                          const migrateFn = httpsCallable(functions, 'migrateStudentsClassCode');
+                          const migrateFn = httpsCallable(
+                            functions,
+                            "migrateStudentsClassCode",
+                          );
                           const result = await migrateFn({ classCode });
-                          alert(`마이그레이션 완료!\n\n학급: ${result.data.className}\n학생: ${result.data.studentsUpdated}명\n글: ${result.data.writingsUpdated}개`);
+                          alert(
+                            `마이그레이션 완료!\n\n학급: ${result.data.className}\n학생: ${result.data.studentsUpdated}명\n글: ${result.data.writingsUpdated}개`,
+                          );
                         } catch (error) {
                           console.error("학생 마이그레이션 에러:", error);
                           alert("마이그레이션 실패: " + error.message);
@@ -995,23 +1215,34 @@ ${result.data.message}`);
                     </button>
                     <button
                       onClick={async () => {
-                        const selectEl = document.getElementById('migrateClassSelect');
+                        const selectEl =
+                          document.getElementById("migrateClassSelect");
                         const classCode = selectEl?.value;
                         if (!classCode) {
-                          alert('학급을 선택해주세요.');
+                          alert("학급을 선택해주세요.");
                           return;
                         }
-                        const className = classSummaries.find(c => c.classCode === classCode)?.className;
-                        if (!confirm(`"${className}" 학급의 제출 현황을 복구하시겠습니까?\n\n기존 글(writings)에서 과제 제출 현황(submissions)을 다시 계산합니다.`)) {
+                        const className = classSummaries.find(
+                          (c) => c.classCode === classCode,
+                        )?.className;
+                        if (
+                          !confirm(
+                            `"${className}" 학급의 제출 현황을 복구하시겠습니까?\n\n기존 글(writings)에서 과제 제출 현황(submissions)을 다시 계산합니다.`,
+                          )
+                        ) {
                           return;
                         }
                         try {
-                          const { migrateAssignmentSubmissions } = await import('../services/assignmentService');
-                          const result = await migrateAssignmentSubmissions(classCode);
+                          const { migrateAssignmentSubmissions } =
+                            await import("../services/assignmentService");
+                          const result =
+                            await migrateAssignmentSubmissions(classCode);
                           if (result.success) {
-                            alert(`제출 현황 복구 완료!\n\n학급: ${className}\n과제: ${result.migratedCount}개 업데이트됨`);
+                            alert(
+                              `제출 현황 복구 완료!\n\n학급: ${className}\n과제: ${result.migratedCount}개 업데이트됨`,
+                            );
                           } else {
-                            alert('복구 실패: ' + result.error);
+                            alert("복구 실패: " + result.error);
                           }
                         } catch (error) {
                           console.error("제출 현황 복구 에러:", error);
@@ -1027,10 +1258,14 @@ ${result.data.message}`);
 
                 {/* 통과 점수 70점 마이그레이션 */}
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-medium text-purple-800 mb-2">통과 점수 70점 마이그레이션</h3>
+                  <h3 className="font-medium text-purple-800 mb-2">
+                    통과 점수 70점 마이그레이션
+                  </h3>
                   <p className="text-sm text-purple-700 mb-3">
-                    기존 글과 통계의 통과 기준을 70점으로 일괄 변경합니다.<br/>
-                    이전에 80점 기준으로 "미통과"였던 글이 70점 이상이면 "통과"로 바뀝니다.
+                    기존 글과 통계의 통과 기준을 70점으로 일괄 변경합니다.
+                    <br />
+                    이전에 80점 기준으로 "미통과"였던 글이 70점 이상이면
+                    "통과"로 바뀝니다.
                   </p>
                   <ul className="text-xs text-purple-600 mb-4 list-disc list-inside space-y-1">
                     <li>모든 writings 문서의 minScore → 70점</li>
@@ -1042,19 +1277,27 @@ ${result.data.message}`);
                     disabled={migratingMinScore}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {migratingMinScore ? '마이그레이션 중...' : '통과 점수 70점 마이그레이션 실행'}
+                    {migratingMinScore
+                      ? "마이그레이션 중..."
+                      : "통과 점수 70점 마이그레이션 실행"}
                   </button>
                   {minScoreResult && (
-                    <div className={`mt-4 p-3 rounded-lg ${minScoreResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    <div
+                      className={`mt-4 p-3 rounded-lg ${minScoreResult.error ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                    >
                       {minScoreResult.error ? (
                         <p>오류: {minScoreResult.error}</p>
                       ) : (
                         <div>
-                          <p className="font-medium">{minScoreResult.message}</p>
+                          <p className="font-medium">
+                            {minScoreResult.message}
+                          </p>
                           {minScoreResult.details && (
                             <p className="text-sm mt-1">
-                              글 {minScoreResult.details.writingsUpdated}개, 사용자 {minScoreResult.details.usersUpdated}명,
-                              랭킹 {minScoreResult.details.classesUpdated}개 학급 업데이트
+                              글 {minScoreResult.details.writingsUpdated}개,
+                              사용자 {minScoreResult.details.usersUpdated}명,
+                              랭킹 {minScoreResult.details.classesUpdated}개
+                              학급 업데이트
                             </p>
                           )}
                         </div>
@@ -1065,9 +1308,13 @@ ${result.data.message}`);
 
                 {/* 중복 미제출글 정리 */}
                 <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
-                  <h3 className="font-medium text-rose-800 mb-2">중복 미제출글 정리</h3>
+                  <h3 className="font-medium text-rose-800 mb-2">
+                    중복 미제출글 정리
+                  </h3>
                   <p className="text-sm text-rose-700 mb-3">
-                    같은 주제에 여러 미제출글이 있는 경우, 점수가 가장 높은 글만 남기고 나머지를 삭제합니다.<br/>
+                    같은 주제에 여러 미제출글이 있는 경우, 점수가 가장 높은 글만
+                    남기고 나머지를 삭제합니다.
+                    <br />
                     24시간 이내 글도 포함됩니다.
                   </p>
                   <ul className="text-xs text-rose-600 mb-4 list-disc list-inside space-y-1">
@@ -1080,17 +1327,24 @@ ${result.data.message}`);
                     disabled={cleaningDuplicates}
                     className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {cleaningDuplicates ? '정리 중...' : '중복 미제출글 정리 실행'}
+                    {cleaningDuplicates
+                      ? "정리 중..."
+                      : "중복 미제출글 정리 실행"}
                   </button>
                   {cleanupResult && (
-                    <div className={`mt-4 p-3 rounded-lg ${cleanupResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    <div
+                      className={`mt-4 p-3 rounded-lg ${cleanupResult.error ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                    >
                       {cleanupResult.error ? (
                         <p>오류: {cleanupResult.error}</p>
                       ) : (
                         <div>
                           <p className="font-medium">{cleanupResult.message}</p>
                           {cleanupResult.summaryUpdated > 0 && (
-                            <p className="text-sm mt-1">{cleanupResult.summaryUpdated}명의 writingSummary 업데이트됨</p>
+                            <p className="text-sm mt-1">
+                              {cleanupResult.summaryUpdated}명의 writingSummary
+                              업데이트됨
+                            </p>
                           )}
                         </div>
                       )}
@@ -1100,9 +1354,12 @@ ${result.data.message}`);
 
                 {/* 학급/선생님 정보 동기화 */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                  <h3 className="font-medium text-blue-800 mb-2">학급 정보 동기화</h3>
+                  <h3 className="font-medium text-blue-800 mb-2">
+                    학급 정보 동기화
+                  </h3>
                   <p className="text-sm text-blue-700 mb-3">
-                    학급 정보와 담당 선생님 이름을 동기화합니다.<br/>
+                    학급 정보와 담당 선생님 이름을 동기화합니다.
+                    <br />
                     선생님 이름이 "알 수 없음"으로 표시될 때 실행하세요.
                   </p>
                   <ul className="text-xs text-blue-600 mb-4 list-disc list-inside space-y-1">
@@ -1115,7 +1372,7 @@ ${result.data.message}`);
                     disabled={syncing}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {syncing ? '동기화 중...' : '학급 정보 동기화 실행'}
+                    {syncing ? "동기화 중..." : "학급 정보 동기화 실행"}
                   </button>
                 </div>
               </div>
@@ -1125,47 +1382,73 @@ ${result.data.message}`);
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">거절된 사용자 관리</h2>
-                  <p className="text-sm text-gray-500 mt-1">승인 거부된 사용자를 학생/선생님으로 변경할 수 있습니다</p>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    거절된 사용자 관리
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    승인 거부된 사용자를 학생/선생님으로 변경할 수 있습니다
+                  </p>
                 </div>
                 <button
                   onClick={loadRejectedUsers}
                   disabled={loadingRejected}
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium disabled:opacity-50"
                 >
-                  {loadingRejected ? '조회 중...' : '거절된 사용자 조회'}
+                  {loadingRejected ? "조회 중..." : "거절된 사용자 조회"}
                 </button>
               </div>
               {rejectedUsers.length > 0 ? (
                 <div className="divide-y divide-gray-200">
                   {rejectedUsers.map((user) => (
-                    <div key={user.id} className="px-6 py-4 flex justify-between items-center">
+                    <div
+                      key={user.id}
+                      className="px-6 py-4 flex justify-between items-center"
+                    >
                       <div>
-                        <p className="font-medium text-gray-900">{user.name || user.nickname || '이름 없음'}</p>
+                        <p className="font-medium text-gray-900">
+                          {user.name || user.nickname || "이름 없음"}
+                        </p>
                         <p className="text-sm text-gray-600">{user.email}</p>
                         <p className="text-xs text-gray-500 mt-1">
-                          역할: {user.role === 'teacher' ? '선생님' : '학생'} ·
-                          거절일: {user.rejectedAt ? new Date(user.rejectedAt).toLocaleDateString() : '-'}
+                          역할: {user.role === "teacher" ? "선생님" : "학생"} ·
+                          거절일:{" "}
+                          {user.rejectedAt
+                            ? new Date(user.rejectedAt).toLocaleDateString()
+                            : "-"}
                         </p>
                         {user.rejectedReason && (
-                          <p className="text-xs text-red-500 mt-1">사유: {user.rejectedReason}</p>
+                          <p className="text-xs text-red-500 mt-1">
+                            사유: {user.rejectedReason}
+                          </p>
                         )}
                       </div>
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => convertRejectedToStudent(user.id, user.name || user.email)}
+                          onClick={() =>
+                            convertRejectedToStudent(
+                              user.id,
+                              user.name || user.email,
+                            )
+                          }
                           className="bg-emerald-500 text-white px-3 py-1.5 rounded text-sm hover:bg-emerald-600"
                         >
                           학생으로 변경
                         </button>
                         <button
-                          onClick={() => approveRejectedAsTeacher(user.id, user.name || user.email)}
+                          onClick={() =>
+                            approveRejectedAsTeacher(
+                              user.id,
+                              user.name || user.email,
+                            )
+                          }
                           className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-600"
                         >
                           선생님으로 승인
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user.id, user.name || user.email)}
+                          onClick={() =>
+                            handleDeleteUser(user.id, user.name || user.email)
+                          }
                           className="bg-red-500 text-white px-3 py-1.5 rounded text-sm hover:bg-red-600"
                         >
                           삭제
@@ -1176,7 +1459,9 @@ ${result.data.message}`);
                 </div>
               ) : (
                 <div className="px-6 py-8 text-center text-gray-500">
-                  {loadingRejected ? '조회 중...' : '위의 "거절된 사용자 조회" 버튼을 클릭하세요'}
+                  {loadingRejected
+                    ? "조회 중..."
+                    : '위의 "거절된 사용자 조회" 버튼을 클릭하세요'}
                 </div>
               )}
             </div>
@@ -1184,7 +1469,9 @@ ${result.data.message}`);
             {/* 시스템 정보 */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">시스템 정보</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  시스템 정보
+                </h2>
               </div>
               <div className="px-6 py-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1203,34 +1490,46 @@ ${result.data.message}`);
             {/* 🌱 싹DB 관리 */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">🌱 싹DB 관리 (AI 평가 지식베이스)</h2>
-                <p className="text-sm text-gray-500 mt-1">학년별 평가 기준과 우수작 예시 관리</p>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  🌱 싹DB 관리 (AI 평가 지식베이스)
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  학년별 평가 기준과 우수작 예시 관리
+                </p>
               </div>
               <div className="px-6 py-4 space-y-4">
                 {/* 싹DB 현황 조회 */}
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                  <h3 className="font-medium text-emerald-800 mb-2">싹DB 현황 조회</h3>
+                  <h3 className="font-medium text-emerald-800 mb-2">
+                    싹DB 현황 조회
+                  </h3>
                   <p className="text-sm text-emerald-700 mb-3">
                     Firestore에 저장된 싹DB 데이터 현황을 확인합니다.
                   </p>
                   <button
                     onClick={async () => {
                       try {
-                        const { checkSsakDBStatus } = await import('../utils/geminiAPI');
+                        const { checkSsakDBStatus } =
+                          await import("../utils/aiAPI");
                         const status = await checkSsakDBStatus();
-                        devLog('[싹DB 현황]', status);
+                        devLog("[싹DB 현황]", status);
 
-                        let message = '싹DB 현황:\n\n';
-                        for (const [collection, data] of Object.entries(status)) {
+                        let message = "싹DB 현황:\n\n";
+                        for (const [collection, data] of Object.entries(
+                          status,
+                        )) {
                           message += `${collection}: ${data.count}개\n`;
                           if (data.samples && data.samples.length > 0) {
-                            message += `  샘플: ${data.samples.map(s => s.id).slice(0, 3).join(', ')}\n`;
+                            message += `  샘플: ${data.samples
+                              .map((s) => s.id)
+                              .slice(0, 3)
+                              .join(", ")}\n`;
                           }
                         }
                         alert(message);
                       } catch (error) {
-                        console.error('싹DB 현황 조회 에러:', error);
-                        alert('조회 실패: ' + error.message);
+                        console.error("싹DB 현황 조회 에러:", error);
+                        alert("조회 실패: " + error.message);
                       }
                     }}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
@@ -1241,19 +1540,31 @@ ${result.data.message}`);
 
                 {/* 싹DB 메타 업데이트 */}
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                  <h3 className="font-medium text-indigo-800 mb-2">싹DB 메타 정보 업데이트</h3>
+                  <h3 className="font-medium text-indigo-800 mb-2">
+                    싹DB 메타 정보 업데이트
+                  </h3>
                   <p className="text-sm text-indigo-700 mb-3">
-                    싹DB 컬렉션별 문서 수를 다시 계산하고 메타 정보를 업데이트합니다.
+                    싹DB 컬렉션별 문서 수를 다시 계산하고 메타 정보를
+                    업데이트합니다.
                   </p>
                   <button
                     onClick={async () => {
                       try {
-                        const updateMetaFn = httpsCallable(functions, 'updateSsakDBMeta');
+                        const updateMetaFn = httpsCallable(
+                          functions,
+                          "updateSsakDBMeta",
+                        );
                         const result = await updateMetaFn();
-                        alert(`메타 업데이트 완료!\n\n총 문서: ${result.data.total}개\n\n${Object.entries(result.data.counts).map(([k, v]) => `${k}: ${v}개`).join('\n')}`);
+                        alert(
+                          `메타 업데이트 완료!\n\n총 문서: ${result.data.total}개\n\n${Object.entries(
+                            result.data.counts,
+                          )
+                            .map(([k, v]) => `${k}: ${v}개`)
+                            .join("\n")}`,
+                        );
                       } catch (error) {
-                        console.error('메타 업데이트 에러:', error);
-                        alert('업데이트 실패: ' + error.message);
+                        console.error("메타 업데이트 에러:", error);
+                        alert("업데이트 실패: " + error.message);
                       }
                     }}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
@@ -1264,17 +1575,23 @@ ${result.data.message}`);
 
                 {/* 싹DB JSON 업로드 */}
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h3 className="font-medium text-orange-800 mb-2">📤 싹DB 데이터 업로드</h3>
+                  <h3 className="font-medium text-orange-800 mb-2">
+                    📤 싹DB 데이터 업로드
+                  </h3>
                   <p className="text-sm text-orange-700 mb-3">
                     로컬 싹DB JSON 파일을 Firestore에 업로드합니다.
                   </p>
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
-                      {['rubrics', 'examples', 'feedbackPatterns', 'topics', 'writingTheory', 'aiDetection'].map(collection => (
-                        <label
-                          key={collection}
-                          className="cursor-pointer"
-                        >
+                      {[
+                        "rubrics",
+                        "examples",
+                        "feedbackPatterns",
+                        "topics",
+                        "writingTheory",
+                        "aiDetection",
+                      ].map((collection) => (
+                        <label key={collection} className="cursor-pointer">
                           <input
                             type="file"
                             accept=".json"
@@ -1287,36 +1604,58 @@ ${result.data.message}`);
                                 const text = await file.text();
                                 const documents = JSON.parse(text);
 
-                                if (typeof documents !== 'object') {
-                                  throw new Error('유효한 JSON 객체가 아닙니다.');
+                                if (typeof documents !== "object") {
+                                  throw new Error(
+                                    "유효한 JSON 객체가 아닙니다.",
+                                  );
                                 }
 
                                 const docCount = Object.keys(documents).length;
-                                if (!confirm(`${collection} 컬렉션에 ${docCount}개 문서를 업로드하시겠습니까?`)) {
+                                if (
+                                  !confirm(
+                                    `${collection} 컬렉션에 ${docCount}개 문서를 업로드하시겠습니까?`,
+                                  )
+                                ) {
                                   return;
                                 }
 
-                                const uploadFn = httpsCallable(functions, 'uploadSsakDBBatch');
+                                const uploadFn = httpsCallable(
+                                  functions,
+                                  "uploadSsakDBBatch",
+                                );
 
                                 // 450개씩 나눠서 업로드
                                 const entries = Object.entries(documents);
                                 const CHUNK_SIZE = 400;
                                 let uploaded = 0;
 
-                                for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
-                                  const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
-                                  const result = await uploadFn({ collection, documents: chunk });
+                                for (
+                                  let i = 0;
+                                  i < entries.length;
+                                  i += CHUNK_SIZE
+                                ) {
+                                  const chunk = Object.fromEntries(
+                                    entries.slice(i, i + CHUNK_SIZE),
+                                  );
+                                  const result = await uploadFn({
+                                    collection,
+                                    documents: chunk,
+                                  });
                                   uploaded += result.data.count;
-                                  devLog(`${collection} 업로드 진행: ${uploaded}/${entries.length}`);
+                                  devLog(
+                                    `${collection} 업로드 진행: ${uploaded}/${entries.length}`,
+                                  );
                                 }
 
-                                alert(`✅ ${collection} 업로드 완료!\n총 ${uploaded}개 문서`);
+                                alert(
+                                  `✅ ${collection} 업로드 완료!\n총 ${uploaded}개 문서`,
+                                );
                               } catch (error) {
-                                console.error('업로드 에러:', error);
-                                alert('업로드 실패: ' + error.message);
+                                console.error("업로드 에러:", error);
+                                alert("업로드 실패: " + error.message);
                               }
 
-                              e.target.value = '';
+                              e.target.value = "";
                             }}
                           />
                           <span className="inline-block px-3 py-1.5 bg-white border border-orange-300 rounded-lg text-sm text-orange-700 hover:bg-orange-100 transition-colors">
@@ -1326,16 +1665,20 @@ ${result.data.message}`);
                       ))}
                     </div>
                     <p className="text-xs text-orange-600">
-                      💡 scripts/ssakdb-collections/ 폴더의 JSON 파일을 선택하세요
+                      💡 scripts/ssakdb-collections/ 폴더의 JSON 파일을
+                      선택하세요
                     </p>
                   </div>
                 </div>
 
                 {/* 전체 업로드 */}
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h3 className="font-medium text-red-800 mb-2">⚠️ 싹DB 전체 업로드</h3>
+                  <h3 className="font-medium text-red-800 mb-2">
+                    ⚠️ 싹DB 전체 업로드
+                  </h3>
                   <p className="text-sm text-red-700 mb-3">
-                    모든 싹DB 데이터를 일괄 업로드합니다. 기존 데이터는 덮어씁니다.
+                    모든 싹DB 데이터를 일괄 업로드합니다. 기존 데이터는
+                    덮어씁니다.
                   </p>
                   <label className="cursor-pointer">
                     <input
@@ -1350,8 +1693,8 @@ ${result.data.message}`);
                           const text = await file.text();
                           const allData = JSON.parse(text);
 
-                          if (typeof allData !== 'object') {
-                            throw new Error('유효한 JSON 객체가 아닙니다.');
+                          if (typeof allData !== "object") {
+                            throw new Error("유효한 JSON 객체가 아닙니다.");
                           }
 
                           const collections = Object.keys(allData);
@@ -1360,39 +1703,63 @@ ${result.data.message}`);
                             totalDocs += Object.keys(allData[col] || {}).length;
                           }
 
-                          if (!confirm(`총 ${collections.length}개 컬렉션, ${totalDocs}개 문서를 업로드하시겠습니까?\n\n컬렉션: ${collections.join(', ')}`)) {
+                          if (
+                            !confirm(
+                              `총 ${collections.length}개 컬렉션, ${totalDocs}개 문서를 업로드하시겠습니까?\n\n컬렉션: ${collections.join(", ")}`,
+                            )
+                          ) {
                             return;
                           }
 
-                          const uploadFn = httpsCallable(functions, 'uploadSsakDBBatch');
+                          const uploadFn = httpsCallable(
+                            functions,
+                            "uploadSsakDBBatch",
+                          );
                           let totalUploaded = 0;
 
                           for (const collection of collections) {
                             const documents = allData[collection];
-                            if (!documents || typeof documents !== 'object') continue;
+                            if (!documents || typeof documents !== "object")
+                              continue;
 
                             const entries = Object.entries(documents);
                             const CHUNK_SIZE = 400;
 
-                            for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
-                              const chunk = Object.fromEntries(entries.slice(i, i + CHUNK_SIZE));
-                              const result = await uploadFn({ collection, documents: chunk });
+                            for (
+                              let i = 0;
+                              i < entries.length;
+                              i += CHUNK_SIZE
+                            ) {
+                              const chunk = Object.fromEntries(
+                                entries.slice(i, i + CHUNK_SIZE),
+                              );
+                              const result = await uploadFn({
+                                collection,
+                                documents: chunk,
+                              });
                               totalUploaded += result.data.count;
-                              devLog(`${collection} 업로드: ${result.data.count}개`);
+                              devLog(
+                                `${collection} 업로드: ${result.data.count}개`,
+                              );
                             }
                           }
 
                           // 메타 정보 업데이트
-                          const updateMetaFn = httpsCallable(functions, 'updateSsakDBMeta');
+                          const updateMetaFn = httpsCallable(
+                            functions,
+                            "updateSsakDBMeta",
+                          );
                           await updateMetaFn();
 
-                          alert(`✅ 전체 업로드 완료!\n총 ${totalUploaded}개 문서`);
+                          alert(
+                            `✅ 전체 업로드 완료!\n총 ${totalUploaded}개 문서`,
+                          );
                         } catch (error) {
-                          console.error('전체 업로드 에러:', error);
-                          alert('업로드 실패: ' + error.message);
+                          console.error("전체 업로드 에러:", error);
+                          alert("업로드 실패: " + error.message);
                         }
 
-                        e.target.value = '';
+                        e.target.value = "";
                       }}
                     />
                     <span className="inline-block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium cursor-pointer">
@@ -1406,12 +1773,20 @@ ${result.data.message}`);
 
                 {/* 현재 AI 평가 설정 */}
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-800 mb-2">AI 평가 싹DB 활용 현황</h3>
+                  <h3 className="font-medium text-gray-800 mb-2">
+                    AI 평가 싹DB 활용 현황
+                  </h3>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>✅ 학년별 평가 루브릭 (rubrics) - 6+1 Trait Writing 기반</li>
+                    <li>
+                      ✅ 학년별 평가 루브릭 (rubrics) - 6+1 Trait Writing 기반
+                    </li>
                     <li>✅ 학년별 우수작 예시 (examples) - 상/중/하 수준별</li>
-                    <li>✅ 첨삭 패턴 (feedbackPatterns) - 내용/조직/표현/표기</li>
-                    <li>✅ AI 평가 시 자동 참조 (getSsakRubric, getSsakExample)</li>
+                    <li>
+                      ✅ 첨삭 패턴 (feedbackPatterns) - 내용/조직/표현/표기
+                    </li>
+                    <li>
+                      ✅ AI 평가 시 자동 참조 (getSsakRubric, getSsakExample)
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -1420,25 +1795,35 @@ ${result.data.message}`);
             {/* DB 읽기 최적화 현황 */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">📊 DB 읽기 최적화 현황</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  📊 DB 읽기 최적화 현황
+                </h2>
               </div>
               <div className="px-6 py-4">
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-600">슈퍼관리자 로그인</span>
-                    <span className="font-medium text-emerald-600">2회 (이전 50회+)</span>
+                    <span className="font-medium text-emerald-600">
+                      2회 (이전 50회+)
+                    </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-600">학급 클릭 (학생 로드)</span>
-                    <span className="font-medium text-emerald-600">1회 쿼리</span>
+                    <span className="font-medium text-emerald-600">
+                      1회 쿼리
+                    </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-600">선생님 탭</span>
-                    <span className="font-medium text-emerald-600">1회 쿼리 (최초 1회)</span>
+                    <span className="font-medium text-emerald-600">
+                      1회 쿼리 (최초 1회)
+                    </span>
                   </div>
                   <div className="flex justify-between py-2">
                     <span className="text-gray-600">학생 로그인</span>
-                    <span className="font-medium text-emerald-600">2-3회 (이전 87회+)</span>
+                    <span className="font-medium text-emerald-600">
+                      2-3회 (이전 87회+)
+                    </span>
                   </div>
                   <div className="flex justify-between py-2">
                     <span className="text-gray-600">교사 로그인</span>
