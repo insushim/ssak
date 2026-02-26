@@ -225,6 +225,7 @@ export default function StudentDashboard({ user, userData }) {
     },
   );
   const [showPassedWritings, setShowPassedWritings] = useState(true); // 달성 글 펼침 상태 (기본: 펼침)
+  const [passedWritingsSearch, setPassedWritingsSearch] = useState(""); // 달성 글 검색어
   // 아바타 미리보기 상태
   const [previewItem, setPreviewItem] = useState(null); // { item, category }
   const [previewEquipped, setPreviewEquipped] = useState(null); // 미리보기용 임시 장착 상태
@@ -4464,7 +4465,7 @@ export default function StudentDashboard({ user, userData }) {
                     </button>
 
                     {showPassedWritings && (
-                      <div className="mt-4 space-y-4">
+                      <div className="mt-4">
                         {passedWritings.length === 0 ? (
                           <div className="bg-white shadow rounded-2xl p-8 text-center">
                             <p className="text-gray-500">
@@ -4472,7 +4473,127 @@ export default function StudentDashboard({ user, userData }) {
                             </p>
                           </div>
                         ) : (
-                          passedWritings.map(renderWritingCard)
+                          <>
+                            {/* 검색바 */}
+                            {passedWritings.length > 4 && (
+                              <div className="mb-3 relative">
+                                <input
+                                  type="text"
+                                  value={passedWritingsSearch}
+                                  onChange={(e) =>
+                                    setPassedWritingsSearch(e.target.value)
+                                  }
+                                  placeholder="달성 글 검색 (주제, 날짜)"
+                                  className="w-full px-4 py-2.5 pl-10 bg-white border border-emerald-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                                />
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400">
+                                  🔍
+                                </span>
+                                {passedWritingsSearch && (
+                                  <button
+                                    onClick={() => setPassedWritingsSearch("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {/* 그리드 레이아웃 */}
+                            {(() => {
+                              const filtered = passedWritings.filter((w) => {
+                                if (!passedWritingsSearch.trim()) return true;
+                                const q = passedWritingsSearch
+                                  .trim()
+                                  .toLowerCase();
+                                const topic = (w.topic || "").toLowerCase();
+                                const date = new Date(
+                                  w.submittedAt,
+                                ).toLocaleDateString();
+                                return topic.includes(q) || date.includes(q);
+                              });
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="bg-white shadow rounded-2xl p-6 text-center">
+                                    <p className="text-gray-500 text-sm">
+                                      "{passedWritingsSearch}" 검색 결과가
+                                      없습니다.
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              // 상세보기가 열린 글이 있으면 세로 레이아웃으로 전환
+                              const hasOpenDetail = filtered.some(
+                                (w) =>
+                                  selectedWritingDetail?.writingId ===
+                                  w.writingId,
+                              );
+                              if (hasOpenDetail) {
+                                return (
+                                  <div className="space-y-4">
+                                    {filtered.map(renderWritingCard)}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {filtered.map((writing) => {
+                                    const writingRequiredScore =
+                                      writing.minScore !== undefined
+                                        ? writing.minScore
+                                        : (findAssignmentMinScore(
+                                            writing.topic,
+                                          ) ?? PASSING_SCORE);
+                                    return (
+                                      <div
+                                        key={writing.writingId}
+                                        className="bg-white shadow rounded-xl border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-lg transition-all"
+                                        onClick={() =>
+                                          handleViewWritingDetail(
+                                            writing.writingId,
+                                          )
+                                        }
+                                      >
+                                        <div className="p-3 bg-gradient-to-r from-emerald-50 to-white">
+                                          <div className="flex justify-between items-start gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <h4 className="font-bold text-gray-900 text-sm truncate">
+                                                {writing.topic}
+                                              </h4>
+                                              <p className="text-xs text-gray-400 mt-0.5">
+                                                {new Date(
+                                                  writing.submittedAt,
+                                                ).toLocaleDateString()}
+                                              </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                              <span
+                                                className={`text-xl font-black ${writing.score >= PASSING_SCORE ? "text-emerald-600" : "text-orange-600"}`}
+                                              >
+                                                {writing.score}
+                                                <span className="text-xs">
+                                                  점
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between mt-1.5">
+                                            <span className="text-xs text-gray-400">
+                                              {writing.wordCount}자 · 목표{" "}
+                                              {writingRequiredScore}점
+                                            </span>
+                                            <span className="text-xs text-blue-500">
+                                              ▼ 상세
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </>
                         )}
                       </div>
                     )}
