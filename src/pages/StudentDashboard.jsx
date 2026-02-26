@@ -25,7 +25,6 @@ import {
   getClassRanking,
   getWritingSummaryFromUserData,
   getWritingDetail,
-  migrateWritingsMinScore,
 } from "../services/writingService";
 import {
   getAssignmentsFromClassInfo,
@@ -1093,22 +1092,7 @@ export default function StudentDashboard({ user, userData }) {
           }
         }
 
-        // 🚀 v6: 기존 글의 minScore 마이그레이션 (한 번만 실행)
-        const minScoreMigrationKey = `writings_minScore_v1_${userData.classCode}`;
-        if (!localStorage.getItem(minScoreMigrationKey)) {
-          try {
-            devLog("[마이그레이션 v6] writings minScore 추가");
-            const result = await migrateWritingsMinScore(userData.classCode);
-            if (result.migratedCount > 0 || result.summaryUpdatedCount > 0) {
-              devLog(
-                `[마이그레이션 v6] writings: ${result.migratedCount}개, writingSummary: ${result.summaryUpdatedCount}명 업데이트`,
-              );
-            }
-            localStorage.setItem(minScoreMigrationKey, "true");
-          } catch (e) {
-            console.warn("writings minScore 마이그레이션 실패:", e);
-          }
-        }
+        // 🚀 v6: 기존 글의 minScore 마이그레이션 - 교사 권한 필요, 학생 대시보드에서는 스킵
 
         // 🚀 classes 문서의 assignmentSummary에서 과제 목록 추출 (DB 읽기 0회!)
         const allClassAssignments = getAssignmentsFromClassInfo(cls);

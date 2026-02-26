@@ -43,17 +43,24 @@ export default function Login() {
         <div className="absolute bottom-0 right-1/4 w-px h-48 bg-gradient-to-t from-blue-400/40 to-transparent"></div>
       </div>
 
-      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center relative z-10">
+      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center relative z-10 mb-16">
         {/* 왼쪽 브랜딩 영역 */}
         <div className="hidden md:block text-white space-y-6">
           <div className="flex items-center gap-3">
             <div className="relative inline-block">
               {/* 메인 로고 */}
-              <span className="text-6xl font-black tracking-tight bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent drop-shadow-2xl" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+              <span
+                className="text-6xl font-black tracking-tight bg-gradient-to-r from-white via-cyan-200 to-white bg-clip-text text-transparent drop-shadow-2xl"
+                style={{ fontFamily: "'Noto Sans KR', sans-serif" }}
+              >
                 싹
               </span>
               {/* 붓 터치 효과 - 날렵하게 올라가는 선 */}
-              <svg className="absolute -top-2 -right-6 w-12 h-16" viewBox="0 0 48 64" fill="none">
+              <svg
+                className="absolute -top-2 -right-6 w-12 h-16"
+                viewBox="0 0 48 64"
+                fill="none"
+              >
                 {/* 메인 스우시 라인 */}
                 <path
                   d="M8 56 Q12 48, 16 36 Q20 24, 28 14 Q34 6, 44 2"
@@ -65,7 +72,13 @@ export default function Login() {
                 />
                 {/* 그라데이션 정의 */}
                 <defs>
-                  <linearGradient id="brushGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <linearGradient
+                    id="brushGradient"
+                    x1="0%"
+                    y1="100%"
+                    x2="100%"
+                    y2="0%"
+                  >
                     <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
                     <stop offset="50%" stopColor="#67e8f9" stopOpacity="1" />
                     <stop offset="100%" stopColor="#fef08a" stopOpacity="1" />
@@ -73,13 +86,23 @@ export default function Login() {
                 </defs>
               </svg>
               {/* 끝 부분 반짝임 */}
-              <span className="absolute -top-4 right-[-30px] text-2xl animate-pulse filter drop-shadow-lg" style={{ textShadow: '0 0 10px #fef08a, 0 0 20px #fef08a, 0 0 30px #fef08a' }}>✨</span>
+              <span
+                className="absolute -top-4 right-[-30px] text-2xl animate-pulse filter drop-shadow-lg"
+                style={{
+                  textShadow:
+                    "0 0 10px #fef08a, 0 0 20px #fef08a, 0 0 30px #fef08a",
+                }}
+              >
+                ✨
+              </span>
               {/* 추가 작은 반짝임들 */}
               <span className="absolute -top-1 right-[-18px] w-1.5 h-1.5 bg-yellow-300 rounded-full animate-ping"></span>
               <span className="absolute top-2 right-[-26px] w-1 h-1 bg-cyan-300 rounded-full animate-pulse"></span>
             </div>
             {/* SSAK 영문 */}
-            <span className="text-2xl font-bold tracking-widest text-cyan-200 opacity-80 ml-4">SSAK</span>
+            <span className="text-2xl font-bold tracking-widest text-cyan-200 opacity-80 ml-4">
+              SSAK
+            </span>
           </div>
 
           <h1 className="text-3xl font-bold leading-tight">
@@ -125,7 +148,11 @@ export default function Login() {
                 <span className="text-4xl font-black bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
                   싹
                 </span>
-                <svg className="absolute -top-1 -right-4 w-8 h-10" viewBox="0 0 48 64" fill="none">
+                <svg
+                  className="absolute -top-1 -right-4 w-8 h-10"
+                  viewBox="0 0 48 64"
+                  fill="none"
+                >
                   <path
                     d="M8 56 Q12 48, 16 36 Q20 24, 28 14 Q34 6, 44 2"
                     stroke="url(#brushGradientMobile)"
@@ -134,18 +161,30 @@ export default function Login() {
                     fill="none"
                   />
                   <defs>
-                    <linearGradient id="brushGradientMobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                    <linearGradient
+                      id="brushGradientMobile"
+                      x1="0%"
+                      y1="100%"
+                      x2="100%"
+                      y2="0%"
+                    >
                       <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
                       <stop offset="100%" stopColor="#facc15" stopOpacity="1" />
                     </linearGradient>
                   </defs>
                 </svg>
-                <span className="absolute -top-2 right-[-20px] text-lg animate-pulse">✨</span>
+                <span className="absolute -top-2 right-[-20px] text-lg animate-pulse">
+                  ✨
+                </span>
               </div>
-              <span className="text-lg font-bold tracking-widest text-blue-400 ml-4">SSAK</span>
+              <span className="text-lg font-bold tracking-widest text-blue-400 ml-4">
+                SSAK
+              </span>
             </div>
             <h2 className="text-2xl font-bold text-gray-900">로그인</h2>
-            <p className="mt-2 text-sm text-gray-500">글쓰기 마법의 세계로 들어가세요</p>
+            <p className="mt-2 text-sm text-gray-500">
+              글쓰기 마법의 세계로 들어가세요
+            </p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
@@ -157,7 +196,10 @@ export default function Login() {
 
             <div className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   이메일
                 </label>
                 <input
@@ -172,7 +214,10 @@ export default function Login() {
                 />
               </div>
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   비밀번호
                 </label>
                 <input
@@ -196,8 +241,20 @@ export default function Login() {
               {loading ? (
                 <>
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
                   </svg>
                   <span>로그인 중...</span>
                 </>
@@ -220,6 +277,19 @@ export default function Login() {
           </form>
         </div>
       </div>
+
+      {/* 푸터 */}
+      <footer className="absolute bottom-0 left-0 right-0 z-10 py-4 text-center text-xs text-blue-200/70">
+        <p>© 2026 ISW 글쓰기 도우미. All rights reserved.</p>
+        <div className="mt-1 space-x-3">
+          <Link to="/privacy" className="hover:text-white transition-colors">
+            개인정보처리방침
+          </Link>
+          <Link to="/terms" className="hover:text-white transition-colors">
+            이용약관
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
