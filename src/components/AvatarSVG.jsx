@@ -1,7 +1,7 @@
 // 실사 스타일 SVG 아바타 컴포넌트
 import React from "react";
 
-// 얼굴 형태 SVG (남자/여자 구분)
+// 치비 스타일 얼굴 SVG (큰 눈 + 홍채 그라데이션 + 반사광)
 export const FaceSVG = ({
   skinColor = "#FFD5B8",
   expression = "happy",
@@ -9,72 +9,172 @@ export const FaceSVG = ({
   gender = "male",
 }) => {
   const expressions = {
-    happy: { eyeY: 45, mouthPath: "M 45 75 Q 60 90 75 75", eyebrowY: 35 },
-    cool: { eyeY: 45, mouthPath: "M 45 78 L 75 78", eyebrowY: 33 },
-    smart: { eyeY: 45, mouthPath: "M 50 75 Q 60 82 70 75", eyebrowY: 32 },
-    angel: { eyeY: 45, mouthPath: "M 45 72 Q 60 85 75 72", eyebrowY: 36 },
-    surprised: {
-      eyeY: 45,
-      mouthPath: "M 55 75 Q 60 85 65 75 Q 60 85 55 75",
+    happy: {
+      eyeY: 48,
+      mouthPath: "M 46 78 Q 60 90 74 78",
       eyebrowY: 30,
+      mouthFill: true,
     },
-    sad: { eyeY: 47, mouthPath: "M 45 82 Q 60 72 75 82", eyebrowY: 38 },
-    angry: { eyeY: 45, mouthPath: "M 50 80 L 70 80", eyebrowY: 32 },
-    wink: { eyeY: 45, mouthPath: "M 45 75 Q 60 88 75 75", eyebrowY: 35 },
+    cool: {
+      eyeY: 48,
+      mouthPath: "M 50 80 L 70 80",
+      eyebrowY: 28,
+      mouthFill: false,
+    },
+    smart: {
+      eyeY: 48,
+      mouthPath: "M 52 78 Q 60 84 68 78",
+      eyebrowY: 27,
+      mouthFill: false,
+    },
+    angel: {
+      eyeY: 48,
+      mouthPath: "M 46 76 Q 60 88 74 76",
+      eyebrowY: 31,
+      mouthFill: true,
+    },
+    surprised: {
+      eyeY: 48,
+      mouthPath: "M 54 80 Q 60 90 66 80 Q 60 90 54 80",
+      eyebrowY: 24,
+      mouthFill: true,
+    },
+    sad: {
+      eyeY: 50,
+      mouthPath: "M 48 84 Q 60 76 72 84",
+      eyebrowY: 33,
+      mouthFill: false,
+    },
+    angry: {
+      eyeY: 48,
+      mouthPath: "M 52 82 L 68 82",
+      eyebrowY: 28,
+      mouthFill: false,
+    },
+    wink: {
+      eyeY: 48,
+      mouthPath: "M 46 78 Q 60 90 74 78",
+      eyebrowY: 30,
+      mouthFill: true,
+    },
   };
 
   const expr = expressions[expression] || expressions.happy;
   const isFemale = gender === "female";
+  const isWink = expression === "wink";
+
+  // 홍채 색상 - 스킨톤에 따라 다른 눈동자 색
+  const irisColors = {
+    "#FFD5B8": { main: "#6B4423", mid: "#8B5E3C", light: "#A0522D" }, // 갈색
+    "#FFDCB5": { main: "#4A6741", mid: "#5C8A53", light: "#7CB342" }, // 초록
+    "#F5C7A1": { main: "#3D5A80", mid: "#5B7FA5", light: "#81A4CD" }, // 파랑
+    "#8D5524": { main: "#2D1B0E", mid: "#4A3728", light: "#6B5344" }, // 다크브라운
+    "#C68642": { main: "#3D2B1F", mid: "#5C4033", light: "#7B5B4C" }, // 브라운
+  };
+  const iris = irisColors[skinColor] || irisColors["#FFD5B8"];
+  const uid = `face_${size}_${gender}`;
+
+  // 눈 크기 - 치비 스타일: 기존 대비 1.5~1.8배
+  const eyeRx = isFemale ? 13 : 12;
+  const eyeRy = isFemale ? 15 : 14;
+  const irisR = isFemale ? 10 : 9;
+  const pupilR = isFemale ? 5.5 : 5;
 
   return (
     <svg width={size} height={size} viewBox="0 0 120 120">
-      {/* 얼굴 윤곽 - 여자는 더 갸름하게 */}
+      <defs>
+        {/* 홍채 방사형 그라데이션 */}
+        <radialGradient id={`iris-grad-l-${uid}`} cx="45%" cy="40%" r="55%">
+          <stop offset="0%" stopColor={iris.light} />
+          <stop offset="45%" stopColor={iris.mid} />
+          <stop offset="100%" stopColor={iris.main} />
+        </radialGradient>
+        <radialGradient id={`iris-grad-r-${uid}`} cx="45%" cy="40%" r="55%">
+          <stop offset="0%" stopColor={iris.light} />
+          <stop offset="45%" stopColor={iris.mid} />
+          <stop offset="100%" stopColor={iris.main} />
+        </radialGradient>
+        {/* 피부 그라데이션 */}
+        <radialGradient id={`skin-grad-${uid}`} cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stopColor={skinColor} />
+          <stop offset="100%" stopColor={skinColor} stopOpacity="0.85" />
+        </radialGradient>
+        {/* 볼터치 그라데이션 */}
+        <radialGradient id={`blush-${uid}`}>
+          <stop offset="0%" stopColor="#FF8A9E" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#FF8A9E" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* 얼굴 윤곽 - 부드러운 그라데이션 */}
       <ellipse
         cx="60"
         cy="60"
-        rx={isFemale ? 42 : 45}
-        ry={isFemale ? 48 : 50}
-        fill={skinColor}
+        rx={isFemale ? 44 : 46}
+        ry={isFemale ? 50 : 52}
+        fill={`url(#skin-grad-${uid})`}
+        stroke={skinColor}
+        strokeWidth="0.5"
+        strokeOpacity="0.3"
       />
 
       {/* 귀 */}
       <ellipse
-        cx={isFemale ? 20 : 18}
-        cy="60"
-        rx={isFemale ? 6 : 8}
-        ry={isFemale ? 10 : 12}
+        cx={isFemale ? 18 : 16}
+        cy="58"
+        rx={isFemale ? 7 : 8}
+        ry={isFemale ? 11 : 12}
         fill={skinColor}
       />
       <ellipse
-        cx={isFemale ? 100 : 102}
-        cy="60"
-        rx={isFemale ? 6 : 8}
-        ry={isFemale ? 10 : 12}
+        cx={isFemale ? 102 : 104}
+        cy="58"
+        rx={isFemale ? 7 : 8}
+        ry={isFemale ? 11 : 12}
         fill={skinColor}
+      />
+      {/* 귀 안쪽 음영 */}
+      <ellipse
+        cx={isFemale ? 19 : 17}
+        cy="58"
+        rx={isFemale ? 4 : 5}
+        ry={isFemale ? 7 : 8}
+        fill="#F5B99A"
+        opacity="0.4"
+      />
+      <ellipse
+        cx={isFemale ? 101 : 103}
+        cy="58"
+        rx={isFemale ? 4 : 5}
+        ry={isFemale ? 7 : 8}
+        fill="#F5B99A"
+        opacity="0.4"
       />
 
       {/* 여자 귀걸이 */}
       {isFemale && (
         <>
-          <circle cx="20" cy="72" r="4" fill="#FFD700" />
-          <circle cx="100" cy="72" r="4" fill="#FFD700" />
+          <circle cx="18" cy="71" r="3" fill="#FFD700" />
+          <circle cx="18" cy="71" r="1.5" fill="#FFF8DC" opacity="0.7" />
+          <circle cx="102" cy="71" r="3" fill="#FFD700" />
+          <circle cx="102" cy="71" r="1.5" fill="#FFF8DC" opacity="0.7" />
         </>
       )}
 
-      {/* 눈썹 - 여자는 더 얇고 곡선, 남자는 굵고 직선 */}
+      {/* 눈썹 - 여자는 아치형, 남자는 직선 */}
       {isFemale ? (
         <>
           <path
-            d={`M 33 ${expr.eyebrowY} Q 42 ${expr.eyebrowY - 5} 52 ${expr.eyebrowY + 1}`}
+            d={`M 28 ${expr.eyebrowY} Q 38 ${expr.eyebrowY - 6} 52 ${expr.eyebrowY + 1}`}
             stroke="#5a4a3a"
-            strokeWidth="1.5"
+            strokeWidth="1.8"
             fill="none"
             strokeLinecap="round"
           />
           <path
-            d={`M 68 ${expr.eyebrowY + 1} Q 78 ${expr.eyebrowY - 5} 87 ${expr.eyebrowY}`}
+            d={`M 68 ${expr.eyebrowY + 1} Q 82 ${expr.eyebrowY - 6} 92 ${expr.eyebrowY}`}
             stroke="#5a4a3a"
-            strokeWidth="1.5"
+            strokeWidth="1.8"
             fill="none"
             strokeLinecap="round"
           />
@@ -82,147 +182,209 @@ export const FaceSVG = ({
       ) : (
         <>
           <path
-            d={`M 33 ${expr.eyebrowY} Q 42 ${expr.eyebrowY - 3} 52 ${expr.eyebrowY}`}
+            d={`M 28 ${expr.eyebrowY} Q 38 ${expr.eyebrowY - 4} 52 ${expr.eyebrowY}`}
             stroke="#3a2a1a"
-            strokeWidth="3"
+            strokeWidth="2.8"
             fill="none"
             strokeLinecap="round"
           />
           <path
-            d={`M 68 ${expr.eyebrowY} Q 78 ${expr.eyebrowY - 3} 87 ${expr.eyebrowY}`}
+            d={`M 68 ${expr.eyebrowY} Q 82 ${expr.eyebrowY - 4} 92 ${expr.eyebrowY}`}
             stroke="#3a2a1a"
-            strokeWidth="3"
+            strokeWidth="2.8"
             fill="none"
             strokeLinecap="round"
           />
         </>
       )}
 
-      {/* 눈 - 여자는 더 크고 둥글게, 속눈썹 추가 */}
+      {/* ★ 치비 눈 - 왼쪽 */}
+      {/* 눈 흰자 (큰 타원) */}
       <ellipse
-        cx="42"
+        cx="40"
         cy={expr.eyeY}
-        rx={isFemale ? 9 : 8}
-        ry={isFemale ? 11 : 10}
+        rx={eyeRx}
+        ry={eyeRy}
         fill="white"
+        stroke="#e0d5cc"
+        strokeWidth="0.5"
       />
-      <ellipse
-        cx="78"
-        cy={expr.eyeY}
-        rx={isFemale ? 9 : 8}
-        ry={isFemale ? 11 : 10}
-        fill="white"
-      />
-
-      {/* 여자 속눈썹 */}
+      {/* 속눈썹 (여자) */}
       {isFemale && (
         <>
           <path
-            d="M 33 42 Q 36 38 40 41"
+            d={`M ${40 - eyeRx} ${expr.eyeY - 2} Q ${40 - eyeRx + 3} ${expr.eyeY - eyeRy - 3} ${40 - eyeRx + 8} ${expr.eyeY - eyeRy + 1}`}
             stroke="#2d1b0e"
-            strokeWidth="1.5"
+            strokeWidth="2"
             fill="none"
+            strokeLinecap="round"
           />
           <path
-            d="M 37 40 Q 40 36 44 40"
+            d={`M ${40 - 4} ${expr.eyeY - eyeRy + 1} Q ${40} ${expr.eyeY - eyeRy - 4} ${40 + 4} ${expr.eyeY - eyeRy + 1}`}
             stroke="#2d1b0e"
-            strokeWidth="1.5"
+            strokeWidth="2"
             fill="none"
+            strokeLinecap="round"
           />
           <path
-            d="M 44 41 Q 47 38 50 42"
+            d={`M ${40 + eyeRx - 8} ${expr.eyeY - eyeRy + 1} Q ${40 + eyeRx - 3} ${expr.eyeY - eyeRy - 3} ${40 + eyeRx} ${expr.eyeY - 2}`}
             stroke="#2d1b0e"
-            strokeWidth="1.5"
+            strokeWidth="2"
             fill="none"
-          />
-          <path
-            d="M 70 42 Q 73 38 76 41"
-            stroke="#2d1b0e"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <path
-            d="M 76 40 Q 79 36 82 40"
-            stroke="#2d1b0e"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <path
-            d="M 80 41 Q 83 38 87 42"
-            stroke="#2d1b0e"
-            strokeWidth="1.5"
-            fill="none"
+            strokeLinecap="round"
           />
         </>
       )}
-
-      {/* 눈동자 - 여자는 더 크게 */}
-      <circle cx="42" cy={expr.eyeY + 1} r={isFemale ? 6 : 5} fill="#2d1b0e" />
-      <circle cx="78" cy={expr.eyeY + 1} r={isFemale ? 6 : 5} fill="#2d1b0e" />
-
-      {/* 눈 하이라이트 */}
-      <circle cx="44" cy={expr.eyeY - 1} r={isFemale ? 2.5 : 2} fill="white" />
-      <circle cx="80" cy={expr.eyeY - 1} r={isFemale ? 2.5 : 2} fill="white" />
-      {isFemale && (
-        <>
-          <circle cx="40" cy={expr.eyeY + 2} r="1" fill="white" />
-          <circle cx="76" cy={expr.eyeY + 2} r="1" fill="white" />
-        </>
-      )}
-
-      {/* 코 - 여자는 더 작고 섬세하게 */}
-      <path
-        d={isFemale ? "M 59 55 Q 60 62 61 55" : "M 57 52 Q 60 65 63 52"}
-        stroke="#d4a574"
-        strokeWidth={isFemale ? 1.5 : 2}
+      {/* 홍채 (그라데이션 원) */}
+      <circle
+        cx="40"
+        cy={expr.eyeY + 1}
+        r={irisR}
+        fill={`url(#iris-grad-l-${uid})`}
+      />
+      {/* 홍채 테두리 (더 진한 선) */}
+      <circle
+        cx="40"
+        cy={expr.eyeY + 1}
+        r={irisR}
         fill="none"
+        stroke={iris.main}
+        strokeWidth="0.8"
+        opacity="0.6"
       />
+      {/* 동공 */}
+      <circle cx="40" cy={expr.eyeY + 2} r={pupilR} fill="#1a0e08" />
+      {/* ★ 반사광 3개 - 생동감 핵심 */}
+      <circle cx="44" cy={expr.eyeY - 4} r="3.5" fill="white" opacity="0.95" />
+      <circle cx="36" cy={expr.eyeY + 5} r="2" fill="white" opacity="0.7" />
+      <circle cx="43" cy={expr.eyeY + 1} r="1.2" fill="white" opacity="0.5" />
 
-      {/* 입 - 여자는 더 도톰하고 핑크빛 */}
+      {/* ★ 치비 눈 - 오른쪽 */}
+      {isWink ? (
+        /* 윙크: 오른쪽 눈 감기 */
+        <>
+          <path
+            d={`M 68 ${expr.eyeY} Q 80 ${expr.eyeY + 5} 92 ${expr.eyeY}`}
+            stroke="#2d1b0e"
+            strokeWidth="2.5"
+            fill="none"
+            strokeLinecap="round"
+          />
+          {isFemale && (
+            <path
+              d={`M 68 ${expr.eyeY} Q 80 ${expr.eyeY - 4} 92 ${expr.eyeY}`}
+              stroke="#2d1b0e"
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <ellipse
+            cx="80"
+            cy={expr.eyeY}
+            rx={eyeRx}
+            ry={eyeRy}
+            fill="white"
+            stroke="#e0d5cc"
+            strokeWidth="0.5"
+          />
+          {isFemale && (
+            <>
+              <path
+                d={`M ${80 - eyeRx} ${expr.eyeY - 2} Q ${80 - eyeRx + 3} ${expr.eyeY - eyeRy - 3} ${80 - eyeRx + 8} ${expr.eyeY - eyeRy + 1}`}
+                stroke="#2d1b0e"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <path
+                d={`M ${80 - 4} ${expr.eyeY - eyeRy + 1} Q ${80} ${expr.eyeY - eyeRy - 4} ${80 + 4} ${expr.eyeY - eyeRy + 1}`}
+                stroke="#2d1b0e"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <path
+                d={`M ${80 + eyeRx - 8} ${expr.eyeY - eyeRy + 1} Q ${80 + eyeRx - 3} ${expr.eyeY - eyeRy - 3} ${80 + eyeRx} ${expr.eyeY - 2}`}
+                stroke="#2d1b0e"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+              />
+            </>
+          )}
+          <circle
+            cx="80"
+            cy={expr.eyeY + 1}
+            r={irisR}
+            fill={`url(#iris-grad-r-${uid})`}
+          />
+          <circle
+            cx="80"
+            cy={expr.eyeY + 1}
+            r={irisR}
+            fill="none"
+            stroke={iris.main}
+            strokeWidth="0.8"
+            opacity="0.6"
+          />
+          <circle cx="80" cy={expr.eyeY + 2} r={pupilR} fill="#1a0e08" />
+          <circle
+            cx="84"
+            cy={expr.eyeY - 4}
+            r="3.5"
+            fill="white"
+            opacity="0.95"
+          />
+          <circle cx="76" cy={expr.eyeY + 5} r="2" fill="white" opacity="0.7" />
+          <circle
+            cx="83"
+            cy={expr.eyeY + 1}
+            r="1.2"
+            fill="white"
+            opacity="0.5"
+          />
+        </>
+      )}
+
+      {/* 코 - 작고 심플하게 (치비 특성) */}
+      <ellipse cx="60" cy="66" rx="1.5" ry="1" fill="#d4a574" opacity="0.5" />
+
+      {/* 입 - 표정에 따라 */}
       <path
         d={expr.mouthPath}
-        stroke={isFemale ? "#e57373" : "#c96b6b"}
-        strokeWidth={isFemale ? 3.5 : 3}
-        fill="none"
+        stroke={isFemale ? "#E8616A" : "#C96B6B"}
+        strokeWidth={isFemale ? 2.5 : 2.2}
+        fill={expr.mouthFill ? (isFemale ? "#FF8A9E" : "#E89898") : "none"}
+        fillOpacity={expr.mouthFill ? 0.3 : 0}
         strokeLinecap="round"
       />
-      {isFemale && (
-        <path
-          d={expr.mouthPath}
-          stroke="#ff9999"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-      )}
 
-      {/* 볼 터치 - 여자는 더 진하고 넓게 */}
-      <ellipse
-        cx="28"
-        cy="65"
-        rx={isFemale ? 10 : 8}
-        ry={isFemale ? 6 : 5}
-        fill={isFemale ? "#ff9999" : "#ffb5b5"}
-        opacity={isFemale ? 0.6 : 0.5}
+      {/* ★ 볼터치 - 그라데이션으로 자연스럽게 */}
+      <circle
+        cx="22"
+        cy="66"
+        r={isFemale ? 11 : 9}
+        fill={`url(#blush-${uid})`}
       />
-      <ellipse
-        cx="92"
-        cy="65"
-        rx={isFemale ? 10 : 8}
-        ry={isFemale ? 6 : 5}
-        fill={isFemale ? "#ff9999" : "#ffb5b5"}
-        opacity={isFemale ? 0.6 : 0.5}
+      <circle
+        cx="98"
+        cy="66"
+        r={isFemale ? 11 : 9}
+        fill={`url(#blush-${uid})`}
       />
 
-      {/* 남자 턱 라인 강조 */}
+      {/* 남자 턱 라인 */}
       {!isFemale && (
         <path
-          d="M 25 75 Q 60 110 95 75"
+          d="M 22 72 Q 60 112 98 72"
           stroke={skinColor}
-          strokeWidth="3"
+          strokeWidth="2"
           fill="none"
-          opacity="0.3"
+          opacity="0.2"
         />
       )}
     </svg>
