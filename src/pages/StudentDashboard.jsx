@@ -44,6 +44,9 @@ import {
   ClothesSVG,
   AccessorySVG,
   BackgroundSVG,
+  ExpressionSVG,
+  EffectSVG,
+  AvatarRenderer,
 } from "../components/AvatarSVG";
 import {
   FurnitureSVG,
@@ -210,6 +213,8 @@ export default function StudentDashboard({ user, userData }) {
       hairColor: "hc1",
       clothes: "cloth1",
       accessory: "acc1",
+      expression: null,
+      effect: null,
       background: "bg1",
       frame: "frame1",
     },
@@ -647,6 +652,8 @@ export default function StudentDashboard({ user, userData }) {
         hairColor: "hc1",
         clothes: "cloth1",
         accessory: "acc1",
+        expression: null,
+        effect: null,
         background: "bg1",
         frame: "frame1",
       },
@@ -1764,6 +1771,13 @@ export default function StudentDashboard({ user, userData }) {
     getPreview(AVATAR_ITEMS.backgrounds, "background", "backgrounds");
   const getPreviewFrame = () =>
     getPreview(AVATAR_ITEMS.frames, "frame", "frames");
+  const getEquippedExpression = () =>
+    getEquipped(AVATAR_ITEMS.expressions, "expression");
+  const getEquippedEffect = () => getEquipped(AVATAR_ITEMS.effects, "effect");
+  const getPreviewExpression = () =>
+    getPreview(AVATAR_ITEMS.expressions, "expression", "expressions");
+  const getPreviewEffect = () =>
+    getPreview(AVATAR_ITEMS.effects, "effect", "effects");
 
   // 아이템 미리보기 설정
   const handlePreviewItem = (item, category) => {
@@ -5000,6 +5014,42 @@ export default function StudentDashboard({ user, userData }) {
                                     />
                                   </div>
                                 )}
+                              {/* 표정 오버레이 */}
+                              {getPreviewExpression()?.expressionType && (
+                                <div
+                                  className="absolute"
+                                  style={{
+                                    top: -10,
+                                    left: "50%",
+                                    transform: "translateX(-50%)",
+                                    zIndex: 15,
+                                    pointerEvents: "none",
+                                  }}
+                                >
+                                  <ExpressionSVG
+                                    type={getPreviewExpression().expressionType}
+                                    size={95}
+                                  />
+                                </div>
+                              )}
+                              {/* 이펙트 */}
+                              {getPreviewEffect()?.effectType && (
+                                <div
+                                  className="absolute"
+                                  style={{
+                                    top: -10,
+                                    left: "50%",
+                                    transform: "translateX(-50%)",
+                                    zIndex: 0,
+                                    pointerEvents: "none",
+                                  }}
+                                >
+                                  <EffectSVG
+                                    type={getPreviewEffect().effectType}
+                                    size={120}
+                                  />
+                                </div>
+                              )}
                             </div>
                           );
                         } else if (
@@ -5099,6 +5149,42 @@ export default function StudentDashboard({ user, userData }) {
                                     />
                                   </div>
                                 )}
+                              {/* 표정 오버레이 */}
+                              {getPreviewExpression()?.expressionType && (
+                                <div
+                                  className="absolute"
+                                  style={{
+                                    top: -10,
+                                    left: "50%",
+                                    transform: "translateX(-50%)",
+                                    zIndex: 15,
+                                    pointerEvents: "none",
+                                  }}
+                                >
+                                  <ExpressionSVG
+                                    type={getPreviewExpression().expressionType}
+                                    size={95}
+                                  />
+                                </div>
+                              )}
+                              {/* 이펙트 */}
+                              {getPreviewEffect()?.effectType && (
+                                <div
+                                  className="absolute"
+                                  style={{
+                                    top: -10,
+                                    left: "50%",
+                                    transform: "translateX(-50%)",
+                                    zIndex: 0,
+                                    pointerEvents: "none",
+                                  }}
+                                >
+                                  <EffectSVG
+                                    type={getPreviewEffect().effectType}
+                                    size={120}
+                                  />
+                                </div>
+                              )}
                             </div>
                           );
                         } else {
