@@ -2109,6 +2109,17 @@ export default function StudentDashboard({ user, userData }) {
                       "alien",
                       "robot",
                       "pumpkin",
+                      "fox",
+                      "bear",
+                      "cat",
+                      "dog",
+                      "owl",
+                      "lion",
+                      "tiger",
+                      "wolf",
+                      "dragon",
+                      "dinosaur",
+                      "koala",
                     ];
                     const showHair = !noHairAnimals.includes(face.animalType);
 
@@ -5068,6 +5079,17 @@ export default function StudentDashboard({ user, userData }) {
                             "alien",
                             "robot",
                             "pumpkin",
+                            "fox",
+                            "bear",
+                            "cat",
+                            "dog",
+                            "owl",
+                            "lion",
+                            "tiger",
+                            "wolf",
+                            "dragon",
+                            "dinosaur",
+                            "koala",
                           ];
                           const showHair = !noHairAnimals.includes(
                             face.animalType,

@@ -63,118 +63,86 @@ export const FaceSVG = ({
   const isFemale = gender === "female";
   const isWink = expression === "wink";
 
-  // 홍채 색상 - 스킨톤에 따라 다른 눈동자 색
-  const irisColors = {
-    "#FFD5B8": { main: "#6B4423", mid: "#8B5E3C", light: "#A0522D" }, // 갈색
-    "#FFDCB5": { main: "#4A6741", mid: "#5C8A53", light: "#7CB342" }, // 초록
-    "#F5C7A1": { main: "#3D5A80", mid: "#5B7FA5", light: "#81A4CD" }, // 파랑
-    "#8D5524": { main: "#2D1B0E", mid: "#4A3728", light: "#6B5344" }, // 다크브라운
-    "#C68642": { main: "#3D2B1F", mid: "#5C4033", light: "#7B5B4C" }, // 브라운
-  };
-  const iris = irisColors[skinColor] || irisColors["#FFD5B8"];
-  const uid = `face_${size}_${gender}`;
+  // 눈동자 색상 - 스킨톤별 (단색 - 작은 크기에서도 깔끔)
+  const irisColor =
+    {
+      "#FFD5B8": "#5C3A1E",
+      "#FFDCB5": "#4A6741",
+      "#F5C7A1": "#3D5A80",
+      "#8D5524": "#2D1B0E",
+      "#C68642": "#3D2B1F",
+    }[skinColor] || "#5C3A1E";
 
-  // 눈 크기 - 치비 스타일: 기존 대비 1.5~1.8배
-  const eyeRx = isFemale ? 13 : 12;
-  const eyeRy = isFemale ? 15 : 14;
-  const irisR = isFemale ? 10 : 9;
-  const pupilR = isFemale ? 5.5 : 5;
+  // 눈 크기 - 자연스럽게 큰 눈 (과하지 않게)
+  const eyeRx = isFemale ? 10 : 9;
+  const eyeRy = isFemale ? 12 : 11;
 
   return (
     <svg width={size} height={size} viewBox="0 0 120 120">
-      <defs>
-        {/* 홍채 방사형 그라데이션 */}
-        <radialGradient id={`iris-grad-l-${uid}`} cx="45%" cy="40%" r="55%">
-          <stop offset="0%" stopColor={iris.light} />
-          <stop offset="45%" stopColor={iris.mid} />
-          <stop offset="100%" stopColor={iris.main} />
-        </radialGradient>
-        <radialGradient id={`iris-grad-r-${uid}`} cx="45%" cy="40%" r="55%">
-          <stop offset="0%" stopColor={iris.light} />
-          <stop offset="45%" stopColor={iris.mid} />
-          <stop offset="100%" stopColor={iris.main} />
-        </radialGradient>
-        {/* 피부 그라데이션 */}
-        <radialGradient id={`skin-grad-${uid}`} cx="50%" cy="40%" r="55%">
-          <stop offset="0%" stopColor={skinColor} />
-          <stop offset="100%" stopColor={skinColor} stopOpacity="0.85" />
-        </radialGradient>
-        {/* 볼터치 그라데이션 */}
-        <radialGradient id={`blush-${uid}`}>
-          <stop offset="0%" stopColor="#FF8A9E" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#FF8A9E" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {/* 얼굴 윤곽 - 부드러운 그라데이션 */}
+      {/* 얼굴 윤곽 */}
       <ellipse
         cx="60"
         cy="60"
-        rx={isFemale ? 44 : 46}
-        ry={isFemale ? 50 : 52}
-        fill={`url(#skin-grad-${uid})`}
-        stroke={skinColor}
-        strokeWidth="0.5"
-        strokeOpacity="0.3"
+        rx={isFemale ? 43 : 45}
+        ry={isFemale ? 49 : 51}
+        fill={skinColor}
       />
+      <ellipse cx="55" cy="50" rx="28" ry="26" fill="white" opacity="0.06" />
 
       {/* 귀 */}
       <ellipse
-        cx={isFemale ? 18 : 16}
-        cy="58"
-        rx={isFemale ? 7 : 8}
-        ry={isFemale ? 11 : 12}
-        fill={skinColor}
-      />
-      <ellipse
-        cx={isFemale ? 102 : 104}
-        cy="58"
-        rx={isFemale ? 7 : 8}
-        ry={isFemale ? 11 : 12}
-        fill={skinColor}
-      />
-      {/* 귀 안쪽 음영 */}
-      <ellipse
         cx={isFemale ? 19 : 17}
         cy="58"
-        rx={isFemale ? 4 : 5}
-        ry={isFemale ? 7 : 8}
-        fill="#F5B99A"
-        opacity="0.4"
+        rx={isFemale ? 7 : 8}
+        ry={isFemale ? 10 : 12}
+        fill={skinColor}
       />
       <ellipse
         cx={isFemale ? 101 : 103}
         cy="58"
-        rx={isFemale ? 4 : 5}
-        ry={isFemale ? 7 : 8}
-        fill="#F5B99A"
-        opacity="0.4"
+        rx={isFemale ? 7 : 8}
+        ry={isFemale ? 10 : 12}
+        fill={skinColor}
+      />
+      <ellipse
+        cx={isFemale ? 20 : 18}
+        cy="58"
+        rx="4"
+        ry="6"
+        fill="#E8B090"
+        opacity="0.3"
+      />
+      <ellipse
+        cx={isFemale ? 100 : 102}
+        cy="58"
+        rx="4"
+        ry="6"
+        fill="#E8B090"
+        opacity="0.3"
       />
 
       {/* 여자 귀걸이 */}
       {isFemale && (
         <>
-          <circle cx="18" cy="71" r="3" fill="#FFD700" />
-          <circle cx="18" cy="71" r="1.5" fill="#FFF8DC" opacity="0.7" />
-          <circle cx="102" cy="71" r="3" fill="#FFD700" />
-          <circle cx="102" cy="71" r="1.5" fill="#FFF8DC" opacity="0.7" />
+          <circle cx="19" cy="70" r="2.5" fill="#FFD700" />
+          <circle cx="101" cy="70" r="2.5" fill="#FFD700" />
         </>
       )}
 
-      {/* 눈썹 - 여자는 아치형, 남자는 직선 */}
+      {/* 눈썹 */}
       {isFemale ? (
         <>
           <path
-            d={`M 28 ${expr.eyebrowY} Q 38 ${expr.eyebrowY - 6} 52 ${expr.eyebrowY + 1}`}
+            d={`M 30 ${expr.eyebrowY} Q 39 ${expr.eyebrowY - 5} 50 ${expr.eyebrowY}`}
             stroke="#5a4a3a"
-            strokeWidth="1.8"
+            strokeWidth="1.6"
             fill="none"
             strokeLinecap="round"
           />
           <path
-            d={`M 68 ${expr.eyebrowY + 1} Q 82 ${expr.eyebrowY - 6} 92 ${expr.eyebrowY}`}
+            d={`M 70 ${expr.eyebrowY} Q 81 ${expr.eyebrowY - 5} 90 ${expr.eyebrowY}`}
             stroke="#5a4a3a"
-            strokeWidth="1.8"
+            strokeWidth="1.6"
             fill="none"
             strokeLinecap="round"
           />
@@ -182,211 +150,133 @@ export const FaceSVG = ({
       ) : (
         <>
           <path
-            d={`M 28 ${expr.eyebrowY} Q 38 ${expr.eyebrowY - 4} 52 ${expr.eyebrowY}`}
+            d={`M 30 ${expr.eyebrowY} Q 39 ${expr.eyebrowY - 3} 50 ${expr.eyebrowY}`}
             stroke="#3a2a1a"
-            strokeWidth="2.8"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <path
-            d={`M 68 ${expr.eyebrowY} Q 82 ${expr.eyebrowY - 4} 92 ${expr.eyebrowY}`}
-            stroke="#3a2a1a"
-            strokeWidth="2.8"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </>
-      )}
-
-      {/* ★ 치비 눈 - 왼쪽 */}
-      {/* 눈 흰자 (큰 타원) */}
-      <ellipse
-        cx="40"
-        cy={expr.eyeY}
-        rx={eyeRx}
-        ry={eyeRy}
-        fill="white"
-        stroke="#e0d5cc"
-        strokeWidth="0.5"
-      />
-      {/* 속눈썹 (여자) */}
-      {isFemale && (
-        <>
-          <path
-            d={`M ${40 - eyeRx} ${expr.eyeY - 2} Q ${40 - eyeRx + 3} ${expr.eyeY - eyeRy - 3} ${40 - eyeRx + 8} ${expr.eyeY - eyeRy + 1}`}
-            stroke="#2d1b0e"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <path
-            d={`M ${40 - 4} ${expr.eyeY - eyeRy + 1} Q ${40} ${expr.eyeY - eyeRy - 4} ${40 + 4} ${expr.eyeY - eyeRy + 1}`}
-            stroke="#2d1b0e"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <path
-            d={`M ${40 + eyeRx - 8} ${expr.eyeY - eyeRy + 1} Q ${40 + eyeRx - 3} ${expr.eyeY - eyeRy - 3} ${40 + eyeRx} ${expr.eyeY - 2}`}
-            stroke="#2d1b0e"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </>
-      )}
-      {/* 홍채 (그라데이션 원) */}
-      <circle
-        cx="40"
-        cy={expr.eyeY + 1}
-        r={irisR}
-        fill={`url(#iris-grad-l-${uid})`}
-      />
-      {/* 홍채 테두리 (더 진한 선) */}
-      <circle
-        cx="40"
-        cy={expr.eyeY + 1}
-        r={irisR}
-        fill="none"
-        stroke={iris.main}
-        strokeWidth="0.8"
-        opacity="0.6"
-      />
-      {/* 동공 */}
-      <circle cx="40" cy={expr.eyeY + 2} r={pupilR} fill="#1a0e08" />
-      {/* ★ 반사광 3개 - 생동감 핵심 */}
-      <circle cx="44" cy={expr.eyeY - 4} r="3.5" fill="white" opacity="0.95" />
-      <circle cx="36" cy={expr.eyeY + 5} r="2" fill="white" opacity="0.7" />
-      <circle cx="43" cy={expr.eyeY + 1} r="1.2" fill="white" opacity="0.5" />
-
-      {/* ★ 치비 눈 - 오른쪽 */}
-      {isWink ? (
-        /* 윙크: 오른쪽 눈 감기 */
-        <>
-          <path
-            d={`M 68 ${expr.eyeY} Q 80 ${expr.eyeY + 5} 92 ${expr.eyeY}`}
-            stroke="#2d1b0e"
             strokeWidth="2.5"
             fill="none"
             strokeLinecap="round"
           />
+          <path
+            d={`M 70 ${expr.eyebrowY} Q 81 ${expr.eyebrowY - 3} 90 ${expr.eyebrowY}`}
+            stroke="#3a2a1a"
+            strokeWidth="2.5"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {/* 왼쪽 눈 */}
+      <ellipse cx="40" cy={expr.eyeY} rx={eyeRx} ry={eyeRy} fill="white" />
+      {isFemale && (
+        <path
+          d={`M ${40 - eyeRx} ${expr.eyeY - 1} Q 40 ${expr.eyeY - eyeRy - 2} ${40 + eyeRx} ${expr.eyeY - 1}`}
+          stroke="#2d1b0e"
+          strokeWidth="2.2"
+          fill="none"
+          strokeLinecap="round"
+        />
+      )}
+      <circle
+        cx="40"
+        cy={expr.eyeY + 1}
+        r={isFemale ? 7 : 6.5}
+        fill={irisColor}
+      />
+      <circle
+        cx="40"
+        cy={expr.eyeY + 2}
+        r={isFemale ? 4 : 3.5}
+        fill="#1a0e08"
+      />
+      <circle cx="43" cy={expr.eyeY - 3} r="2.8" fill="white" opacity="0.9" />
+      <circle cx="37" cy={expr.eyeY + 4} r="1.5" fill="white" opacity="0.5" />
+
+      {/* 오른쪽 눈 */}
+      {isWink ? (
+        <path
+          d={`M 70 ${expr.eyeY} Q 80 ${expr.eyeY + 4} 90 ${expr.eyeY}`}
+          stroke="#2d1b0e"
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      ) : (
+        <>
+          <ellipse cx="80" cy={expr.eyeY} rx={eyeRx} ry={eyeRy} fill="white" />
           {isFemale && (
             <path
-              d={`M 68 ${expr.eyeY} Q 80 ${expr.eyeY - 4} 92 ${expr.eyeY}`}
+              d={`M ${80 - eyeRx} ${expr.eyeY - 1} Q 80 ${expr.eyeY - eyeRy - 2} ${80 + eyeRx} ${expr.eyeY - 1}`}
               stroke="#2d1b0e"
-              strokeWidth="1.5"
+              strokeWidth="2.2"
               fill="none"
               strokeLinecap="round"
             />
           )}
-        </>
-      ) : (
-        <>
-          <ellipse
-            cx="80"
-            cy={expr.eyeY}
-            rx={eyeRx}
-            ry={eyeRy}
-            fill="white"
-            stroke="#e0d5cc"
-            strokeWidth="0.5"
-          />
-          {isFemale && (
-            <>
-              <path
-                d={`M ${80 - eyeRx} ${expr.eyeY - 2} Q ${80 - eyeRx + 3} ${expr.eyeY - eyeRy - 3} ${80 - eyeRx + 8} ${expr.eyeY - eyeRy + 1}`}
-                stroke="#2d1b0e"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-              />
-              <path
-                d={`M ${80 - 4} ${expr.eyeY - eyeRy + 1} Q ${80} ${expr.eyeY - eyeRy - 4} ${80 + 4} ${expr.eyeY - eyeRy + 1}`}
-                stroke="#2d1b0e"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-              />
-              <path
-                d={`M ${80 + eyeRx - 8} ${expr.eyeY - eyeRy + 1} Q ${80 + eyeRx - 3} ${expr.eyeY - eyeRy - 3} ${80 + eyeRx} ${expr.eyeY - 2}`}
-                stroke="#2d1b0e"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-              />
-            </>
-          )}
           <circle
             cx="80"
             cy={expr.eyeY + 1}
-            r={irisR}
-            fill={`url(#iris-grad-r-${uid})`}
+            r={isFemale ? 7 : 6.5}
+            fill={irisColor}
           />
           <circle
             cx="80"
-            cy={expr.eyeY + 1}
-            r={irisR}
-            fill="none"
-            stroke={iris.main}
-            strokeWidth="0.8"
-            opacity="0.6"
+            cy={expr.eyeY + 2}
+            r={isFemale ? 4 : 3.5}
+            fill="#1a0e08"
           />
-          <circle cx="80" cy={expr.eyeY + 2} r={pupilR} fill="#1a0e08" />
-          <circle
-            cx="84"
-            cy={expr.eyeY - 4}
-            r="3.5"
-            fill="white"
-            opacity="0.95"
-          />
-          <circle cx="76" cy={expr.eyeY + 5} r="2" fill="white" opacity="0.7" />
           <circle
             cx="83"
-            cy={expr.eyeY + 1}
-            r="1.2"
+            cy={expr.eyeY - 3}
+            r="2.8"
+            fill="white"
+            opacity="0.9"
+          />
+          <circle
+            cx="77"
+            cy={expr.eyeY + 4}
+            r="1.5"
             fill="white"
             opacity="0.5"
           />
         </>
       )}
 
-      {/* 코 - 작고 심플하게 (치비 특성) */}
-      <ellipse cx="60" cy="66" rx="1.5" ry="1" fill="#d4a574" opacity="0.5" />
+      {/* 코 */}
+      <path
+        d={isFemale ? "M 59 62 Q 60 66 61 62" : "M 58 60 Q 60 66 62 60"}
+        stroke="#D4A574"
+        strokeWidth={isFemale ? 1.2 : 1.5}
+        fill="none"
+      />
 
-      {/* 입 - 표정에 따라 */}
+      {/* 입 */}
       <path
         d={expr.mouthPath}
-        stroke={isFemale ? "#E8616A" : "#C96B6B"}
-        strokeWidth={isFemale ? 2.5 : 2.2}
-        fill={expr.mouthFill ? (isFemale ? "#FF8A9E" : "#E89898") : "none"}
-        fillOpacity={expr.mouthFill ? 0.3 : 0}
+        stroke={isFemale ? "#E06070" : "#C07070"}
+        strokeWidth={isFemale ? 2.2 : 2}
+        fill={expr.mouthFill ? (isFemale ? "#F0A0A8" : "#E0A0A0") : "none"}
+        fillOpacity={expr.mouthFill ? 0.25 : 0}
         strokeLinecap="round"
       />
 
-      {/* ★ 볼터치 - 그라데이션으로 자연스럽게 */}
-      <circle
-        cx="22"
-        cy="66"
-        r={isFemale ? 11 : 9}
-        fill={`url(#blush-${uid})`}
+      {/* 볼터치 */}
+      <ellipse
+        cx="24"
+        cy="64"
+        rx={isFemale ? 8 : 7}
+        ry={isFemale ? 5 : 4}
+        fill="#FFB0B0"
+        opacity={isFemale ? 0.45 : 0.3}
       />
-      <circle
-        cx="98"
-        cy="66"
-        r={isFemale ? 11 : 9}
-        fill={`url(#blush-${uid})`}
+      <ellipse
+        cx="96"
+        cy="64"
+        rx={isFemale ? 8 : 7}
+        ry={isFemale ? 5 : 4}
+        fill="#FFB0B0"
+        opacity={isFemale ? 0.45 : 0.3}
       />
-
-      {/* 남자 턱 라인 */}
-      {!isFemale && (
-        <path
-          d="M 22 72 Q 60 112 98 72"
-          stroke={skinColor}
-          strokeWidth="2"
-          fill="none"
-          opacity="0.2"
-        />
-      )}
     </svg>
   );
 };
@@ -396,70 +286,98 @@ export const AnimalFaceSVG = ({ type = "fox", size = 120 }) => {
   const animals = {
     fox: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <ellipse cx="60" cy="65" rx="35" ry="38" fill="#FF7F50" />
-        <ellipse cx="60" cy="75" rx="20" ry="22" fill="white" />
-        <polygon points="35,30 25,5 50,25" fill="#FF7F50" />
-        <polygon points="85,30 95,5 70,25" fill="#FF7F50" />
-        <polygon points="35,30 30,12 45,25" fill="#FFB38A" />
-        <polygon points="85,30 90,12 75,25" fill="#FFB38A" />
-        <ellipse cx="45" cy="55" rx="6" ry="8" fill="#2d1b0e" />
-        <ellipse cx="75" cy="55" rx="6" ry="8" fill="#2d1b0e" />
-        <circle cx="47" cy="53" r="2" fill="white" />
-        <circle cx="77" cy="53" r="2" fill="white" />
-        <ellipse cx="60" cy="72" rx="5" ry="4" fill="#2d1b0e" />
+        <ellipse cx="60" cy="65" rx="38" ry="40" fill="#E87830" />
+        <ellipse cx="60" cy="55" rx="30" ry="25" fill="#F09050" opacity="0.4" />
+        <ellipse cx="42" cy="75" rx="16" ry="18" fill="#FFF5EC" />
+        <ellipse cx="78" cy="75" rx="16" ry="18" fill="#FFF5EC" />
         <path
-          d="M 55 78 Q 60 85 65 78"
-          stroke="#2d1b0e"
-          strokeWidth="2"
-          fill="none"
+          d="M 52 42 Q 60 36 68 42 L 65 52 Q 60 48 55 52 Z"
+          fill="#F5A060"
+          opacity="0.5"
         />
+        <polygon points="28,28 16,2 46,22" fill="#E87830" />
+        <polygon points="92,28 104,2 74,22" fill="#E87830" />
+        <polygon points="30,25 22,8 42,22" fill="#FFB870" />
+        <polygon points="90,25 98,8 78,22" fill="#FFB870" />
+        <ellipse cx="42" cy="56" rx="8" ry="10" fill="white" />
+        <ellipse cx="78" cy="56" rx="8" ry="10" fill="white" />
+        <circle cx="42" cy="57" r="6" fill="#6B8E23" />
+        <circle cx="78" cy="57" r="6" fill="#6B8E23" />
+        <circle cx="42" cy="58" r="3.5" fill="#1a0e08" />
+        <circle cx="78" cy="58" r="3.5" fill="#1a0e08" />
+        <circle cx="44" cy="54" r="2.5" fill="white" opacity="0.9" />
+        <circle cx="80" cy="54" r="2.5" fill="white" opacity="0.9" />
+        <circle cx="40" cy="60" r="1.2" fill="white" opacity="0.5" />
+        <circle cx="76" cy="60" r="1.2" fill="white" opacity="0.5" />
+        <ellipse cx="60" cy="72" rx="5" ry="3.5" fill="#2d1b0e" />
+        <ellipse cx="59" cy="71" rx="2" ry="1" fill="white" opacity="0.25" />
+        <path
+          d="M 56 77 Q 60 82 64 77"
+          stroke="#2d1b0e"
+          strokeWidth="1.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+        <ellipse cx="28" cy="70" rx="7" ry="4" fill="#FF9999" opacity="0.3" />
+        <ellipse cx="92" cy="70" rx="7" ry="4" fill="#FF9999" opacity="0.3" />
       </svg>
     ),
     rabbit: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <ellipse cx="60" cy="70" rx="38" ry="40" fill="#F5F5F5" />
-        <ellipse cx="40" cy="20" rx="12" ry="35" fill="#F5F5F5" />
-        <ellipse cx="80" cy="20" rx="12" ry="35" fill="#F5F5F5" />
-        <ellipse cx="40" cy="20" rx="6" ry="25" fill="#FFB5B5" />
-        <ellipse cx="80" cy="20" rx="6" ry="25" fill="#FFB5B5" />
-        <ellipse cx="45" cy="60" rx="8" ry="10" fill="#FF6B6B" />
-        <ellipse cx="75" cy="60" rx="8" ry="10" fill="#FF6B6B" />
-        <circle cx="45" cy="60" r="4" fill="#2d1b0e" />
-        <circle cx="75" cy="60" r="4" fill="#2d1b0e" />
-        <circle cx="47" cy="58" r="1.5" fill="white" />
-        <circle cx="77" cy="58" r="1.5" fill="white" />
-        <ellipse cx="60" cy="78" rx="6" ry="4" fill="#FFB5B5" />
+        <ellipse cx="38" cy="20" rx="13" ry="32" fill="#F8F0F0" />
+        <ellipse cx="82" cy="20" rx="13" ry="32" fill="#F8F0F0" />
+        <ellipse cx="38" cy="20" rx="7" ry="24" fill="#FFB5B5" opacity="0.6" />
+        <ellipse cx="82" cy="20" rx="7" ry="24" fill="#FFB5B5" opacity="0.6" />
+        <ellipse cx="60" cy="70" rx="40" ry="42" fill="#F8F0F0" />
+        <ellipse cx="42" cy="60" rx="9" ry="11" fill="white" />
+        <ellipse cx="78" cy="60" rx="9" ry="11" fill="white" />
+        <circle cx="42" cy="61" r="6.5" fill="#E84060" />
+        <circle cx="78" cy="61" r="6.5" fill="#E84060" />
+        <circle cx="42" cy="62" r="3.5" fill="#1a0e08" />
+        <circle cx="78" cy="62" r="3.5" fill="#1a0e08" />
+        <circle cx="44" cy="58" r="2.5" fill="white" opacity="0.9" />
+        <circle cx="80" cy="58" r="2.5" fill="white" opacity="0.9" />
+        <ellipse cx="60" cy="78" rx="5" ry="3.5" fill="#FFB0B0" />
         <path
-          d="M 54 85 Q 60 92 66 85"
-          stroke="#2d1b0e"
-          strokeWidth="1.5"
+          d="M 60 81 L 55 86 M 60 81 L 65 86"
+          stroke="#D09090"
+          strokeWidth="1.2"
           fill="none"
+          strokeLinecap="round"
         />
-        <line x1="30" y1="75" x2="15" y2="72" stroke="#ccc" strokeWidth="1" />
-        <line x1="30" y1="78" x2="15" y2="80" stroke="#ccc" strokeWidth="1" />
-        <line x1="90" y1="75" x2="105" y2="72" stroke="#ccc" strokeWidth="1" />
-        <line x1="90" y1="78" x2="105" y2="80" stroke="#ccc" strokeWidth="1" />
+        <line x1="30" y1="76" x2="16" y2="73" stroke="#DDD" strokeWidth="1" />
+        <line x1="30" y1="80" x2="16" y2="82" stroke="#DDD" strokeWidth="1" />
+        <line x1="90" y1="76" x2="104" y2="73" stroke="#DDD" strokeWidth="1" />
+        <line x1="90" y1="80" x2="104" y2="82" stroke="#DDD" strokeWidth="1" />
+        <ellipse cx="28" cy="72" rx="8" ry="5" fill="#FFB5B5" opacity="0.35" />
+        <ellipse cx="92" cy="72" rx="8" ry="5" fill="#FFB5B5" opacity="0.35" />
       </svg>
     ),
     bear: (
       <svg width={size} height={size} viewBox="0 0 120 120">
-        <circle cx="25" cy="25" r="18" fill="#8B4513" />
-        <circle cx="95" cy="25" r="18" fill="#8B4513" />
-        <circle cx="25" cy="25" r="10" fill="#D2691E" />
-        <circle cx="95" cy="25" r="10" fill="#D2691E" />
-        <ellipse cx="60" cy="65" rx="42" ry="45" fill="#8B4513" />
-        <ellipse cx="60" cy="78" rx="22" ry="20" fill="#D2B48C" />
-        <ellipse cx="45" cy="55" rx="6" ry="8" fill="#1a1a1a" />
-        <ellipse cx="75" cy="55" rx="6" ry="8" fill="#1a1a1a" />
-        <circle cx="47" cy="53" r="2" fill="white" />
-        <circle cx="77" cy="53" r="2" fill="white" />
-        <ellipse cx="60" cy="72" rx="8" ry="6" fill="#1a1a1a" />
+        <circle cx="24" cy="26" r="18" fill="#8B5E3C" />
+        <circle cx="96" cy="26" r="18" fill="#8B5E3C" />
+        <circle cx="24" cy="26" r="10" fill="#C08060" />
+        <circle cx="96" cy="26" r="10" fill="#C08060" />
+        <ellipse cx="60" cy="65" rx="42" ry="45" fill="#8B5E3C" />
+        <ellipse cx="60" cy="78" rx="22" ry="18" fill="#D4B896" />
+        <ellipse cx="42" cy="55" rx="7" ry="8" fill="white" />
+        <ellipse cx="78" cy="55" rx="7" ry="8" fill="white" />
+        <circle cx="42" cy="56" r="5" fill="#1a1a1a" />
+        <circle cx="78" cy="56" r="5" fill="#1a1a1a" />
+        <circle cx="44" cy="54" r="2" fill="white" opacity="0.9" />
+        <circle cx="80" cy="54" r="2" fill="white" opacity="0.9" />
+        <ellipse cx="60" cy="73" rx="7" ry="5" fill="#1a1a1a" />
+        <ellipse cx="59" cy="72" rx="2.5" ry="1.5" fill="white" opacity="0.2" />
         <path
-          d="M 50 82 Q 60 92 70 82"
+          d="M 53 80 Q 60 87 67 80"
           stroke="#1a1a1a"
-          strokeWidth="2"
+          strokeWidth="1.8"
           fill="none"
+          strokeLinecap="round"
         />
+        <ellipse cx="30" cy="68" rx="7" ry="4" fill="#FF9999" opacity="0.25" />
+        <ellipse cx="90" cy="68" rx="7" ry="4" fill="#FF9999" opacity="0.25" />
       </svg>
     ),
     lion: (
@@ -3753,25 +3671,48 @@ export const AccessorySVG = ({ type = "none", size = 120 }) => {
     crown: (
       <svg width={size} height={size} viewBox="0 0 120 120">
         <defs>
-          <linearGradient id="crownGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FFD700" />
-            <stop offset="100%" stopColor="#FFA500" />
+          <linearGradient id="crownGold" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FFE55C" />
+            <stop offset="40%" stopColor="#FFD700" />
+            <stop offset="100%" stopColor="#DAA520" />
           </linearGradient>
         </defs>
-        {/* 왕관 본체 - 머리 위에 위치 (더 위로) */}
-        <path
-          d="M 25 18 L 35 -10 L 50 8 L 60 -20 L 70 8 L 85 -10 L 95 18 L 90 23 L 30 23 Z"
-          fill="url(#crownGradient)"
+        <rect
+          x="28"
+          y="16"
+          width="64"
+          height="10"
+          rx="2"
+          fill="url(#crownGold)"
         />
-        {/* 보석 */}
-        <circle cx="35" cy="-10" r="5" fill="#FF0000" />
-        <circle cx="60" cy="-20" r="6" fill="#00BFFF" />
-        <circle cx="85" cy="-10" r="5" fill="#00FF00" />
-        {/* 왕관 밑단 */}
-        <rect x="30" y="18" width="60" height="8" fill="url(#crownGradient)" />
-        <circle cx="45" cy="22" r="3" fill="#FF69B4" />
-        <circle cx="60" cy="22" r="3" fill="#FF69B4" />
-        <circle cx="75" cy="22" r="3" fill="#FF69B4" />
+        <rect
+          x="30"
+          y="18"
+          width="60"
+          height="3"
+          fill="#FFF5CC"
+          opacity="0.4"
+        />
+        <path
+          d="M 28 16 L 22 -8 L 42 8 L 60 -14 L 78 8 L 98 -8 L 92 16 Z"
+          fill="url(#crownGold)"
+        />
+        <path
+          d="M 28 16 L 22 -8 L 42 8 L 60 -14 L 78 8 L 98 -8 L 92 16"
+          fill="none"
+          stroke="#B8860B"
+          strokeWidth="1"
+          opacity="0.5"
+        />
+        <circle cx="22" cy="-8" r="4" fill="#E8352E" />
+        <circle cx="22" cy="-8" r="1.5" fill="#FF6B6B" opacity="0.6" />
+        <circle cx="60" cy="-14" r="5" fill="#2E6BE8" />
+        <circle cx="60" cy="-14" r="2" fill="#6B9BFF" opacity="0.6" />
+        <circle cx="98" cy="-8" r="4" fill="#2EAF4B" />
+        <circle cx="98" cy="-8" r="1.5" fill="#6BFF6B" opacity="0.6" />
+        <circle cx="42" cy="21" r="2.5" fill="#E8352E" opacity="0.8" />
+        <circle cx="60" cy="21" r="2.5" fill="#2E6BE8" opacity="0.8" />
+        <circle cx="78" cy="21" r="2.5" fill="#2EAF4B" opacity="0.8" />
       </svg>
     ),
     bow: (
