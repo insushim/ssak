@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
             개인정보처리방침
           </h1>
           <p className="text-gray-500 mb-8">
-            시행일: 2024년 1월 1일 | 최종 수정: 2024년 12월
+            시행일: 2026년 1월 1일 | 최종 수정: 2026년 2월
           </p>
 
           <div className="prose prose-emerald max-w-none">
@@ -139,16 +139,17 @@ export default function PrivacyPolicy() {
             {/* 제3조 */}
             <section className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 border-b pb-2 mb-4">
-                제3조 (AI 처리 및 제3자 제공)
+                제3조 (AI 처리 및 개인정보 국외 이전)
               </h2>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
                 <p className="font-medium text-amber-800">
-                  ⚠️ AI 평가를 위한 데이터 처리 안내
+                  ⚠️ AI 평가를 위한 데이터 국외 이전 안내
                 </p>
               </div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 서비스는 글쓰기 평가를 위해 작성된 글을 AI 서비스(OpenAI)에
-                전송합니다.
+                전송하며, 이는 개인정보보호법 제28조의8에 따른 개인정보의 국외
+                이전에 해당합니다.
               </p>
               <ul className="list-disc ml-6 text-gray-700 space-y-2">
                 <li>
@@ -159,7 +160,13 @@ export default function PrivacyPolicy() {
                   <strong>전송 목적:</strong> AI 기반 글쓰기 평가 및 피드백 생성
                 </li>
                 <li>
+                  <strong>이전되는 국가:</strong> 미국
+                </li>
+                <li>
                   <strong>제공받는 자:</strong> OpenAI, Inc. (미국 소재)
+                </li>
+                <li>
+                  <strong>이전 방법:</strong> HTTPS 암호화 통신을 통한 API 전송
                 </li>
                 <li>
                   <strong>보유 기간:</strong> 평가 완료 후 30일 이내 삭제
@@ -234,11 +241,24 @@ export default function PrivacyPolicy() {
               <h2 className="text-xl font-bold text-gray-900 border-b pb-2 mb-4">
                 제6조 (아동의 개인정보)
               </h2>
-              <p className="text-gray-700 leading-relaxed">
-                만 14세 미만 아동의 개인정보 처리 시, 법정대리인(학부모)의
-                동의를 받습니다. 학교에서 교육 목적으로 사용하는 경우, 학교장이
-                법정대리인의 동의를 대신할 수 있습니다.
+              <p className="text-gray-700 leading-relaxed mb-4">
+                개인정보보호법 제22조에 따라 만 14세 미만 아동의 개인정보
+                수집·이용 시 법정대리인(학부모)의 동의를 받습니다.
               </p>
+              <ul className="list-disc ml-6 text-gray-700 space-y-2">
+                <li>
+                  담당 교사가 가정통신문(개인정보 수집·이용 동의서)을 배부하고,
+                  법정대리인의 서명을 회수한 후 학생 계정을 생성합니다.
+                </li>
+                <li>
+                  법정대리인은 언제든지 동의를 철회할 수 있으며, 철회 시 해당
+                  학생의 계정 및 데이터가 즉시 삭제됩니다.
+                </li>
+                <li>
+                  동의하지 않는 학생은 해당 서비스를 이용할 수 없으며, 이로 인한
+                  학습상의 불이익은 없습니다.
+                </li>
+              </ul>
             </section>
 
             {/* 제7조 */}
@@ -322,7 +342,7 @@ export default function PrivacyPolicy() {
       {/* 푸터 */}
       <footer className="bg-gray-800 text-gray-400 py-8 mt-12">
         <div className="max-w-4xl mx-auto px-4 text-center text-sm">
-          <p>© 2024 ISW 글쓰기 도우미. All rights reserved.</p>
+          <p>© 2026 ISW 글쓰기 도우미. All rights reserved.</p>
           <div className="mt-2 space-x-4">
             <Link to="/privacy" className="hover:text-white">
               개인정보처리방침

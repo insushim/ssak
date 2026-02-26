@@ -1086,12 +1086,12 @@ function checkWritingQuality(text, idealWordCount = 100) {
     };
   }
 
-  // 0-1. 권장 글자 수의 15% 미만이면 0점 처리
-  if (idealWordCount && cleanText.length < idealWordCount * 0.15) {
+  // 0-1. 권장 글자 수의 10% 미만이면 0점 처리
+  if (idealWordCount && cleanText.length < idealWordCount * 0.1) {
     return {
       isInvalid: true,
       reason: `글자 수 심각하게 부족 (${cleanText.length}자, 권장의 ${Math.round((cleanText.length / idealWordCount) * 100)}%)`,
-      feedback: `글이 너무 짧아요. 권장 글자 수(${idealWordCount}자)의 최소 15% 이상은 작성해주세요.`,
+      feedback: `글이 너무 짧아요. 권장 글자 수(${idealWordCount}자)의 최소 10% 이상은 작성해주세요.`,
       improvement: "서론, 본론, 결론을 갖춘 완성된 글을 써보세요.",
     };
   }

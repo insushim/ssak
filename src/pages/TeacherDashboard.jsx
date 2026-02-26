@@ -96,7 +96,7 @@ function downloadConsentForm(teacherName, schoolName, className) {
   <tr><th>서비스명</th><td>ISW 글쓰기 도우미 (isw-writing.web.app)</td></tr>
   <tr><th>목적</th><td>학생 글쓰기 학습 지원 및 AI 기반 자동 평가·피드백 제공</td></tr>
   <tr><th>사용 방법</th><td>학교 수업 시간에 교사 지도 하에 웹 브라우저로 접속하여 사용</td></tr>
-  <tr><th>사용 기간</th><td>2025학년도 (학년도 종료 후 1년 이내 데이터 삭제)</td></tr>
+  <tr><th>사용 기간</th><td>해당 학년도 (학년도 종료 후 1년 이내 데이터 삭제)</td></tr>
 </table>
 
 <h2>2. 수집하는 개인정보</h2>
@@ -165,7 +165,7 @@ function downloadConsentForm(teacherName, schoolName, className) {
     </div>
     <div class="sign-row">
       <span>날짜:</span>
-      <span class="sign-line">2025년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</span>
+      <span class="sign-line">${new Date().getFullYear()}년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</span>
     </div>
   </div>
 </div>
@@ -336,6 +336,7 @@ export default function TeacherDashboard({ user, userData }) {
   const [batchMessage, setBatchMessage] = useState("");
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchTargetClass, setBatchTargetClass] = useState("");
+  const [parentConsentConfirmed, setParentConsentConfirmed] = useState(false);
   const [classAccounts, setClassAccounts] = useState({}); // Store accounts by classCode
   const [studentDetails, setStudentDetails] = useState({}); // Store student details (email) by studentId
   const [resetPasswordLoading, setResetPasswordLoading] = useState(null); // studentId of currently resetting
@@ -2004,12 +2005,44 @@ export default function TeacherDashboard({ user, userData }) {
                   <div className="flex items-end">
                     <button
                       onClick={handleBatchCreate}
-                      disabled={batchLoading || !batchTargetClass}
+                      disabled={
+                        batchLoading ||
+                        !batchTargetClass ||
+                        !parentConsentConfirmed
+                      }
                       className="w-full bg-emerald-500 text-white px-4 py-3 rounded-md hover:bg-emerald-600 disabled:bg-gray-400"
                     >
                       {batchLoading ? "생성 중..." : "학생 계정 생성"}
                     </button>
                   </div>
+                </div>
+
+                {/* 법정대리인(학부모) 동의 확인 */}
+                <div
+                  className={`mt-4 border rounded-lg p-4 transition-all ${parentConsentConfirmed ? "border-emerald-400 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={parentConsentConfirmed}
+                      onChange={(e) =>
+                        setParentConsentConfirmed(e.target.checked)
+                      }
+                      className="mt-0.5 w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500"
+                    />
+                    <div className="flex-1">
+                      <span className="font-semibold text-gray-900 text-sm">
+                        법정대리인(학부모) 개인정보 수집·이용 동의서를
+                        회수하였음을 확인합니다.
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        개인정보보호법 제22조에 따라 만 14세 미만 아동의
+                        개인정보 수집 시 법정대리인 동의가 필요합니다. 위
+                        동의서를 다운로드하여 학부모에게 배부·회수한 후 계정을
+                        생성해 주세요.
+                      </p>
+                    </div>
+                  </label>
                 </div>
 
                 {batchMessage && (
@@ -4324,7 +4357,7 @@ export default function TeacherDashboard({ user, userData }) {
                             description: e.target.value,
                           })
                         }
-                        placeholder="예: 2024년 1학기 글쓰기 수업"
+                        placeholder="예: 2026년 1학기 글쓰기 수업"
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                       />
                     </div>
@@ -4432,12 +4465,40 @@ export default function TeacherDashboard({ user, userData }) {
                       </div>
                     )}
 
+                    {/* 법정대리인(학부모) 동의 확인 */}
+                    <div
+                      className={`border rounded-xl p-4 transition-all ${parentConsentConfirmed ? "border-emerald-400 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}
+                    >
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={parentConsentConfirmed}
+                          onChange={(e) =>
+                            setParentConsentConfirmed(e.target.checked)
+                          }
+                          className="mt-0.5 w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500"
+                        />
+                        <div className="flex-1">
+                          <span className="font-semibold text-gray-900 text-sm">
+                            법정대리인(학부모) 동의서를 회수하였음을 확인합니다.
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            만 14세 미만 아동은 법정대리인 동의가 필요합니다.
+                            학급 관리 탭에서 동의서를 다운로드할 수 있습니다.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
                     <div className="flex gap-3">
                       {batchResults.length === 0 ? (
                         <button
                           onClick={handleOnboardingBatchCreate}
                           disabled={
-                            batchLoading || !batchCount || batchCount < 1
+                            batchLoading ||
+                            !batchCount ||
+                            batchCount < 1 ||
+                            !parentConsentConfirmed
                           }
                           className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
                         >
