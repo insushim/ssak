@@ -97,15 +97,12 @@ service cloud.firestore {
     // Writings collection
     match /writings/{writingId} {
       // Students can read their own writings, super admins can read all
-      // Teachers can only read writings from their own class (via classCode)
-      // Legacy writings without classCode are readable by any teacher (backward compat)
+      // Approved teachers can read any writings (cross-doc get() breaks list queries)
+      // Client-side code already filters by classCode for teacher's own class
       allow read: if isAuthenticated() &&
                      (resource.data.studentId == request.auth.uid ||
                       isSuperAdmin() ||
-                      (isTeacher() && (
-                        resource.data.classCode == null ||
-                        get(/databases/$(database)/documents/classes/$(resource.data.classCode)).data.teacherId == request.auth.uid
-                      )));
+                      isApprovedTeacher());
 
       // Only students can create writings (for themselves)
       allow create: if isStudent() &&
