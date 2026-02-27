@@ -745,8 +745,24 @@ export default function Landing() {
             className="bg-white rounded-2xl max-w-4xl w-full p-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="aspect-video bg-gray-900 rounded-xl flex items-center justify-center">
-              <p className="text-white text-xl">데모 영상 준비 중...</p>
+            <div className="aspect-video bg-gradient-to-br from-gray-900 via-emerald-950 to-gray-900 rounded-xl flex flex-col items-center justify-center gap-6 p-8">
+              <div className="text-6xl">🌱</div>
+              <h3 className="text-white text-2xl font-bold">
+                싹 AI 글쓰기 플랫폼
+              </h3>
+              <div className="text-emerald-300 text-center space-y-2 max-w-md">
+                <p className="text-lg font-medium">직접 체험해보세요!</p>
+                <p className="text-sm text-emerald-400/80">
+                  로그인 후 학생 대시보드에서 AI 글쓰기 평가, 아바타 꾸미기,
+                  학급 랭킹 등을 경험할 수 있습니다.
+                </p>
+              </div>
+              <a
+                href="/login"
+                className="mt-2 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold transition-colors text-lg"
+              >
+                무료로 시작하기 →
+              </a>
             </div>
             <button
               onClick={() => setShowDemo(false)}
