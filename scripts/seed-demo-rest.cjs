@@ -326,8 +326,13 @@ function generateWritings(studentId, studentName, count, avgScore) {
       ? `${studentName} 학생, 좋은 시작이에요! '왜 그렇게 느꼈는지'를 좀 더 자세히 써 보세요. 💪`
       : `${studentName} 학생, 글을 써줘서 고마워요! 짧은 문장부터 정확하게 써보는 연습을 해 볼까요? 🌱`;
 
+    // writingId = Firestore 문서 ID와 동일하게 설정 (선생님 상세보기에 필수)
+    const writingId = `${studentId}_${date.getTime()}`;
+
     writings.push({
+      writingId, isDraft: false,
       studentId, studentName, classCode: CLASS_CODE,
+      nickname: studentName,
       title: sample.title + (i >= WRITING_SAMPLES.length ? ` (${Math.floor(i / WRITING_SAMPLES.length) + 1})` : ""),
       topic: sample.topic, writingType: sample.writingType,
       content, wordCount, score,
@@ -355,6 +360,7 @@ function generateWritings(studentId, studentName, count, avgScore) {
 // ──────────────────────────────────────────
 async function main() {
   console.log("🌱 싹 AI 글쓰기 플랫폼 - 데모 데이터 시딩 시작\n");
+  const now = new Date();
 
   // 1. Auth 사용자 생성
   console.log("👤 사용자 생성 중...");
@@ -392,11 +398,18 @@ async function main() {
 
   // 3. 학급 문서 (빈 학생 목록으로 생성 - Firestore 규칙 요구사항)
   console.log("\n🏫 학급 생성...");
+  const classCreatedAt = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  // assignmentSummary를 미리 채워서 학생 대시보드 마이그레이션 방지
+  const assignmentSummary = [
+    { title:"나의 겨울방학 이야기", description:"겨울방학 동안 가장 기억에 남는 일을 일기 형식으로 써 보세요.", writingType:"일기", minWordCount:200, maxWordCount:800, minScore:70, dueDate:new Date(now.getTime()-14*86400000).toISOString(), createdAt:new Date(now.getTime()-21*86400000).toISOString(), status:"closed" },
+    { title:"내가 좋아하는 계절", description:"좋아하는 계절을 하나 골라서 이유를 세 가지 이상 써 주세요.", writingType:"논설문", minWordCount:300, maxWordCount:1000, minScore:70, dueDate:new Date(now.getTime()-3*86400000).toISOString(), createdAt:new Date(now.getTime()-10*86400000).toISOString(), status:"closed" },
+    { title:"감사한 분에게 편지 쓰기", description:"감사한 분을 한 명 골라 진심을 담은 편지를 써 보세요.", writingType:"편지", minWordCount:200, maxWordCount:600, minScore:70, dueDate:new Date(now.getTime()+7*86400000).toISOString(), createdAt:new Date(now.getTime()-2*86400000).toISOString(), status:"active" },
+  ];
   await fsSet("classes", CLASS_CODE, {
     className: "3학년 1반", gradeLevel: GRADE_LEVEL,
     teacherId: teacherUid, classCode: CLASS_CODE,
-    students: [], maxStudents: 40,
-    createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    students: [], maxStudents: 40, assignmentSummary,
+    createdAt: classCreatedAt,
   }, adminToken);
   console.log(`   ✅ ${CLASS_CODE} 학급 생성 완료 (빈 학급)`);
 
@@ -413,6 +426,7 @@ async function main() {
       uid, email: student.email, name: student.name,
       nickname: student.name, nicknameChanged: true,
       role: "student", approved: true, classCode: CLASS_CODE,
+      gradeLevel: GRADE_LEVEL,
       points: student.points, totalPoints: student.totalPoints,
       ownedItems: student.ownedItems, equippedItems: student.equippedItems,
       roomItems: { furniture:"furn1", electronics:"elec1", vehicle:null, pet:null, wallpaper:"wall1", decorations:[] },
@@ -450,24 +464,26 @@ async function main() {
   // 6. 글쓰기 + 통계 생성
   console.log("\n📚 글쓰기 데이터 생성...");
   let totalWritings = 0;
+  const writingsByEmail = {}; // 과제 submissions 연결용
 
   for (const student of STUDENTS) {
     const uid = uidMap[student.email];
     const studentToken = studentTokens[student.email];
 
-    // 글쓰기 생성
+    // 글쓰기 생성 (writingId를 Firestore 문서 ID로 사용)
     const writings = generateWritings(uid, student.name, student.writingCount, student.avgScore);
     const writingSummary = [];
 
     for (const w of writings) {
-      const docRef = await fsAdd("writings", w, studentToken);
+      await fsSet("writings", w.writingId, w, studentToken);
       writingSummary.push({
-        writingId: docRef.id, topic: w.topic, title: w.title, writingType: w.writingType,
+        writingId: w.writingId, topic: w.topic, title: w.title, writingType: w.writingType,
         score: w.score, wordCount: w.wordCount, isDraft: false,
         createdAt: w.createdAt, submittedAt: w.submittedAt,
       });
     }
     totalWritings += writings.length;
+    writingsByEmail[student.email] = writings;
 
     // Cloud Function이 writingSummary를 먼저 업데이트할 수 있으므로 잠시 대기 후 덮어쓰기
     await new Promise(r => setTimeout(r, 2000));
@@ -501,7 +517,6 @@ async function main() {
 
   // 5. 과제 생성
   console.log("\n📋 과제 생성...");
-  const now = new Date();
   const assignments = [
     { teacherId:teacherUid, classCode:CLASS_CODE, title:"나의 겨울방학 이야기", description:"겨울방학 동안 가장 기억에 남는 일을 일기 형식으로 써 보세요.", writingType:"일기", minWordCount:200, maxWordCount:800, dueDate:new Date(now.getTime()-14*86400000).toISOString(), createdAt:new Date(now.getTime()-21*86400000).toISOString(), status:"closed" },
     { teacherId:teacherUid, classCode:CLASS_CODE, title:"내가 좋아하는 계절", description:"좋아하는 계절을 하나 골라서 이유를 세 가지 이상 써 주세요.", writingType:"논설문", minWordCount:300, maxWordCount:1000, dueDate:new Date(now.getTime()-3*86400000).toISOString(), createdAt:new Date(now.getTime()-10*86400000).toISOString(), status:"closed" },
@@ -509,15 +524,21 @@ async function main() {
   ];
 
   for (const assignment of assignments) {
-    if (assignment.status === "closed") {
-      assignment.submissions = STUDENTS.slice(0, 4).map((s) => ({
-        studentId: uidMap[s.email], studentName: s.name, status:"submitted", submittedAt: assignment.dueDate,
-      }));
-    } else {
-      assignment.submissions = STUDENTS.slice(0, 2).map((s) => ({
-        studentId: uidMap[s.email], studentName: s.name, status:"submitted", submittedAt: now.toISOString(),
-      }));
-    }
+    const submitters = assignment.status === "closed" ? STUDENTS.slice(0, 4) : STUDENTS.slice(0, 2);
+    const submittedAt = assignment.status === "closed" ? assignment.dueDate : now.toISOString();
+    assignment.submissions = submitters.map((s) => {
+      // 해당 학생의 글 중 하나를 선택하여 writingId 연결
+      const studentWritings = writingsByEmail[s.email] || [];
+      const matched = studentWritings.find(w => w.writingType === assignment.writingType) || studentWritings[0];
+      return {
+        studentId: uidMap[s.email], studentName: s.name, nickname: s.name,
+        writingId: matched ? matched.writingId : null,
+        score: matched ? matched.score : s.avgScore,
+        status: "submitted", submittedAt,
+        reviewed: false,
+      };
+    });
+    assignment.minScore = 70;
     await fsAdd("assignments", assignment, adminToken);
     console.log(`   ✅ "${assignment.title}" (${assignment.status})`);
   }

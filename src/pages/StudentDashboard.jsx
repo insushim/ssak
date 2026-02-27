@@ -1085,7 +1085,10 @@ export default function StudentDashboard({ user, userData }) {
           cls.assignmentSummary[0].description !== undefined &&
           cls.assignmentSummary[0].minScore !== undefined;
 
-        if (!hasAllFields || !localStorage.getItem(migrationKey)) {
+        if (hasAllFields) {
+          // 이미 모든 필드가 있으면 마이그레이션 불필요
+          localStorage.setItem(migrationKey, "true");
+        } else if (!localStorage.getItem(migrationKey)) {
           try {
             devLog("[마이그레이션 v5] assignmentSummary minScore 추가");
             const result = await migrateAssignmentSummary(userData.classCode);
@@ -1096,7 +1099,8 @@ export default function StudentDashboard({ user, userData }) {
             }
             localStorage.setItem(migrationKey, "true");
           } catch (e) {
-            console.warn("assignmentSummary 마이그레이션 실패:", e);
+            // 학생 계정은 classes 컬렉션 쓰기 권한 없음 - 무시
+            localStorage.setItem(migrationKey, "true");
           }
         }
 
