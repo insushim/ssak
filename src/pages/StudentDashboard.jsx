@@ -2057,6 +2057,8 @@ export default function StudentDashboard({ user, userData }) {
                             expression={face.expression}
                             size={avatarSize * 0.85}
                             gender={face.gender || "male"}
+                            eyeColor={face.eyeColor}
+                            feature={face.feature}
                           />
                         </div>
                         {/* 머리카락 (얼굴 위 레이어) */}
@@ -4985,6 +4987,8 @@ export default function StudentDashboard({ user, userData }) {
                                   expression={face.expression}
                                   size={95}
                                   gender={face.gender || "male"}
+                                  eyeColor={face.eyeColor}
+                                  feature={face.feature}
                                 />
                               </div>
                               {/* 머리카락 (항상 얼굴 위에) */}

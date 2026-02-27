@@ -7,6 +7,8 @@ export const FaceSVG = ({
   expression = "happy",
   size = 120,
   gender = "male",
+  eyeColor = null,
+  feature = null,
 }) => {
   const expressions = {
     happy: {
@@ -63,15 +65,17 @@ export const FaceSVG = ({
   const isFemale = gender === "female";
   const isWink = expression === "wink";
 
-  // 눈동자 색상 - 스킨톤별 (단색 - 작은 크기에서도 깔끔)
+  // 눈동자 색상 - eyeColor 우선, 없으면 스킨톤별 기본값
   const irisColor =
+    eyeColor ||
     {
       "#FFD5B8": "#5C3A1E",
       "#FFDCB5": "#4A6741",
       "#F5C7A1": "#3D5A80",
       "#8D5524": "#2D1B0E",
       "#C68642": "#3D2B1F",
-    }[skinColor] || "#5C3A1E";
+    }[skinColor] ||
+    "#5C3A1E";
 
   // 눈 크기 - 자연스럽게 큰 눈 (과하지 않게)
   const eyeRx = isFemale ? 10 : 9;
@@ -277,6 +281,188 @@ export const FaceSVG = ({
         fill="#FFB0B0"
         opacity={isFemale ? 0.45 : 0.3}
       />
+
+      {/* 특수 외형 */}
+      {feature === "sunglasses" && (
+        <>
+          <rect
+            x="28"
+            y={expr.eyeY - 8}
+            width="24"
+            height="16"
+            rx="4"
+            fill="#1a1a1a"
+            opacity="0.85"
+          />
+          <rect
+            x="68"
+            y={expr.eyeY - 8}
+            width="24"
+            height="16"
+            rx="4"
+            fill="#1a1a1a"
+            opacity="0.85"
+          />
+          <line
+            x1="52"
+            y1={expr.eyeY}
+            x2="68"
+            y2={expr.eyeY}
+            stroke="#1a1a1a"
+            strokeWidth="2"
+          />
+          <line
+            x1="28"
+            y1={expr.eyeY}
+            x2="17"
+            y2={expr.eyeY - 4}
+            stroke="#1a1a1a"
+            strokeWidth="2"
+          />
+          <line
+            x1="92"
+            y1={expr.eyeY}
+            x2="103"
+            y2={expr.eyeY - 4}
+            stroke="#1a1a1a"
+            strokeWidth="2"
+          />
+          {/* lens reflection */}
+          <rect
+            x="31"
+            y={expr.eyeY - 5}
+            width="5"
+            height="3"
+            rx="1"
+            fill="white"
+            opacity="0.3"
+          />
+          <rect
+            x="71"
+            y={expr.eyeY - 5}
+            width="5"
+            height="3"
+            rx="1"
+            fill="white"
+            opacity="0.3"
+          />
+        </>
+      )}
+      {feature === "glasses" && (
+        <>
+          <circle
+            cx="40"
+            cy={expr.eyeY}
+            r="13"
+            fill="none"
+            stroke="#4A4A4A"
+            strokeWidth="1.8"
+          />
+          <circle
+            cx="80"
+            cy={expr.eyeY}
+            r="13"
+            fill="none"
+            stroke="#4A4A4A"
+            strokeWidth="1.8"
+          />
+          <line
+            x1="53"
+            y1={expr.eyeY}
+            x2="67"
+            y2={expr.eyeY}
+            stroke="#4A4A4A"
+            strokeWidth="1.5"
+          />
+          <line
+            x1="27"
+            y1={expr.eyeY}
+            x2="17"
+            y2={expr.eyeY - 3}
+            stroke="#4A4A4A"
+            strokeWidth="1.5"
+          />
+          <line
+            x1="93"
+            y1={expr.eyeY}
+            x2="103"
+            y2={expr.eyeY - 3}
+            stroke="#4A4A4A"
+            strokeWidth="1.5"
+          />
+        </>
+      )}
+      {feature === "freckles" && (
+        <>
+          <circle cx="30" cy="62" r="1.5" fill="#C09060" opacity="0.6" />
+          <circle cx="35" cy="66" r="1.3" fill="#C09060" opacity="0.5" />
+          <circle cx="27" cy="67" r="1.2" fill="#C09060" opacity="0.55" />
+          <circle cx="33" cy="70" r="1.4" fill="#C09060" opacity="0.5" />
+          <circle cx="90" cy="62" r="1.5" fill="#C09060" opacity="0.6" />
+          <circle cx="85" cy="66" r="1.3" fill="#C09060" opacity="0.5" />
+          <circle cx="93" cy="67" r="1.2" fill="#C09060" opacity="0.55" />
+          <circle cx="87" cy="70" r="1.4" fill="#C09060" opacity="0.5" />
+        </>
+      )}
+      {feature === "beauty_mark" && (
+        <circle cx="75" cy="76" r="2" fill="#3a2a1a" />
+      )}
+      {feature === "halo" && (
+        <ellipse
+          cx="60"
+          cy="6"
+          rx="25"
+          ry="6"
+          fill="none"
+          stroke="#FFD700"
+          strokeWidth="3"
+          opacity="0.8"
+        />
+      )}
+      {feature === "rosy" && (
+        <>
+          <ellipse
+            cx="28"
+            cy="66"
+            rx="10"
+            ry="7"
+            fill="#FF8888"
+            opacity="0.4"
+          />
+          <ellipse
+            cx="92"
+            cy="66"
+            rx="10"
+            ry="7"
+            fill="#FF8888"
+            opacity="0.4"
+          />
+        </>
+      )}
+      {feature === "star_cheeks" && (
+        <>
+          <text
+            x="26"
+            y="68"
+            fontSize="10"
+            fill="#FFB800"
+            opacity="0.7"
+            textAnchor="middle"
+          >
+            &#9733;
+          </text>
+          <text
+            x="94"
+            y="68"
+            fontSize="10"
+            fill="#FFB800"
+            opacity="0.7"
+            textAnchor="middle"
+          >
+            &#9733;
+          </text>
+        </>
+      )}
     </svg>
   );
 };
@@ -5772,6 +5958,8 @@ export const AvatarRenderer = ({
             expression={faceData?.expression || "happy"}
             size={size}
             gender={faceData?.gender || "male"}
+            eyeColor={faceData?.eyeColor}
+            feature={faceData?.feature}
           />
         )}
       </div>
