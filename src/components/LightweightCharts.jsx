@@ -4,7 +4,7 @@
 // SVG 기반 직접 렌더링
 // ============================================
 
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 // ============================================
 // 🔧 유틸리티 함수
@@ -19,7 +19,9 @@ function mapRange(value, inMin, inMax, outMin, outMax) {
 // 데이터에서 최소/최대값 추출
 function getMinMax(data, key) {
   if (!data || data.length === 0) return { min: 0, max: 100 };
-  const values = data.map(d => d[key]).filter(v => v !== undefined && v !== null);
+  const values = data
+    .map((d) => d[key])
+    .filter((v) => v !== undefined && v !== null);
   if (values.length === 0) return { min: 0, max: 100 };
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -40,16 +42,16 @@ function generateYTicks(min, max, count = 5) {
 export function SimpleLineChart({
   data,
   dataKey,
-  xAxisKey = 'name',
-  width = '100%',
+  xAxisKey = "name",
+  width = "100%",
   height = 200,
-  strokeColor = '#3b82f6',
-  fillColor = 'rgba(59, 130, 246, 0.1)',
+  strokeColor = "#3b82f6",
+  fillColor = "rgba(59, 130, 246, 0.1)",
   showGrid = true,
   showDots = true,
   showArea = false,
   showTooltip = true,
-  className = ''
+  className = "",
 }) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -65,40 +67,76 @@ export function SimpleLineChart({
 
     const points = data.map((d, i) => ({
       x: padding.left + (i / (data.length - 1 || 1)) * innerWidth,
-      y: padding.top + innerHeight - mapRange(d[dataKey] || 0, min, max, 0, innerHeight),
+      y:
+        padding.top +
+        innerHeight -
+        mapRange(d[dataKey] || 0, min, max, 0, innerHeight),
       value: d[dataKey],
-      label: d[xAxisKey]
+      label: d[xAxisKey],
     }));
 
-    const linePath = points.map((p, i) =>
-      `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-    ).join(' ');
+    const linePath = points
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+      .join(" ");
 
-    const areaPath = showArea ?
-      `${linePath} L ${points[points.length - 1]?.x || 0} ${padding.top + innerHeight} L ${padding.left} ${padding.top + innerHeight} Z`
-      : '';
+    const areaPath = showArea
+      ? `${linePath} L ${points[points.length - 1]?.x || 0} ${padding.top + innerHeight} L ${padding.left} ${padding.top + innerHeight} Z`
+      : "";
 
-    return { points, linePath, areaPath, yTicks, padding, chartWidth, chartHeight, innerWidth, innerHeight, min, max };
+    return {
+      points,
+      linePath,
+      areaPath,
+      yTicks,
+      padding,
+      chartWidth,
+      chartHeight,
+      innerWidth,
+      innerHeight,
+      min,
+      max,
+    };
   }, [data, dataKey, height, showArea]);
 
   if (!chartData) {
     return (
-      <div className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`} style={{ height }}>
+      <div
+        className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`}
+        style={{ height }}
+      >
         <span className="text-gray-400">데이터 없음</span>
       </div>
     );
   }
 
-  const { points, linePath, areaPath, yTicks, padding, chartWidth, chartHeight, innerWidth, innerHeight, min, max } = chartData;
+  const {
+    points,
+    linePath,
+    areaPath,
+    yTicks,
+    padding,
+    chartWidth,
+    chartHeight,
+    innerWidth,
+    innerHeight,
+    min,
+    max,
+  } = chartData;
 
   return (
     <div className={`relative ${className}`} style={{ width, height }}>
-      <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full">
+      <svg
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="w-full h-full"
+      >
         {/* 그리드 */}
         {showGrid && (
           <g className="grid">
             {yTicks.map((tick, i) => {
-              const y = padding.top + innerHeight - mapRange(tick, min, max, 0, innerHeight);
+              const y =
+                padding.top +
+                innerHeight -
+                mapRange(tick, min, max, 0, innerHeight);
               return (
                 <line
                   key={i}
@@ -117,7 +155,10 @@ export function SimpleLineChart({
         {/* Y축 레이블 */}
         <g className="y-axis">
           {yTicks.map((tick, i) => {
-            const y = padding.top + innerHeight - mapRange(tick, min, max, 0, innerHeight);
+            const y =
+              padding.top +
+              innerHeight -
+              mapRange(tick, min, max, 0, innerHeight);
             return (
               <text
                 key={i}
@@ -132,28 +173,32 @@ export function SimpleLineChart({
           })}
         </g>
 
-        {/* X축 레이블 */}
+        {/* X축 레이블 - 데이터 많으면 간격 조절 */}
         <g className="x-axis">
-          {points.map((p, i) => (
-            <text
-              key={i}
-              x={p.x}
-              y={chartHeight - 10}
-              textAnchor="middle"
-              className="text-xs fill-gray-500"
-            >
-              {p.label}
-            </text>
-          ))}
+          {points.map((p, i) => {
+            const total = points.length;
+            const maxLabels = 10;
+            const step = total <= maxLabels ? 1 : Math.ceil(total / maxLabels);
+            const isFirst = i === 0;
+            const isLast = i === total - 1;
+            const isStep = i % step === 0;
+            if (!isFirst && !isLast && !isStep) return null;
+            return (
+              <text
+                key={i}
+                x={p.x}
+                y={chartHeight - 10}
+                textAnchor="middle"
+                className="text-xs fill-gray-500"
+              >
+                {total > maxLabels ? i + 1 : p.label}
+              </text>
+            );
+          })}
         </g>
 
         {/* 영역 채우기 */}
-        {showArea && (
-          <path
-            d={areaPath}
-            fill={fillColor}
-          />
-        )}
+        {showArea && <path d={areaPath} fill={fillColor} />}
 
         {/* 선 */}
         <path
@@ -166,22 +211,21 @@ export function SimpleLineChart({
         />
 
         {/* 점 */}
-        {showDots && points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r="4"
-            fill="white"
-            stroke={strokeColor}
-            strokeWidth="2"
-            className="hover:r-6 transition-all cursor-pointer"
-          >
-            {showTooltip && (
-              <title>{`${p.label}: ${p.value}`}</title>
-            )}
-          </circle>
-        ))}
+        {showDots &&
+          points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r="4"
+              fill="white"
+              stroke={strokeColor}
+              strokeWidth="2"
+              className="hover:r-6 transition-all cursor-pointer"
+            >
+              {showTooltip && <title>{`${p.label}: ${p.value}`}</title>}
+            </circle>
+          ))}
       </svg>
     </div>
   );
@@ -193,13 +237,13 @@ export function SimpleLineChart({
 export function SimpleBarChart({
   data,
   dataKey,
-  xAxisKey = 'name',
-  width = '100%',
+  xAxisKey = "name",
+  width = "100%",
   height = 200,
-  barColor = '#3b82f6',
+  barColor = "#3b82f6",
   showGrid = true,
   showTooltip = true,
-  className = ''
+  className = "",
 }) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -218,34 +262,64 @@ export function SimpleBarChart({
 
     const bars = data.map((d, i) => ({
       x: padding.left + i * (barWidth + barGap) + barGap / 2,
-      y: padding.top + innerHeight - mapRange(d[dataKey] || 0, 0, max, 0, innerHeight),
+      y:
+        padding.top +
+        innerHeight -
+        mapRange(d[dataKey] || 0, 0, max, 0, innerHeight),
       width: barWidth,
       height: mapRange(d[dataKey] || 0, 0, max, 0, innerHeight),
       value: d[dataKey],
-      label: d[xAxisKey]
+      label: d[xAxisKey],
     }));
 
-    return { bars, yTicks, padding, chartWidth, chartHeight, innerWidth, innerHeight, max };
+    return {
+      bars,
+      yTicks,
+      padding,
+      chartWidth,
+      chartHeight,
+      innerWidth,
+      innerHeight,
+      max,
+    };
   }, [data, dataKey, height]);
 
   if (!chartData) {
     return (
-      <div className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`} style={{ height }}>
+      <div
+        className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`}
+        style={{ height }}
+      >
         <span className="text-gray-400">데이터 없음</span>
       </div>
     );
   }
 
-  const { bars, yTicks, padding, chartWidth, chartHeight, innerWidth, innerHeight, max } = chartData;
+  const {
+    bars,
+    yTicks,
+    padding,
+    chartWidth,
+    chartHeight,
+    innerWidth,
+    innerHeight,
+    max,
+  } = chartData;
 
   return (
     <div className={`relative ${className}`} style={{ width, height }}>
-      <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full">
+      <svg
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="w-full h-full"
+      >
         {/* 그리드 */}
         {showGrid && (
           <g className="grid">
             {yTicks.map((tick, i) => {
-              const y = padding.top + innerHeight - mapRange(tick, 0, max, 0, innerHeight);
+              const y =
+                padding.top +
+                innerHeight -
+                mapRange(tick, 0, max, 0, innerHeight);
               return (
                 <line
                   key={i}
@@ -264,7 +338,10 @@ export function SimpleBarChart({
         {/* Y축 레이블 */}
         <g className="y-axis">
           {yTicks.map((tick, i) => {
-            const y = padding.top + innerHeight - mapRange(tick, 0, max, 0, innerHeight);
+            const y =
+              padding.top +
+              innerHeight -
+              mapRange(tick, 0, max, 0, innerHeight);
             return (
               <text
                 key={i}
@@ -291,9 +368,7 @@ export function SimpleBarChart({
               rx="4"
               className="hover:opacity-80 transition-opacity cursor-pointer"
             >
-              {showTooltip && (
-                <title>{`${bar.label}: ${bar.value}`}</title>
-              )}
+              {showTooltip && <title>{`${bar.label}: ${bar.value}`}</title>}
             </rect>
             {/* X축 레이블 */}
             <text
@@ -316,12 +391,12 @@ export function SimpleBarChart({
 // ============================================
 export function SimpleRadarChart({
   data,
-  width = '100%',
+  width = "100%",
   height = 200,
-  fillColor = 'rgba(59, 130, 246, 0.3)',
-  strokeColor = '#3b82f6',
+  fillColor = "rgba(59, 130, 246, 0.3)",
+  strokeColor = "#3b82f6",
   maxValue = 100,
-  className = ''
+  className = "",
 }) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -339,7 +414,7 @@ export function SimpleRadarChart({
         y: centerY + radius * Math.sin(angle),
         labelX: centerX + (radius + 20) * Math.cos(angle),
         labelY: centerY + (radius + 20) * Math.sin(angle),
-        name: d.name
+        name: d.name,
       };
     });
 
@@ -349,18 +424,18 @@ export function SimpleRadarChart({
       const valueRadius = (d.value / maxValue) * radius;
       return {
         x: centerX + valueRadius * Math.cos(angle),
-        y: centerY + valueRadius * Math.sin(angle)
+        y: centerY + valueRadius * Math.sin(angle),
       };
     });
 
-    const dataPath = points.map((p, i) =>
-      `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
-    ).join(' ') + ' Z';
+    const dataPath =
+      points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") +
+      " Z";
 
     // 그리드 원
-    const gridCircles = [0.25, 0.5, 0.75, 1].map(scale => ({
+    const gridCircles = [0.25, 0.5, 0.75, 1].map((scale) => ({
       r: radius * scale,
-      label: Math.round(maxValue * scale)
+      label: Math.round(maxValue * scale),
     }));
 
     return { axes, points, dataPath, gridCircles, centerX, centerY, radius };
@@ -368,7 +443,10 @@ export function SimpleRadarChart({
 
   if (!chartData) {
     return (
-      <div className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`} style={{ height }}>
+      <div
+        className={`flex items-center justify-center bg-gray-50 rounded-lg ${className}`}
+        style={{ height }}
+      >
         <span className="text-gray-400">데이터 없음</span>
       </div>
     );
@@ -437,11 +515,11 @@ export function ProgressBar({
   value,
   max = 100,
   height = 8,
-  color = '#3b82f6',
-  backgroundColor = '#e5e7eb',
+  color = "#3b82f6",
+  backgroundColor = "#e5e7eb",
   showLabel = false,
-  label = '',
-  className = ''
+  label = "",
+  className = "",
 }) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
 
@@ -450,7 +528,9 @@ export function ProgressBar({
       {showLabel && (
         <div className="flex justify-between text-sm mb-1">
           <span className="text-gray-600">{label}</span>
-          <span className="text-gray-500">{value}/{max}</span>
+          <span className="text-gray-500">
+            {value}/{max}
+          </span>
         </div>
       )}
       <div
@@ -474,10 +554,10 @@ export function DonutChart({
   max = 100,
   size = 100,
   strokeWidth = 10,
-  color = '#3b82f6',
-  backgroundColor = '#e5e7eb',
+  color = "#3b82f6",
+  backgroundColor = "#e5e7eb",
   showLabel = true,
-  className = ''
+  className = "",
 }) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
   const radius = (size - strokeWidth) / 2;
@@ -485,7 +565,10 @@ export function DonutChart({
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
+    <div
+      className={`relative inline-flex items-center justify-center ${className}`}
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="transform -rotate-90">
         {/* 배경 원 */}
         <circle
@@ -512,7 +595,9 @@ export function DonutChart({
       </svg>
       {showLabel && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-lg font-bold text-gray-700">{Math.round(percentage)}%</span>
+          <span className="text-lg font-bold text-gray-700">
+            {Math.round(percentage)}%
+          </span>
         </div>
       )}
     </div>
@@ -524,5 +609,5 @@ export default {
   SimpleBarChart,
   SimpleRadarChart,
   ProgressBar,
-  DonutChart
+  DonutChart,
 };
