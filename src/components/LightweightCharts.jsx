@@ -182,6 +182,11 @@ export function SimpleLineChart({
             const isFirst = i === 0;
             const isLast = i === total - 1;
             const isStep = i % step === 0;
+            // 마지막 레이블이 직전 step 레이블과 너무 가까우면 skip
+            if (isLast && step > 1) {
+              const prevStepIdx = Math.floor((total - 2) / step) * step;
+              if (total - 1 - prevStepIdx < step * 0.6) return null;
+            }
             if (!isFirst && !isLast && !isStep) return null;
             return (
               <text
