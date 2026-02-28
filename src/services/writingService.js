@@ -625,7 +625,10 @@ export async function updateStudentStats(studentId, score) {
         totalScore: newTotalScore,
         averageScore: Math.round(newAverageScore * 10) / 10,
         lastSubmittedAt: new Date().toISOString(),
-        scores: [...currentStats.scores, score],
+        scores: [
+          ...(Array.isArray(currentStats.scores) ? currentStats.scores : []),
+          score,
+        ],
       });
     } else {
       await setDoc(statsRef, {
