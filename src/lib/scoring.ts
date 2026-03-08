@@ -817,6 +817,347 @@ export function compareSelfAssessment(
   return results;
 }
 
+// ─── Sensory Expression Detection ───
+
+const SENSORY_EXPRESSIONS: Record<string, string[]> = {
+  시각: [
+    "보이다",
+    "보였다",
+    "빛나다",
+    "반짝",
+    "빨간",
+    "파란",
+    "노란",
+    "초록",
+    "하얀",
+    "까만",
+    "밝다",
+    "어둡다",
+    "빛",
+    "색",
+    "그림자",
+    "눈부시",
+    "환하",
+    "무지개",
+  ],
+  청각: [
+    "들리다",
+    "들렸다",
+    "소리",
+    "노래",
+    "울리다",
+    "시끄럽",
+    "조용",
+    "속삭",
+    "외치다",
+    "울음",
+    "웃음소리",
+    "빗소리",
+    "바람소리",
+    "뚝뚝",
+    "쨍그랑",
+  ],
+  촉각: [
+    "느끼다",
+    "느껴지",
+    "따뜻",
+    "차갑",
+    "뜨거",
+    "부드럽",
+    "딱딱",
+    "거칠",
+    "매끄럽",
+    "포근",
+    "축축",
+    "미끈",
+    "쫀득",
+  ],
+  미각: [
+    "맛있",
+    "달콤",
+    "씁쓸",
+    "시큼",
+    "짠",
+    "매운",
+    "새콤",
+    "맛",
+    "먹었",
+    "감칠맛",
+    "향긋",
+  ],
+  후각: [
+    "냄새",
+    "향기",
+    "향",
+    "구수",
+    "고소",
+    "역겹",
+    "상큼",
+    "풍기다",
+    "맡다",
+    "코끝",
+  ],
+};
+
+export function detectSensoryExpressions(
+  text: string,
+): { sense: string; count: number; words: string[] }[] {
+  const results: { sense: string; count: number; words: string[] }[] = [];
+
+  for (const [sense, keywords] of Object.entries(SENSORY_EXPRESSIONS)) {
+    const found: string[] = [];
+    for (const kw of keywords) {
+      if (text.includes(kw)) found.push(kw);
+    }
+    results.push({ sense, count: found.length, words: found });
+  }
+
+  return results;
+}
+
+// ─── Content Depth Analysis ───
+
+const DEPTH_KEYWORDS: Record<string, { keywords: string[]; label: string }> = {
+  감정: {
+    keywords: [
+      "기쁘",
+      "슬프",
+      "행복",
+      "화",
+      "놀라",
+      "무섭",
+      "걱정",
+      "설레",
+      "뿌듯",
+      "후회",
+      "그리",
+      "외로",
+      "부끄",
+    ],
+    label: "감정 표현",
+  },
+  이유: {
+    keywords: [
+      "왜냐하면",
+      "때문",
+      "이유",
+      "덕분",
+      "까닭",
+      "그래서",
+      "결과",
+      "영향",
+    ],
+    label: "이유/원인",
+  },
+  비유: {
+    keywords: ["처럼", "같이", "마치", "만큼", "듯이", "닮", "비슷"],
+    label: "비유 표현",
+  },
+  대화: {
+    keywords: [
+      "말했다",
+      "물었다",
+      "대답",
+      "외쳤다",
+      "속삭",
+      "이야기했",
+      "라고",
+      "라며",
+    ],
+    label: "대화 표현",
+  },
+  감각: {
+    keywords: ["소리", "냄새", "맛", "느낌", "보이", "들리", "향기", "촉감"],
+    label: "감각 묘사",
+  },
+  생각: {
+    keywords: [
+      "생각",
+      "느꼈",
+      "깨달",
+      "알게 되",
+      "배웠",
+      "궁금",
+      "기억",
+      "떠올",
+    ],
+    label: "생각/깨달음",
+  },
+};
+
+export function analyzeContentDepth(text: string): {
+  categories: { name: string; label: string; count: number }[];
+  score: number;
+  tips: string[];
+} {
+  const categories: { name: string; label: string; count: number }[] = [];
+  let totalFound = 0;
+
+  for (const [name, { keywords, label }] of Object.entries(DEPTH_KEYWORDS)) {
+    let count = 0;
+    for (const kw of keywords) {
+      if (text.includes(kw)) count++;
+    }
+    categories.push({ name, label, count });
+    if (count > 0) totalFound++;
+  }
+
+  const score = Math.min(100, Math.round((totalFound / 6) * 100));
+  const tips: string[] = [];
+
+  const missing = categories.filter((c) => c.count === 0);
+  if (missing.length > 0) {
+    const topMissing = missing.slice(0, 2).map((m) => m.label);
+    tips.push(`'${topMissing.join("', '")}'을 추가하면 글이 더 풍부해져요!`);
+  }
+  if (!categories.find((c) => c.name === "생각")?.count) {
+    tips.push("글 끝에 '느낀 점'이나 '깨달은 것'을 써보세요.");
+  }
+
+  return { categories, score, tips };
+}
+
+// ─── Error Pattern Quiz Generation ───
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answer: number;
+  tip: string;
+}
+
+const QUIZ_BANK: Record<string, QuizQuestion[]> = {
+  맞춤법: [
+    {
+      question: "맞는 것을 고르세요: (왠일 / 웬일)이야!",
+      options: ["왠일", "웬일"],
+      answer: 1,
+      tip: "'왠'은 '왜인'의 줄임, '웬'은 '어찌 된'의 뜻이에요.",
+    },
+    {
+      question: "'며칠'의 올바른 표기는?",
+      options: ["몇일", "며칠", "멫일"],
+      answer: 1,
+      tip: "'며칠'이 표준어예요.",
+    },
+    {
+      question: "맞는 표현은?",
+      options: ["금새 도착했다", "금세 도착했다"],
+      answer: 1,
+      tip: "'금세'는 '금시에'의 줄임말이에요.",
+    },
+    {
+      question: "올바른 것은?",
+      options: ["어의없다", "어이없다"],
+      answer: 1,
+      tip: "'어이'가 맞는 표현이에요.",
+    },
+    {
+      question: "맞는 표현은?",
+      options: ["할께", "할게"],
+      answer: 1,
+      tip: "'ㄹ게'가 맞아요. 'ㄹ께'는 틀린 표기예요.",
+    },
+    {
+      question: "'설렘'의 올바른 형태는?",
+      options: ["설레임", "설렘"],
+      answer: 1,
+      tip: "'설렘'이 맞아요. '-ㅁ'이 붙어요.",
+    },
+    {
+      question: "올바른 것은?",
+      options: ["역활", "역할"],
+      answer: 1,
+      tip: "'역할'이 맞아요. '활'을 써요.",
+    },
+    {
+      question: "올바른 띄어쓰기는?",
+      options: ["할수있다", "할 수 있다"],
+      answer: 1,
+      tip: "'할 수 있다'로 띄어 써요.",
+    },
+    {
+      question: "올바른 것은?",
+      options: ["오랫만에", "오랜만에"],
+      answer: 1,
+      tip: "'오랜만에'가 맞아요.",
+    },
+    {
+      question: "맞는 표현은?",
+      options: ["바램", "바람"],
+      answer: 1,
+      tip: "희망의 의미일 때 '바람'이 맞아요.",
+    },
+  ],
+  띄어쓰기: [
+    {
+      question: "올바른 것은?",
+      options: ["것같다", "것 같다"],
+      answer: 1,
+      tip: "'것 같다'로 띄어 써요.",
+    },
+    {
+      question: "올바른 것은?",
+      options: ["할때", "할 때"],
+      answer: 1,
+      tip: "'할 때'로 띄어 써요.",
+    },
+  ],
+  "접속사 반복": [
+    {
+      question: "'그래서'의 대체 표현이 아닌 것은?",
+      options: ["덕분에", "그 결과", "그리고", "따라서"],
+      answer: 2,
+      tip: "'그리고'는 나열, '그래서'는 인과관계예요.",
+    },
+    {
+      question: "'그리고'를 대체할 표현은?",
+      options: ["그래서", "게다가", "하지만"],
+      answer: 1,
+      tip: "'게다가'는 추가 정보를 연결할 때 써요.",
+    },
+  ],
+};
+
+export function generateQuiz(
+  errorPatterns: { type: string; detail: string; example: string }[],
+  maxQuestions: number = 3,
+): QuizQuestion[] {
+  const questions: QuizQuestion[] = [];
+  const usedIndices = new Set<string>();
+
+  // From actual errors first
+  for (const ep of errorPatterns) {
+    const bank = QUIZ_BANK[ep.type];
+    if (!bank) continue;
+    for (const q of bank) {
+      const key = `${ep.type}-${q.question}`;
+      if (!usedIndices.has(key)) {
+        questions.push(q);
+        usedIndices.add(key);
+        if (questions.length >= maxQuestions) return questions;
+        break;
+      }
+    }
+  }
+
+  // Fill with general questions
+  if (questions.length < maxQuestions) {
+    for (const [, bank] of Object.entries(QUIZ_BANK)) {
+      for (const q of bank) {
+        const key = q.question;
+        if (!usedIndices.has(key)) {
+          questions.push(q);
+          usedIndices.add(key);
+          if (questions.length >= maxQuestions) return questions;
+        }
+      }
+    }
+  }
+
+  return questions;
+}
+
 function getComparisonMessage(
   self: number,
   actual: number,

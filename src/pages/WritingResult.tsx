@@ -14,7 +14,14 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { api } from "../lib/api";
-import { compareSelfAssessment } from "../lib/scoring";
+import {
+  compareSelfAssessment,
+  detectSensoryExpressions,
+  analyzeContentDepth,
+  generateQuiz,
+  detectErrorPatterns,
+} from "../lib/scoring";
+import type { QuizQuestion } from "../lib/scoring";
 import { getScoreColor, getScoreBgColor, getScoreLabel } from "../lib/utils";
 import type { Writing, SentenceFeedback, SelfAssessment } from "../types";
 
@@ -24,9 +31,11 @@ export default function WritingResult() {
   const navigate = useNavigate();
   const [writing, setWriting] = useState<Writing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"score" | "sentences" | "self">(
-    "score",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "score" | "sentences" | "self" | "depth" | "quiz"
+  >("score");
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
   useEffect(() => {
     if (!writingId) return;
@@ -53,6 +62,22 @@ export default function WritingResult() {
     } catch {
       return null;
     }
+  }, [writing]);
+
+  const sensoryData = useMemo(
+    () => (writing ? detectSensoryExpressions(writing.content) : []),
+    [writing],
+  );
+
+  const depthData = useMemo(
+    () => (writing ? analyzeContentDepth(writing.content) : null),
+    [writing],
+  );
+
+  const quizQuestions = useMemo(() => {
+    if (!writing) return [];
+    const errors = detectErrorPatterns(writing.content);
+    return generateQuiz(errors, 3);
   }, [writing]);
 
   const selfComparison = useMemo(() => {
@@ -204,10 +229,12 @@ export default function WritingResult() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 overflow-x-auto scrollbar-hide">
           {[
             { key: "score", label: "피드백" },
             { key: "sentences", label: `문장별 (${sentenceFeedbacks.length})` },
+            { key: "depth", label: "분석" },
+            { key: "quiz", label: `퀴즈 (${quizQuestions.length})` },
             { key: "self", label: "자기 평가" },
           ].map((tab) => (
             <button
@@ -291,6 +318,206 @@ export default function WritingResult() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {activeTab === "depth" && (
+          <div className="space-y-4">
+            {/* 감각 표현 분석 */}
+            <div className="card">
+              <h3 className="section-title flex items-center gap-2">
+                <Star size={16} /> 감각 표현 분석
+              </h3>
+              {sensoryData.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  감각 표현이 발견되지 않았어요. 오감을 활용해보세요!
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {sensoryData.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-lg">
+                        {s.sense === "시각"
+                          ? "👁️"
+                          : s.sense === "청각"
+                            ? "👂"
+                            : s.sense === "촉각"
+                              ? "✋"
+                              : s.sense === "미각"
+                                ? "👅"
+                                : "👃"}
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {s.sense}
+                          </span>
+                          <span className="text-gray-500">{s.count}개</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {s.words.map((w: string, j: number) => (
+                            <span
+                              key={j}
+                              className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs"
+                            >
+                              {w}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 내용 깊이 분석 */}
+            {depthData && (
+              <div className="card">
+                <h3 className="section-title flex items-center gap-2">
+                  <Lightbulb size={16} /> 내용 깊이 분석
+                </h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className={`score-circle text-sm ${depthData.score >= 4 ? "bg-green-100 text-green-700" : depthData.score >= 2 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}
+                  >
+                    {depthData.score}/6
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {depthData.score >= 5
+                      ? "매우 깊이 있는 글이에요!"
+                      : depthData.score >= 3
+                        ? "괜찮지만 더 깊이 쓸 수 있어요."
+                        : "내용을 더 풍부하게 해보세요."}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {depthData.categories.map(
+                    (
+                      cat: { name: string; found: boolean; example?: string },
+                      j: number,
+                    ) => (
+                      <div
+                        key={j}
+                        className={`px-3 py-2 rounded-lg text-xs ${cat.found ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-gray-50 dark:bg-gray-800 text-gray-400"}`}
+                      >
+                        {cat.found ? (
+                          <CheckCircle size={12} className="inline mr-1" />
+                        ) : null}
+                        {cat.name}
+                      </div>
+                    ),
+                  )}
+                </div>
+                {depthData.tips.length > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                    <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                      개선 팁
+                    </p>
+                    {depthData.tips.map((tip: string, j: number) => (
+                      <p
+                        key={j}
+                        className="text-xs text-blue-600 dark:text-blue-500"
+                      >
+                        • {tip}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "quiz" && (
+          <div className="card">
+            <h3 className="section-title flex items-center gap-2">
+              <Lightbulb size={16} /> 맞춤법 퀴즈
+            </h3>
+            {quizQuestions.length === 0 ? (
+              <div className="text-center py-6 text-gray-400">
+                <CheckCircle className="w-8 h-8 mx-auto mb-2" />
+                <p>맞춤법 실수가 없어서 퀴즈가 없어요!</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {quizQuestions.map((q: QuizQuestion, i: number) => (
+                  <div
+                    key={i}
+                    className="border-b border-gray-100 dark:border-gray-700 pb-4 last:border-0"
+                  >
+                    <p className="font-medium text-sm text-gray-900 dark:text-white mb-3">
+                      Q{i + 1}. {q.question}
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {q.options.map((opt: string, j: number) => {
+                        const selected = quizAnswers[i] === j;
+                        const isCorrect = j === q.answer;
+                        const showResult = quizSubmitted;
+                        return (
+                          <button
+                            key={j}
+                            onClick={() =>
+                              !quizSubmitted &&
+                              setQuizAnswers((prev) => ({ ...prev, [i]: j }))
+                            }
+                            disabled={quizSubmitted}
+                            className={`text-left px-4 py-2.5 rounded-lg text-sm transition border ${
+                              showResult && isCorrect
+                                ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                                : showResult && selected && !isCorrect
+                                  ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                                  : selected
+                                    ? "border-ssak-500 bg-ssak-50 dark:bg-ssak-900/20 text-ssak-700"
+                                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {quizSubmitted && (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                        💡 {q.tip}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                {!quizSubmitted ? (
+                  <button
+                    onClick={() => setQuizSubmitted(true)}
+                    disabled={
+                      Object.keys(quizAnswers).length < quizQuestions.length
+                    }
+                    className="btn-primary w-full"
+                  >
+                    정답 확인
+                  </button>
+                ) : (
+                  <div className="text-center py-2">
+                    <p className="text-lg font-bold text-ssak-600">
+                      {
+                        quizQuestions.filter(
+                          (_: QuizQuestion, i: number) =>
+                            quizAnswers[i] === _.answer,
+                        ).length
+                      }
+                      /{quizQuestions.length} 정답!
+                    </p>
+                    <button
+                      onClick={() => {
+                        setQuizAnswers({});
+                        setQuizSubmitted(false);
+                      }}
+                      className="text-sm text-gray-500 mt-2 underline"
+                    >
+                      다시 풀기
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
