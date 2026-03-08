@@ -1,0 +1,3 @@
+PNG icons need to be generated.
+Open public/icons/icon-generate.html in a browser to auto-generate all sizes.
+Or use the SVG favicon as a universal icon.

@@ -1,0 +1,445 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "../App";
+import { motion } from "framer-motion";
+import {
+  LogOut,
+  Plus,
+  Users,
+  ClipboardList,
+  BarChart3,
+  ChevronRight,
+  Eye,
+  MessageSquare,
+  Copy,
+  Check,
+  AlertTriangle,
+  Star as StarIcon,
+} from "lucide-react";
+import { api } from "../lib/api";
+import { formatDate, getScoreColor, truncate } from "../lib/utils";
+import type { ClassInfo, Writing } from "../types";
+
+const QUICK_FEEDBACKS = [
+  { type: "good", label: "잘했어", icon: "👍", message: "잘했어요! 👍" },
+  {
+    type: "content",
+    label: "내용 보충",
+    icon: "📝",
+    message: "내용을 좀 더 보충해보세요 📝",
+  },
+  {
+    type: "spelling",
+    label: "맞춤법 주의",
+    icon: "🔤",
+    message: "맞춤법에 주의해주세요 🔤",
+  },
+  {
+    type: "structure",
+    label: "구성 다듬기",
+    icon: "📐",
+    message: "글의 구성을 다듬어보세요 📐",
+  },
+  {
+    type: "expression",
+    label: "표현 다양하게",
+    icon: "✨",
+    message: "다양한 표현을 써보세요 ✨",
+  },
+];
+
+export default function TeacherDashboard() {
+  const { user, logout } = useAuth();
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [classStats, setClassStats] = useState<any>(null);
+  const [writings, setWritings] = useState<Writing[]>([]);
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [tab, setTab] = useState<"overview" | "writings" | "students">(
+    "overview",
+  );
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [feedbackWritingId, setFeedbackWritingId] = useState<string | null>(
+    null,
+  );
+  const [customFeedback, setCustomFeedback] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    api
+      .getClasses({ teacher_id: user.id })
+      .then(({ classes: c }) => {
+        setClasses(c);
+        if (c.length > 0) setSelectedClass(c[0].code);
+      })
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  useEffect(() => {
+    if (!selectedClass) return;
+    Promise.all([
+      api.getClassStats(selectedClass).catch(() => ({ stats: null })),
+      api
+        .getWritings({ class_code: selectedClass, limit: 50 })
+        .catch(() => ({ writings: [] })),
+    ]).then(([s, w]) => {
+      setClassStats(s.stats);
+      setWritings(w.writings);
+    });
+  }, [selectedClass]);
+
+  const handleCreateClass = async () => {
+    if (!newClassName.trim()) return;
+    try {
+      const { classInfo } = await api.createClass({ name: newClassName });
+      setClasses((prev) => [{ ...classInfo, student_count: 0 }, ...prev]);
+      setSelectedClass(classInfo.code);
+      setShowCreateClass(false);
+      setNewClassName("");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleFeedback = async (
+    writingId: string,
+    type: string,
+    message?: string,
+  ) => {
+    try {
+      await api.submitTeacherFeedback(writingId, { type, message });
+      setWritings((prev) =>
+        prev.map((w) =>
+          w.id === writingId
+            ? {
+                ...w,
+                teacher_feedback:
+                  QUICK_FEEDBACKS.find((f) => f.type === type)?.message ||
+                  message ||
+                  "",
+                teacher_feedback_at: new Date().toISOString(),
+              }
+            : w,
+        ),
+      );
+      setFeedbackWritingId(null);
+      setCustomFeedback("");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const currentClass = classes.find((c) => c.code === selectedClass);
+
+  if (loading)
+    return (
+      <div className="page-container flex items-center justify-center">
+        <div className="text-4xl animate-bounce-slow">🌱</div>
+      </div>
+    );
+
+  return (
+    <div className="page-container pb-20">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🌱</span>
+            <div>
+              <h1 className="font-bold text-gray-900 dark:text-white">
+                {user?.name} 선생님
+              </h1>
+              <p className="text-xs text-gray-500">교사 대시보드</p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <LogOut size={20} className="text-gray-600 dark:text-gray-400" />
+          </button>
+        </div>
+      </header>
+
+      <div className="content-container space-y-6">
+        {/* Class Selector */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {classes.map((c) => (
+            <button
+              key={c.code}
+              onClick={() => setSelectedClass(c.code)}
+              className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                selectedClass === c.code
+                  ? "bg-ssak-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {c.name} ({c.student_count || 0})
+            </button>
+          ))}
+          <button
+            onClick={() => setShowCreateClass(true)}
+            className="shrink-0 px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 flex items-center gap-1"
+          >
+            <Plus size={14} /> 학급 추가
+          </button>
+        </div>
+
+        {/* Class Code */}
+        {currentClass && (
+          <div className="card flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">학급 코드</p>
+              <p className="text-xl font-bold tracking-widest text-ssak-600">
+                {currentClass.code}
+              </p>
+            </div>
+            <button
+              onClick={() => copyCode(currentClass.code)}
+              className="btn-secondary flex items-center gap-1 text-sm"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "복사됨" : "복사"}
+            </button>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          {[
+            { key: "overview", label: "현황", icon: BarChart3 },
+            { key: "writings", label: "글 목록", icon: ClipboardList },
+            { key: "students", label: "학생", icon: Users },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key as any)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 ${
+                tab === t.key
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                  : "text-gray-500"
+              }`}
+            >
+              <t.icon size={14} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Overview Tab */}
+        {tab === "overview" && classStats && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card text-center">
+                <div className="text-2xl font-bold text-ssak-600">
+                  {classStats.totalStudents}
+                </div>
+                <div className="text-xs text-gray-500">학생 수</div>
+              </div>
+              <div className="card text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {classStats.submissionRate}%
+                </div>
+                <div className="text-xs text-gray-500">이번 주 제출률</div>
+              </div>
+            </div>
+
+            {classStats.needAttention?.length > 0 && (
+              <div className="card border-orange-200 bg-orange-50 dark:bg-orange-900/20">
+                <h3 className="font-semibold text-orange-700 dark:text-orange-400 mb-2 flex items-center gap-2">
+                  <AlertTriangle size={16} /> 관심 필요
+                </h3>
+                {classStats.needAttention.map((s: any, i: number) => (
+                  <p
+                    key={i}
+                    className="text-sm text-orange-600 dark:text-orange-500"
+                  >
+                    • {s.name}: {s.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {classStats.praiseWorthy?.length > 0 && (
+              <div className="card border-green-200 bg-green-50 dark:bg-green-900/20">
+                <h3 className="font-semibold text-green-700 dark:text-green-400 mb-2 flex items-center gap-2">
+                  <StarIcon size={16} /> 칭찬 대상
+                </h3>
+                {classStats.praiseWorthy.map((s: any, i: number) => (
+                  <p
+                    key={i}
+                    className="text-sm text-green-600 dark:text-green-500"
+                  >
+                    • {s.name}: {s.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {classStats.commonWeakness?.length > 0 && (
+              <div className="card">
+                <h3 className="section-title">학급 공통 약점</h3>
+                {classStats.commonWeakness.map((w: any, i: number) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between py-2 border-b last:border-0 border-gray-100 dark:border-gray-700"
+                  >
+                    <span className="text-sm">{w.pattern}</span>
+                    <span className="badge-yellow">{w.count}명</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Writings Tab - with 1-click feedback */}
+        {tab === "writings" && (
+          <div className="space-y-2">
+            {writings.length === 0 ? (
+              <div className="card text-center py-10 text-gray-400">
+                <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>아직 제출된 글이 없어요.</p>
+              </div>
+            ) : (
+              writings.map((w) => (
+                <div key={w.id} className="card">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                        {w.topic || truncate(w.content, 30)}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {formatDate(w.submitted_at || w.created_at)} ·{" "}
+                        {w.word_count}단어
+                      </p>
+                    </div>
+                    <span
+                      className={`text-lg font-bold ${getScoreColor(w.score_total)}`}
+                    >
+                      {w.score_total}
+                    </span>
+                  </div>
+
+                  {w.teacher_feedback ? (
+                    <div className="bg-ssak-50 dark:bg-ssak-900/20 rounded-lg px-3 py-2 text-sm text-ssak-700 dark:text-ssak-400">
+                      {w.teacher_feedback}
+                    </div>
+                  ) : feedbackWritingId === w.id ? (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {QUICK_FEEDBACKS.map((fb) => (
+                          <button
+                            key={fb.type}
+                            onClick={() => handleFeedback(w.id, fb.type)}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 hover:bg-ssak-100 dark:hover:bg-ssak-900/30 transition"
+                          >
+                            {fb.icon} {fb.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customFeedback}
+                          onChange={(e) => setCustomFeedback(e.target.value)}
+                          className="input-field text-sm flex-1"
+                          placeholder="직접 입력..."
+                        />
+                        <button
+                          onClick={() =>
+                            handleFeedback(w.id, "custom", customFeedback)
+                          }
+                          className="btn-primary text-sm px-3"
+                          disabled={!customFeedback.trim()}
+                        >
+                          전송
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setFeedbackWritingId(w.id)}
+                      className="text-sm text-ssak-600 flex items-center gap-1 mt-1"
+                    >
+                      <MessageSquare size={14} /> 피드백 주기
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Students Tab */}
+        {tab === "students" && classStats?.students && (
+          <div className="space-y-2">
+            {classStats.students.map((s: any) => (
+              <div
+                key={s.id}
+                className="card flex items-center justify-between"
+              >
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {s.name}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Lv.{s.level} · {s.writing_count}편 · 평균 {s.avg_score}점
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {s.streak_days >= 3 && (
+                    <span className="badge-green text-[10px]">
+                      🔥 {s.streak_days}일
+                    </span>
+                  )}
+                  <span className={`font-bold ${getScoreColor(s.avg_score)}`}>
+                    {s.avg_score}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create Class Modal */}
+        {showCreateClass && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+              <h2 className="text-lg font-bold mb-4">새 학급 만들기</h2>
+              <input
+                type="text"
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                className="input-field mb-4"
+                placeholder="학급 이름 (예: 3학년 2반)"
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCreateClass(false)}
+                  className="btn-secondary flex-1"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleCreateClass}
+                  className="btn-primary flex-1"
+                  disabled={!newClassName.trim()}
+                >
+                  만들기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

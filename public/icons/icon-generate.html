@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Generator</title></head>
+<body>
+<script>
+const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+
+function generateIcon(size) {
+  canvas.width = size;
+  canvas.height = size;
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#22c55e');
+  grad.addColorStop(1, '#16a34a');
+
+  const r = size * 0.18;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, r);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  const s = size / 512;
+  ctx.strokeStyle = 'white';
+  ctx.fillStyle = 'white';
+  ctx.lineWidth = 24 * s;
+  ctx.lineCap = 'round';
+
+  // Stem
+  ctx.beginPath();
+  ctx.moveTo(256*s, 420*s);
+  ctx.lineTo(256*s, 240*s);
+  ctx.stroke();
+
+  // Left leaf
+  ctx.beginPath();
+  ctx.moveTo(256*s, 280*s);
+  ctx.quadraticCurveTo(180*s, 230*s, 140*s, 200*s);
+  ctx.quadraticCurveTo(200*s, 220*s, 256*s, 250*s);
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+
+  // Right leaf
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.moveTo(256*s, 240*s);
+  ctx.quadraticCurveTo(330*s, 180*s, 380*s, 150*s);
+  ctx.quadraticCurveTo(320*s, 190*s, 256*s, 230*s);
+  ctx.fill();
+
+  // Top sprouts
+  ctx.globalAlpha = 0.95;
+  ctx.beginPath();
+  ctx.moveTo(256*s, 200*s);
+  ctx.quadraticCurveTo(230*s, 130*s, 230*s, 90*s);
+  ctx.quadraticCurveTo(256*s, 140*s, 256*s, 190*s);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.moveTo(256*s, 200*s);
+  ctx.quadraticCurveTo(282*s, 130*s, 282*s, 90*s);
+  ctx.quadraticCurveTo(256*s, 140*s, 256*s, 190*s);
+  ctx.fill();
+
+  ctx.globalAlpha = 1;
+
+  // Download
+  const link = document.createElement('a');
+  link.download = `icon-${size}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+sizes.forEach((size, i) => {
+  setTimeout(() => generateIcon(size), i * 500);
+});
+document.body.innerHTML = '<h1>Generating icons...</h1><p>Check your downloads folder</p>';
+</script>
+</body>
+</html>

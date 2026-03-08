@@ -1,0 +1,17 @@
+{
+  "totalDocuments": 1208,
+  "collections": {
+    "system": 6,
+    "rubrics": 695,
+    "examples": 382,
+    "feedbackPatterns": 41,
+    "writingTheory": 12,
+    "aiDetection": 8,
+    "topics": 53,
+    "learningPaths": 7,
+    "evaluationTools": 1,
+    "metadata": 3
+  },
+  "exportedAt": "2026-01-31T11:03:54.255Z",
+  "version": "2.0.0"
+}

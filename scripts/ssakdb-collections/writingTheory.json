@@ -1,0 +1,158 @@
+{
+  "academic-writing": {
+    "title": "학술 글쓰기",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "학술 글쓰기"
+    ],
+    "content": "\n# 📚 학술 글쓰기\n\n## 📌 개요\n\n학술 글쓰기에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/academic-writing.md"
+  },
+  "argumentation": {
+    "title": "논증 이론",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "논증"
+    ],
+    "content": "\n# 📚 논증 이론\n\n## 📌 개요\n\n논증은 주장을 근거로 뒷받침하여 독자를 설득하는 과정입니다.\n\n---\n\n## 🏗️ 툴민의 논증 모형\n\n### 기본 구조\n1. **주장(Claim)**: 입증하고자 하는 바\n2. **근거(Ground)**: 주장을 뒷받침하는 사실/증거\n3. **논거(Warrant)**: 근거와 주장을 연결하는 논리\n4. **보강(Backing)**: 논거를 지지하는 추가 정보\n5. **한정(Qualifier)**: 주장의 범위 제한\n6. **반박(Rebuttal)**: 예외 상황 인정\n\n### 예시\n- 주장: 규칙적인 운동은 건강에 좋다\n- 근거: 운동하는 사람들의 심장병 발생률이 낮다\n- 논거: 운동이 심혈관 건강을 개선한다는 연구 결과\n- 한정: 일반적으로, 대부분의 경우\n\n---\n\n## 📊 논증의 유형\n\n### 연역적 논증\n- 일반 → 특수\n- 결론이 전제에서 필연적으로 도출\n\n### 귀납적 논증\n- 특수 → 일반\n- 결론이 개연적으로 도출\n\n### 유추적 논증\n- 유사성에 기반\n- 알려진 사례에서 미지의 사례로\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/argumentation.md"
+  },
+  "business-writing": {
+    "title": "비즈니스 글쓰기",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "비즈니스 글쓰기"
+    ],
+    "content": "\n# 📚 비즈니스 글쓰기\n\n## 📌 개요\n\n비즈니스 글쓰기에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/business-writing.md"
+  },
+  "citation": {
+    "title": "인용과 출처",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "인용과 출처"
+    ],
+    "content": "\n# 📚 인용과 출처\n\n## 📌 개요\n\n인용과 출처에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/citation.md"
+  },
+  "creative-writing": {
+    "title": "창의적 글쓰기",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "창의적 글쓰기"
+    ],
+    "content": "\n# 📚 창의적 글쓰기\n\n## 📌 개요\n\n창의적 글쓰기에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/creative-writing.md"
+  },
+  "digital-writing": {
+    "title": "디지털 글쓰기",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "디지털 글쓰기"
+    ],
+    "content": "\n# 📚 디지털 글쓰기\n\n## 📌 개요\n\n디지털 글쓰기에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/digital-writing.md"
+  },
+  "genre-theory": {
+    "title": "장르 이론",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "장르 이론"
+    ],
+    "content": "\n# 📚 장르 이론\n\n## 📌 개요\n\n장르 이론에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/genre-theory.md"
+  },
+  "paragraph-structure": {
+    "title": "문단 구성",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "문단 구성"
+    ],
+    "content": "\n# 📚 문단 구성\n\n## 📌 개요\n\n문단 구성에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/paragraph-structure.md"
+  },
+  "rhetoric-basics": {
+    "title": "수사학 기초",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "수사학 기초"
+    ],
+    "content": "\n# 📚 수사학 기초\n\n## 📌 개요\n\n수사학 기초에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/rhetoric-basics.md"
+  },
+  "sentence-writing": {
+    "title": "문장 작성",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "문장 작성"
+    ],
+    "content": "\n# 📚 문장 작성\n\n## 📌 개요\n\n문장 작성에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/sentence-writing.md"
+  },
+  "vocabulary-style": {
+    "title": "어휘와 문체",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "어휘와 문체"
+    ],
+    "content": "\n# 📚 어휘와 문체\n\n## 📌 개요\n\n어휘와 문체에 대한 기본 개념과 원리를 설명합니다.\n\n---\n\n## 🎯 핵심 내용\n\n### 1. 기본 개념\n- 개념 정의\n- 핵심 원리\n- 적용 범위\n\n### 2. 실제 적용\n- 글쓰기에서의 활용\n- 예시와 실습\n\n### 3. 학습 포인트\n- 주요 학습 사항\n- 연습 방법\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/vocabulary-style.md"
+  },
+  "writing-process": {
+    "title": "글쓰기 과정 이론",
+    "category": "글쓰기이론",
+    "type": "이론",
+    "version": "2.0",
+    "created": "2025-01-18",
+    "tags": [
+      "이론",
+      "글쓰기 과정"
+    ],
+    "content": "\n# 📚 글쓰기 과정 이론\n\n## 📌 개요\n\n글쓰기는 단순히 결과물을 만드는 것이 아니라 여러 단계의 과정을 거칩니다.\n\n---\n\n## 🔄 글쓰기 5단계\n\n### 1. 계획하기 (Planning)\n- 주제 선정\n- 독자 분석\n- 목적 설정\n- 자료 수집\n\n### 2. 내용 생성 (Generating)\n- 브레인스토밍\n- 마인드맵\n- 자유 글쓰기\n- 아이디어 목록\n\n### 3. 조직하기 (Organizing)\n- 개요 작성\n- 구조 설계\n- 논리 흐름 정리\n\n### 4. 초고 작성 (Drafting)\n- 내용 풀어쓰기\n- 완벽하지 않아도 됨\n- 흐름에 집중\n\n### 5. 수정하기 (Revising)\n- 내용 수정\n- 표현 다듬기\n- 교정과 편집\n\n---\n\n## 💡 핵심 원리\n\n- 글쓰기는 **회귀적 과정**입니다\n- 각 단계를 왔다 갔다 하는 것이 자연스럽습니다\n- 완벽한 초고는 없습니다\n\n---\n\n*마지막 업데이트: 2025-01-18*\n",
+    "filePath": "c:/isw싹DB/ssak-writing-vault/04_글쓰기이론/writing-process.md"
+  }
+}

@@ -1,32 +1,39 @@
 {
-  "name": "ai-writing-assistant",
-  "version": "1.0.0",
+  "name": "ssak-writing",
+  "version": "2.0.0",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "vite",
-    "emulators": "firebase emulators:start",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy:all": "npm run build && firebase.cmd deploy --only hosting,firestore"
+    "d1:create": "wrangler d1 create ssak-db",
+    "d1:migrate": "wrangler d1 execute ssak-db --local --file=./schema/schema.sql",
+    "d1:migrate:remote": "wrangler d1 execute ssak-db --remote --file=./schema/schema.sql",
+    "pages:dev": "wrangler pages dev dist --d1=DB=ssak-db --compatibility-date=2024-01-01",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=ssak-writing --commit-message=\"deploy update\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "autoprefixer": "^10.4.16",
-    "firebase": "^10.14.1",
-    "framer-motion": "^10.16.16",
-    "lucide-react": "^0.563.0",
-    "postcss": "^8.4.32",
-    "react": "^18.2.0",
-    "react-confetti": "^6.1.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "tailwindcss": "^3.4.0",
-    "use-debounce": "^10.0.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "framer-motion": "^11.15.0",
+    "lucide-react": "^0.460.0",
+    "react-confetti": "^6.1.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.8",
-    "vite-plugin-pwa": "^1.2.0"
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-pwa": "^0.21.1",
+    "wrangler": "^3.99.0"
   }
 }

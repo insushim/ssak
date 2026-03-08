@@ -1,0 +1,2 @@
+Screenshots for PWA install prompt.
+Add desktop.png (1280x720) and mobile.png (390x844) after deployment.
