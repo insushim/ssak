@@ -1,8 +1,6 @@
 import { Env, jsonResponse, errorResponse, requireAuth } from "../_helpers";
 
-const GEMINI_API_KEY = "AIzaSyB29gLw_ko2cJVfj0xD_AY0CX7UuQu2Rn4";
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 const GRADE_NAMES: Record<string, string> = {
   elementary_1_2: "초등학교 1-2학년",
@@ -45,6 +43,7 @@ ${categoryText}
   ]
 }`;
 
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${context.env.GEMINI_API_KEY}`;
     const response = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

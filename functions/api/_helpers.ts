@@ -1,5 +1,6 @@
 export interface Env {
   DB: D1Database;
+  GEMINI_API_KEY: string;
 }
 
 export function jsonResponse(data: any, status = 200): Response {

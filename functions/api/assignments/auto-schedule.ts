@@ -3,9 +3,7 @@ import { Env, jsonResponse, errorResponse, requireAuth } from "../_helpers";
 // 스케줄러 설정 저장/조회/실행 API
 // 선생님이 자동 출제 규칙을 설정하면, 프론트에서 주기적으로 체크
 
-const GEMINI_API_KEY = "AIzaSyB29gLw_ko2cJVfj0xD_AY0CX7UuQu2Rn4";
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 const WRITING_TYPES = [
   "주장하는 글", "설명하는 글", "묘사하는 글", "서사/이야기",
@@ -58,7 +56,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     // action: "save" | "run"
     if (data.action === "run") {
-      return await runAutoAssignment(context.env.DB, data.class_code, user.id);
+      return await runAutoAssignment(context.env.DB, data.class_code, user.id, context.env.GEMINI_API_KEY);
     }
 
     // 스케줄러 설정 저장
@@ -86,7 +84,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 };
 
-async function runAutoAssignment(db: D1Database, classCode: string, teacherId: string) {
+async function runAutoAssignment(db: D1Database, classCode: string, teacherId: string, apiKey: string) {
   const randomType = WRITING_TYPES[Math.floor(Math.random() * WRITING_TYPES.length)];
   const randomCategory = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
@@ -101,6 +99,7 @@ JSON 형식으로만 응답:
 {"title": "주제 제목", "description": "간단한 설명"}`;
 
   try {
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
     const response = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
