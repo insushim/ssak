@@ -108,6 +108,21 @@ export const api = {
       },
     ),
 
+  getAutoSchedule: (classCode: string) =>
+    request<{ schedule: any }>(`/assignments/auto-schedule?class_code=${classCode}`),
+
+  saveAutoSchedule: (data: { class_code: string; enabled: boolean; selected_days: number[]; grade_level: string }) =>
+    request<{ success: boolean }>("/assignments/auto-schedule", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  runAutoAssignment: (classCode: string) =>
+    request<{ success: boolean; assignment: any }>("/assignments/auto-schedule", {
+      method: "POST",
+      body: JSON.stringify({ action: "run", class_code: classCode }),
+    }),
+
   // Stats
   getStudentStats: (userId: string) =>
     request<{ stats: any; errorPatterns: any[]; monthlyStats: any[] }>(

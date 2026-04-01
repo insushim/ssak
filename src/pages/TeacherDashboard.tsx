@@ -14,6 +14,8 @@ import {
   Check,
   AlertTriangle,
   Star as StarIcon,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { formatDate, getScoreColor, truncate } from "../lib/utils";
@@ -64,6 +66,11 @@ export default function TeacherDashboard() {
     null,
   );
   const [customFeedback, setCustomFeedback] = useState("");
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false);
+  const [assignTitle, setAssignTitle] = useState("");
+  const [assignDesc, setAssignDesc] = useState("");
+  const [aiTopics, setAiTopics] = useState<{ title: string; description: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -127,6 +134,41 @@ export default function TeacherDashboard() {
       setCustomFeedback("");
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleCreateAssignment = async () => {
+    if (!assignTitle.trim() || !selectedClass) return;
+    try {
+      await api.createAssignment({
+        title: assignTitle,
+        description: assignDesc,
+        class_code: selectedClass,
+        topic: assignTitle,
+        grade_level: currentClass?.grade_level || "",
+      });
+      setShowCreateAssignment(false);
+      setAssignTitle("");
+      setAssignDesc("");
+      setAiTopics([]);
+      alert("과제가 출제되었습니다!");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleGenerateTopics = async () => {
+    setAiLoading(true);
+    try {
+      const { topics } = await api.generateTopics(
+        currentClass?.grade_level || "elementary_3_4",
+        5,
+      );
+      setAiTopics(topics);
+    } catch (err: any) {
+      alert("주제 생성 실패: " + err.message);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -231,6 +273,87 @@ export default function TeacherDashboard() {
             </button>
           ))}
         </div>
+
+        {/* 과제 출제 */}
+        {tab === "overview" && currentClass && (
+          <div className="card">
+            {!showCreateAssignment ? (
+              <button
+                onClick={() => setShowCreateAssignment(true)}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-ssak-300 text-ssak-600 font-medium flex items-center justify-center gap-2 hover:bg-ssak-50 transition"
+              >
+                <Plus size={18} /> 새 과제 출제하기
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-900 dark:text-white">새 과제</h3>
+                <div>
+                  <input
+                    value={assignTitle}
+                    onChange={(e) => setAssignTitle(e.target.value)}
+                    placeholder="주제 / 제목"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 dark:bg-gray-700 text-sm"
+                  />
+                </div>
+                <textarea
+                  value={assignDesc}
+                  onChange={(e) => setAssignDesc(e.target.value)}
+                  placeholder="설명 (선택)"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 dark:bg-gray-700 text-sm"
+                />
+
+                {/* AI 주제 추천 */}
+                <button
+                  onClick={handleGenerateTopics}
+                  disabled={aiLoading}
+                  className="w-full py-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {aiLoading ? (
+                    <><Loader2 size={14} className="animate-spin" /> 생성 중...</>
+                  ) : (
+                    <><Sparkles size={14} /> AI 주제 추천</>
+                  )}
+                </button>
+
+                {aiTopics.length > 0 && (
+                  <div className="space-y-1">
+                    {aiTopics.map((t, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setAssignTitle(t.title); setAssignDesc(t.description); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition ${
+                          assignTitle === t.title
+                            ? "border-ssak-500 bg-ssak-50 dark:bg-ssak-900/20"
+                            : "border-gray-200 dark:border-gray-600 hover:border-ssak-300"
+                        }`}
+                      >
+                        <span className="font-medium">{t.title}</span>
+                        <span className="block text-xs text-gray-500 mt-0.5">{t.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowCreateAssignment(false); setAiTopics([]); }}
+                    className="flex-1 btn-secondary text-sm"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleCreateAssignment}
+                    disabled={!assignTitle.trim()}
+                    className="flex-1 btn-primary text-sm disabled:opacity-50"
+                  >
+                    출제하기
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Overview Tab */}
         {tab === "overview" && classStats && (

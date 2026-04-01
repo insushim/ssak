@@ -167,3 +167,18 @@ CREATE TABLE IF NOT EXISTS teacher_feedbacks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_teacher_fb_writing ON teacher_feedbacks(writing_id);
+
+-- Auto Assignment Schedules
+CREATE TABLE IF NOT EXISTS auto_schedules (
+  id TEXT PRIMARY KEY,
+  class_code TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  enabled INTEGER DEFAULT 0,
+  selected_days TEXT DEFAULT '[1,2,3,4,5]',
+  grade_level TEXT DEFAULT '',
+  last_run TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_schedule_class ON auto_schedules(class_code);
