@@ -356,8 +356,9 @@ export default function TeacherDashboard() {
         )}
 
         {/* Overview Tab */}
-        {tab === "overview" && classStats && (
+        {tab === "overview" && (
           <div className="space-y-4">
+            {classStats && (<>
             <div className="grid grid-cols-2 gap-3">
               <div className="card text-center">
                 <div className="text-2xl font-bold text-ssak-600">
@@ -417,6 +418,14 @@ export default function TeacherDashboard() {
                     <span className="badge-yellow">{w.count}명</span>
                   </div>
                 ))}
+              </div>
+            )}
+            </>)}
+
+            {!classStats && (
+              <div className="card text-center py-8 text-gray-400">
+                <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>학생이 글을 제출하면 통계가 표시됩니다.</p>
               </div>
             )}
           </div>
@@ -501,33 +510,49 @@ export default function TeacherDashboard() {
         )}
 
         {/* Students Tab */}
-        {tab === "students" && classStats?.students && (
-          <div className="space-y-2">
-            {classStats.students.map((s: any) => (
-              <div
-                key={s.id}
-                className="card flex items-center justify-between"
-              >
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {s.name}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Lv.{s.level} · {s.writing_count}편 · 평균 {s.avg_score}점
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {s.streak_days >= 3 && (
-                    <span className="badge-green text-[10px]">
-                      🔥 {s.streak_days}일
-                    </span>
-                  )}
-                  <span className={`font-bold ${getScoreColor(s.avg_score)}`}>
-                    {s.avg_score}
-                  </span>
-                </div>
+        {tab === "students" && (
+          <div className="space-y-3">
+            {/* 학급 코드 안내 */}
+            {currentClass && (
+              <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200">
+                <p className="text-sm text-blue-700 dark:text-blue-400 mb-1 font-medium">학생 참여 방법</p>
+                <p className="text-xs text-blue-600 dark:text-blue-500">학생이 회원가입 시 학급 코드 <strong className="text-blue-800 dark:text-blue-300">{currentClass.code}</strong>를 입력하면 자동으로 이 학급에 참여됩니다.</p>
               </div>
-            ))}
+            )}
+
+            {classStats?.students && classStats.students.length > 0 ? (
+              classStats.students.map((s: any) => (
+                <div
+                  key={s.id}
+                  className="card flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {s.name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Lv.{s.level} · {s.writing_count}편 · 평균 {s.avg_score}점
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {s.streak_days >= 3 && (
+                      <span className="badge-green text-[10px]">
+                        🔥 {s.streak_days}일
+                      </span>
+                    )}
+                    <span className={`font-bold ${getScoreColor(s.avg_score)}`}>
+                      {s.avg_score}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="card text-center py-10 text-gray-400">
+                <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>아직 참여한 학생이 없어요.</p>
+                <p className="text-xs mt-1">학생에게 학급 코드를 알려주세요!</p>
+              </div>
+            )}
           </div>
         )}
 
