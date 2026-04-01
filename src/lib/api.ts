@@ -99,6 +99,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  generateTopics: (gradeLevel: string, count = 5, category?: string) =>
+    request<{ topics: { title: string; description: string; category: string }[] }>(
+      "/assignments/generate-topics",
+      {
+        method: "POST",
+        body: JSON.stringify({ gradeLevel, count, category }),
+      },
+    ),
+
   // Stats
   getStudentStats: (userId: string) =>
     request<{ stats: any; errorPatterns: any[]; monthlyStats: any[] }>(
