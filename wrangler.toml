@@ -5,4 +5,4 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "ssak-db"
-database_id = "bbfdd051-6445-42fa-be52-73d2b503f103"
+database_id = "b2907d21-5617-4e2b-8cd0-003387eb935a"
