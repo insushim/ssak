@@ -89,6 +89,12 @@ export const api = {
   joinClass: (code: string) =>
     request<{ success: boolean }>(`/classes/${code}/join`, { method: "POST" }),
 
+  batchCreateStudents: (classCode: string, prefix: string, count: number) =>
+    request<{ created: { loginId: string; password: string }[]; skipped: string[]; total: number }>(
+      `/classes/${classCode}/batch-students`,
+      { method: "POST", body: JSON.stringify({ prefix, count }) },
+    ),
+
   // Assignments
   getAssignments: (classCode: string) =>
     request<{ assignments: any[] }>(`/assignments?class_code=${classCode}`),
